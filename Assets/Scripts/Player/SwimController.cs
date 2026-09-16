@@ -77,9 +77,7 @@ public class SwimController : MonoBehaviour
         Vector2 move = moveAction.ReadValue<Vector2>();
         float speedMultiplier = sprintAction.IsPressed() ? sprintMultiplier : 1f;
 
-        // Forward/strafe follow the camera's full pitch, so looking up or down
-        // while swimming forward is the only way to change depth - no separate
-        // up/down keys needed.
+
         Vector3 wishDirection = cameraPivot.forward * move.y + transform.right * move.x;
         if (wishDirection.sqrMagnitude > 1f)
             wishDirection.Normalize();
