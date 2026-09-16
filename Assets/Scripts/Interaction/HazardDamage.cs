@@ -1,10 +1,13 @@
 using UnityEngine;
 
+// Trigger volume that hurts whatever touches it (spikes, poison, etc.).
 [RequireComponent(typeof(Collider))]
 public class HazardDamage : MonoBehaviour
 {
     [SerializeField] private float damageAmount = 10f;
     [SerializeField] private float damageInterval = 1f;
+    [Tooltip("If on, only damages once when something enters, not continuously while it stays.")]
+    [SerializeField] private bool damageOnEnterOnly = false;
 
     private float nextDamageTime;
 
@@ -15,7 +18,8 @@ public class HazardDamage : MonoBehaviour
 
     private void OnTriggerStay(Collider other)
     {
-        TryDamage(other);
+        if (!damageOnEnterOnly)
+            TryDamage(other);
     }
 
     private void TryDamage(Collider other)
@@ -23,11 +27,11 @@ public class HazardDamage : MonoBehaviour
         if (Time.time < nextDamageTime)
             return;
 
-        var damageManager = other.GetComponentInParent<DamageManager>();
-        if (damageManager == null)
+        var damageable = other.GetComponentInParent<IDamageable>();
+        if (damageable == null)
             return;
 
         nextDamageTime = Time.time + damageInterval;
-        damageManager.ApplyDamage(damageAmount);
+        damageable.TakeDamage(damageAmount);
     }
 }

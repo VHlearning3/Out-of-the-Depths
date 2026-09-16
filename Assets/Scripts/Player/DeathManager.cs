@@ -1,6 +1,9 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.UI;
 
+// Death and respawn: freezes the player, shows the death screen and countdown, then teleports to the active checkpoint.
 public class DeathManager : MonoBehaviour
 {
     [Header("References")]
@@ -12,6 +15,14 @@ public class DeathManager : MonoBehaviour
 
     [Header("Respawn")]
     [SerializeField] private float respawnDelay = 3f;
+    [SerializeField] private Text countdownLabel;
+    [SerializeField] private string countdownFormat = "Respawning in {0}...";
+
+    [Header("Events")]
+    public UnityEvent onDied = new UnityEvent();
+    public UnityEvent onRespawned = new UnityEvent();
+
+    public bool IsDead { get; private set; }
 
     private CharacterController characterController;
 
@@ -32,8 +43,17 @@ public class DeathManager : MonoBehaviour
             healthSystem.onDeath.RemoveListener(HandleDeath);
     }
 
+    public void SetRespawnPoint(Transform point)
+    {
+        respawnPoint = point;
+    }
+
     private void HandleDeath()
     {
+        if (IsDead)
+            return;
+
+        IsDead = true;
         SetGameplayEnabled(false);
 
         if (deathScreen != null)
@@ -42,12 +62,25 @@ public class DeathManager : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
+        onDied.Invoke();
         StartCoroutine(RespawnAfterDelay());
     }
 
     private IEnumerator RespawnAfterDelay()
     {
-        yield return new WaitForSeconds(respawnDelay);
+        float remaining = respawnDelay;
+        while (remaining > 0f)
+        {
+            if (countdownLabel != null)
+                countdownLabel.text = string.Format(countdownFormat, Mathf.CeilToInt(remaining));
+
+            yield return null;
+            remaining -= Time.deltaTime;
+        }
+
+        if (countdownLabel != null)
+            countdownLabel.text = string.Empty;
+
         Respawn();
     }
 
@@ -73,6 +106,9 @@ public class DeathManager : MonoBehaviour
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        IsDead = false;
+        onRespawned.Invoke();
     }
 
     private void SetGameplayEnabled(bool value)

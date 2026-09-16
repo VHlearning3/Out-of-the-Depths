@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+// First-person swimming: mouse look, WASD swim (pitch changes depth), sprint, and the camera bank/sway/bob feel.
 [RequireComponent(typeof(CharacterController))]
 public class SwimController : MonoBehaviour
 {

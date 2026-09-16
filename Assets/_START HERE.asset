@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fcf7219bab7fe46a1ad266029b2fee19, type: 3}
+  m_Name: _START HERE
+  m_EditorClassIdentifier:
+  icon: {fileID: 2800000, guid: 727a75301c3d24613a3ebcec4a24c2c8, type: 3}
+  title: Out of the Depths - project guide
+  sections:
+  - heading: Scenes
+    text: 'MainMenu = start screen. Main_Scene = the real level. TestArena = flat arena with the player, every fish, a hazard and checkpoints. Use TestArena to try things; it is not in builds.'
+    linkText:
+    url:
+  - heading: Controls
+    text: 'Mouse look (look up/down to change depth), WASD swim, Shift sprint, E interact / eat, Left mouse slash, 0 = admin panel (spawn fish, god mode, fish colour, time scale).'
+    linkText:
+    url:
+  - heading: Artists - swapping placeholders
+    text: 'Everything grey and blocky is a placeholder. Replace the visual, keep the object that has the scripts. Fish prefabs are in Art/Prefabs/Placeholders: swap the Visual child for your model (nose along +Z) and set Fish Controller > Visual. Colour fish with the Renderer Tint component. Hands: Player > CameraPivot > Hands; anything implementing IHandAnimator plugs into Slash Attack. Sounds: every sound is a field on the component that plays it.'
+    linkText: Open the full guide (README.md on GitHub)
+    url: https://github.com/VHlearning3/Out-of-the-Depths
+  - heading: Where things are
+    text: 'Art/ models, materials, prefabs, textures. Scenes/ the three scenes. Scripts/ Player, Combat, Creatures, Interaction, UI, Environment - every script starts with a one-line description. Sound/ SFX, music, ambience.'
+    linkText:
+    url:
+  - heading: Design document
+    text: 'The GDD has the mechanics table, room-by-room demo flow, puzzle list and asset list.'
+    linkText: Open the GDD
+    url: https://docs.google.com/document/d/13_2u-vNOkEtTL4YWukK6gxh_4NgNRiDHsvID02H33mQ/edit?usp=sharing
+  loadedLayout: 1

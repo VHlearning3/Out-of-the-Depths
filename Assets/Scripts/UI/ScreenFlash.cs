@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+// Full-screen colour flash that fades out (damage = red, food = green).
 public class ScreenFlash : MonoBehaviour
 {
     [SerializeField] private Image flashImage;
@@ -29,11 +30,17 @@ public class ScreenFlash : MonoBehaviour
 
     public void Flash()
     {
+        Flash(1f);
+    }
+
+    // strength scales the configured alpha, so a big hit flashes harder than a scratch.
+    public void Flash(float strength)
+    {
         if (flashImage == null)
             return;
 
         var c = flashImage.color;
-        c.a = flashAlpha;
+        c.a = Mathf.Max(c.a, flashAlpha * Mathf.Clamp(strength, 0.25f, 2f));
         flashImage.color = c;
     }
 }

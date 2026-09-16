@@ -1,6 +1,9 @@
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
+// Finds the best IInteractable you are looking at, shows the 'Press E to ...' prompt, and triggers it on Interact.
 public class PlayerInteractor : MonoBehaviour
 {
     [Header("References")]
@@ -10,14 +13,25 @@ public class PlayerInteractor : MonoBehaviour
     [Header("Interaction")]
     [SerializeField] private float interactRange = 2.5f;
     [SerializeField] private LayerMask interactableMask = ~0;
+    [Tooltip("How much the target has to be in front of the camera. 0 = anywhere around you, 1 = dead centre.")]
+    [SerializeField, Range(0f, 1f)] private float minLookAlignment = 0.3f;
+
+    [Header("Prompt")]
+    [SerializeField] private Text promptLabel;
+    [SerializeField] private string promptFormat = "Press E to {0}";
+
+    [Header("Events")]
+    public UnityEvent<GameObject> onTargetChanged = new UnityEvent<GameObject>();
+
+    public IInteractable CurrentTarget { get; private set; }
 
     private InputAction interactAction;
-    private readonly Collider[] overlapResults = new Collider[8];
+    private GameObject currentTargetObject;
+    private readonly Collider[] overlapResults = new Collider[16];
 
     private void Awake()
     {
-        var playerMap = inputActions.FindActionMap("Player");
-        interactAction = playerMap.FindAction("Interact");
+        interactAction = inputActions.FindActionMap("Player").FindAction("Interact");
     }
 
     private void OnEnable()
@@ -28,14 +42,29 @@ public class PlayerInteractor : MonoBehaviour
     private void OnDisable()
     {
         interactAction.performed -= OnInteractPerformed;
+        SetTarget(null, null);
+    }
+
+    private void Update()
+    {
+        FindTarget(out var target, out var targetObject);
+        if (targetObject != currentTargetObject)
+            SetTarget(target, targetObject);
     }
 
     private void OnInteractPerformed(InputAction.CallbackContext context)
     {
-        Vector3 origin = interactOrigin != null ? interactOrigin.position : transform.position;
+        CurrentTarget?.Interact(gameObject);
+    }
 
-        IInteractable closest = null;
-        float closestSqrDist = float.MaxValue;
+    private void FindTarget(out IInteractable best, out GameObject bestObject)
+    {
+        best = null;
+        bestObject = null;
+        float bestScore = float.MinValue;
+
+        Vector3 origin = interactOrigin != null ? interactOrigin.position : transform.position;
+        Vector3 forward = interactOrigin != null ? interactOrigin.forward : transform.forward;
 
         int count = Physics.OverlapSphereNonAlloc(origin, interactRange, overlapResults, interactableMask);
         for (int i = 0; i < count; i++)
@@ -44,14 +73,35 @@ public class PlayerInteractor : MonoBehaviour
             if (interactable == null)
                 continue;
 
-            float sqrDist = (overlapResults[i].transform.position - origin).sqrMagnitude;
-            if (sqrDist < closestSqrDist)
-            {
-                closestSqrDist = sqrDist;
-                closest = interactable;
-            }
-        }
+            // A disabled interactable (e.g. a fish that is still alive) is not a valid target.
+            if (interactable is Behaviour behaviour && !behaviour.isActiveAndEnabled)
+                continue;
 
-        closest?.Interact(gameObject);
+            Vector3 toTarget = overlapResults[i].bounds.center - origin;
+            float distance = toTarget.magnitude;
+            float alignment = distance > 0.001f ? Vector3.Dot(forward, toTarget / distance) : 1f;
+            if (alignment < minLookAlignment)
+                continue;
+
+            // Prefer what you're looking at, then what's closest.
+            float score = alignment * 2f - distance / interactRange;
+            if (score <= bestScore)
+                continue;
+
+            bestScore = score;
+            best = interactable;
+            bestObject = ((Component)interactable).gameObject;
+        }
+    }
+
+    private void SetTarget(IInteractable target, GameObject targetObject)
+    {
+        CurrentTarget = target;
+        currentTargetObject = targetObject;
+
+        if (promptLabel != null)
+            promptLabel.text = target != null ? string.Format(promptFormat, target.Prompt) : string.Empty;
+
+        onTargetChanged.Invoke(targetObject);
     }
 }

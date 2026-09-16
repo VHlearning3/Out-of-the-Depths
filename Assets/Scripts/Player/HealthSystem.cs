@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.Events;
 
+// Player health pool: takes damage, regenerates when well fed, ticks starvation damage, fires onDeath.
 public class HealthSystem : MonoBehaviour
 {
     [System.Serializable]
@@ -15,6 +16,13 @@ public class HealthSystem : MonoBehaviour
     [SerializeField] private float starveDamagePerTick = 5f;
     [SerializeField] private float starveTickInterval = 1f;
 
+    [Header("Regeneration")]
+    [Tooltip("Health regained per second while well fed and not recently hurt.")]
+    [SerializeField] private float regenPerSecond = 2f;
+    [Tooltip("Hunger must be above this fraction for regen to run.")]
+    [SerializeField, Range(0f, 1f)] private float regenHungerThreshold01 = 0.5f;
+    [SerializeField] private float regenDelayAfterDamage = 3f;
+
     [Header("UI")]
     [SerializeField] private StatBarUI healthBar;
     [SerializeField] private ScreenFlash damageFlash;
@@ -25,10 +33,12 @@ public class HealthSystem : MonoBehaviour
 
     public float CurrentHealth { get; private set; }
     public float MaxHealth => maxHealth;
+    public float HealthPercent01 => maxHealth <= 0f ? 0f : CurrentHealth / maxHealth;
     public bool IsDead => CurrentHealth <= 0f;
 
     private bool deathEventFired;
     private float nextStarveTickTime;
+    private float lastDamageTime = float.NegativeInfinity;
 
     private void Awake()
     {
@@ -44,14 +54,23 @@ public class HealthSystem : MonoBehaviour
 
     private void Update()
     {
-        if (IsDead || hungerSystem == null || hungerSystem.CurrentHunger > 0f)
+        if (IsDead)
             return;
 
-        if (Time.time < nextStarveTickTime)
+        if (hungerSystem != null && hungerSystem.IsStarving)
+        {
+            if (Time.time >= nextStarveTickTime)
+            {
+                nextStarveTickTime = Time.time + starveTickInterval;
+                TakeDamage(starveDamagePerTick);
+            }
             return;
+        }
 
-        nextStarveTickTime = Time.time + starveTickInterval;
-        TakeDamage(starveDamagePerTick);
+        bool wellFed = hungerSystem == null || hungerSystem.HungerPercent01 >= regenHungerThreshold01;
+        bool recentlyHurt = Time.time - lastDamageTime < regenDelayAfterDamage;
+        if (wellFed && !recentlyHurt && CurrentHealth < maxHealth && regenPerSecond > 0f)
+            SetHealth(CurrentHealth + regenPerSecond * Time.deltaTime);
     }
 
     public void TakeDamage(float amount)
@@ -59,6 +78,7 @@ public class HealthSystem : MonoBehaviour
         if (amount <= 0f || IsDead)
             return;
 
+        lastDamageTime = Time.time;
         SetHealth(CurrentHealth - amount);
     }
 
@@ -73,6 +93,7 @@ public class HealthSystem : MonoBehaviour
     public void ResetHealth()
     {
         deathEventFired = false;
+        lastDamageTime = float.NegativeInfinity;
         SetHealth(maxHealth);
     }
 
@@ -86,7 +107,7 @@ public class HealthSystem : MonoBehaviour
             healthBar.SetValue(CurrentHealth, maxHealth);
 
         if (CurrentHealth < previous && damageFlash != null)
-            damageFlash.Flash();
+            damageFlash.Flash(Mathf.Clamp01((previous - CurrentHealth) / maxHealth * 4f));
 
         if (CurrentHealth <= 0f && !deathEventFired)
         {
