@@ -70,6 +70,12 @@ public class HealthSystem : MonoBehaviour
         SetHealth(CurrentHealth + amount);
     }
 
+    public void ResetHealth()
+    {
+        deathEventFired = false;
+        SetHealth(maxHealth);
+    }
+
     private void SetHealth(float value)
     {
         float previous = CurrentHealth;

@@ -57,6 +57,12 @@ public class HungerSystem : MonoBehaviour
             foodFlash.Flash();
     }
 
+    public void ResetHunger()
+    {
+        depletedEventFired = false;
+        SetHunger(maxHunger);
+    }
+
     private void SetHunger(float value)
     {
         CurrentHunger = Mathf.Clamp(value, 0f, maxHunger);
