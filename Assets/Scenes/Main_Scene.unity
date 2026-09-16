@@ -4218,9 +4218,14 @@ MonoBehaviour:
   swimSpeed: 3.5
   sprintMultiplier: 1.8
   acceleration: 4
-  drag: 3
+  drag: 1.5
   strafeRollAngle: 4
+  turnRollAngle: 5
   rollSmoothTime: 0.3
+  swayAmplitude: 1.5
+  swayFrequency: 0.25
+  bobAmplitude: 0.05
+  bobFrequency: 0.35
 --- !u!114 &900100010
 MonoBehaviour:
   m_ObjectHideFlags: 0
