@@ -1,15 +1,17 @@
 using UnityEngine;
 using UnityEngine.Events;
 
-// Trigger plate that becomes the active respawn point when the player swims through it, with a chime and glow.
+// Respawn plate: press E on it to make it the active respawn point (chime + glow). The active plate stays lit and
+// can't be re-activated until another one takes over.
 [RequireComponent(typeof(Collider))]
-public class Checkpoint : MonoBehaviour
+public class Checkpoint : MonoBehaviour, IInteractable
 {
     [Header("Respawn")]
     [Tooltip("Where the player reappears. Leave empty to use this object.")]
     [SerializeField] private Transform respawnPoint;
     [Tooltip("Treat this as already active at start (no sound). Use for the initial spawn.")]
     [SerializeField] private bool startsActivated = false;
+    [SerializeField] private string prompt = "activate checkpoint";
 
     [Header("Feedback")]
     [SerializeField] private AudioClip activateSound;
@@ -22,6 +24,7 @@ public class Checkpoint : MonoBehaviour
 
     public static Checkpoint Current { get; private set; }
     public bool IsActive => Current == this;
+    public string Prompt => prompt;
 
     private static readonly int EmissionId = Shader.PropertyToID("_EmissionColor");
     private Renderer[] renderers;
@@ -35,15 +38,15 @@ public class Checkpoint : MonoBehaviour
         if (startsActivated && Current == null)
             Current = this;
 
-        ApplyEmission();
+        ApplyState();
     }
 
-    private void OnTriggerEnter(Collider other)
+    public void Interact(GameObject interactor)
     {
         if (IsActive)
             return;
 
-        var death = other.GetComponentInParent<DeathManager>();
+        var death = interactor.GetComponentInParent<DeathManager>();
         if (death == null)
             return;
 
@@ -54,19 +57,22 @@ public class Checkpoint : MonoBehaviour
     {
         Checkpoint previous = Current;
         Current = this;
-        previous?.ApplyEmission();
+        if (previous != null)
+            previous.ApplyState();
 
         death.SetRespawnPoint(respawnPoint != null ? respawnPoint : transform);
 
         if (activateSound != null)
             AudioSource.PlayClipAtPoint(activateSound, transform.position, activateVolume);
 
-        ApplyEmission();
+        ApplyState();
         onActivated.Invoke();
     }
 
-    private void ApplyEmission()
+    // The active plate is disabled so the E prompt only shows on plates you can still activate.
+    private void ApplyState()
     {
+        enabled = !IsActive;
         block.SetColor(EmissionId, IsActive ? activeEmission : inactiveEmission);
         foreach (var r in renderers)
             r.SetPropertyBlock(block);

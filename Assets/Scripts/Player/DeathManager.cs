@@ -56,6 +56,9 @@ public class DeathManager : MonoBehaviour
         IsDead = true;
         SetGameplayEnabled(false);
 
+        if (hungerSystem != null)
+            hungerSystem.WarningMuted = true;
+
         if (deathScreen != null)
             deathScreen.SetActive(true);
 
@@ -97,7 +100,10 @@ public class DeathManager : MonoBehaviour
             healthSystem.ResetHealth();
 
         if (hungerSystem != null)
+        {
+            hungerSystem.WarningMuted = false;
             hungerSystem.ResetHunger();
+        }
 
         if (deathScreen != null)
             deathScreen.SetActive(false);

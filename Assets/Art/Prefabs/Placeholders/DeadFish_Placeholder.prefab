@@ -13,6 +13,8 @@ GameObject:
   - component: {fileID: 3118173204260223825}
   - component: {fileID: 7065141331686646756}
   - component: {fileID: 5155922762715014972}
+  - component: {fileID: 1886284428419895992}
+  - component: {fileID: 4708607877788716348}
   m_Layer: 0
   m_Name: DeadFish_Placeholder
   m_TagString: Untagged
@@ -126,5 +128,51 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   hungerRestoreAmount: 25
+  prompt: eat
+  respawnTime: 0
   eatSound: {fileID: 0}
+  eatVolume: 0.6
   consumedVfx: {fileID: 0}
+  onEaten:
+    m_PersistentCalls:
+      m_Calls: []
+  onRespawned:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &1886284428419895992
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4769947702004339987}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cc75dbe52f8d0de45b0bca024e31e5b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractableHighlight
+  highlightColor: {r: 1, g: 0.95, b: 0.75, a: 1}
+  tintStrength: 0.3
+  brightness: 0.6
+  emission: {r: 1.5, g: 1.2, b: 0.6, a: 1}
+  fadeTime: 0.12
+  pulseSpeed: 1.5
+  pulseAmount: 0.35
+--- !u!114 &4708607877788716348
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4769947702004339987}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bdd58122e0def9f468f702c90a0820ba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractableIndicator
+  effectPrefab: {fileID: 3295423461172553804, guid: dc64b1000e8749d40b823b46d61a1af6, type: 3}
+  fitToModel: 1
+  fitPadding: 1.2
+  targetedRateMultiplier: 4
+  targetedBurst: 12
+  onlyWhileInteractable: 1

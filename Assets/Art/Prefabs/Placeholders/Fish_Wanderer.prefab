@@ -15,6 +15,8 @@ GameObject:
   - component: {fileID: 900900006}
   - component: {fileID: 900900007}
   - component: {fileID: 900900008}
+  - component: {fileID: 7492542406186218246}
+  - component: {fileID: 4489476218308003203}
   m_Layer: 0
   m_Name: Fish_Wanderer
   m_TagString: Untagged
@@ -69,8 +71,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e0914f2d2f812c73d9957563e89be1ed, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   maxHealth: 20
   destroyOnDeath: 0
   destroyDelay: 0
@@ -98,8 +100,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 16efe9debcea6ba5a8505f2771f2d4f7, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   hungerRestoreAmount: 30
   prompt: eat
   respawnTime: 20
@@ -122,8 +124,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3413f66cb50c02baa15eed0c6a27351f, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   wanderRadius: 3
   verticalRange: 1
   speed: 1.2
@@ -140,14 +142,64 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 67c3a6f8a8f69bf88ff652980c6bb6eb, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   wander: {fileID: 900900006}
   disabledWhileDead: []
   visual: {fileID: 900900011}
   deathFlipDuration: 0.5
   deathFloatSpeed: 0.25
   deathFloatDistance: 0.8
+--- !u!114 &900900008
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900900001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eb1ff2eeaebcb26dd93706756659291e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  tint: {r: 1, g: 1, b: 1, a: 1}
+--- !u!114 &7492542406186218246
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900900001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cc75dbe52f8d0de45b0bca024e31e5b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractableHighlight
+  highlightColor: {r: 1, g: 0.95, b: 0.75, a: 1}
+  tintStrength: 0.3
+  brightness: 0.6
+  emission: {r: 1.5, g: 1.2, b: 0.6, a: 1}
+  fadeTime: 0.12
+  pulseSpeed: 1.5
+  pulseAmount: 0.35
+--- !u!114 &4489476218308003203
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900900001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bdd58122e0def9f468f702c90a0820ba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractableIndicator
+  effectPrefab: {fileID: 3295423461172553804, guid: dc64b1000e8749d40b823b46d61a1af6, type: 3}
+  fitToModel: 1
+  fitPadding: 1.2
+  targetedRateMultiplier: 4
+  targetedBurst: 12
+  onlyWhileInteractable: 1
 --- !u!1 &900900010
 GameObject:
   m_ObjectHideFlags: 0
@@ -238,16 +290,3 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &900900008
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 900900001}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: eb1ff2eeaebcb26dd93706756659291e, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  tint: {r: 1, g: 1, b: 1, a: 1}

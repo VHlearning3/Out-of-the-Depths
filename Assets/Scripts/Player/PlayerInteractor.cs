@@ -96,12 +96,23 @@ public class PlayerInteractor : MonoBehaviour
 
     private void SetTarget(IInteractable target, GameObject targetObject)
     {
+        NotifyTargeted(currentTargetObject, false);
         CurrentTarget = target;
         currentTargetObject = targetObject;
+        NotifyTargeted(currentTargetObject, true);
 
         if (promptLabel != null)
             promptLabel.text = target != null ? string.Format(promptFormat, target.Prompt) : string.Empty;
 
         onTargetChanged.Invoke(targetObject);
+    }
+
+    private static void NotifyTargeted(GameObject target, bool targeted)
+    {
+        if (target == null)
+            return;
+
+        foreach (var listener in target.GetComponents<IInteractTargetListener>())
+            listener.OnTargeted(targeted);
     }
 }

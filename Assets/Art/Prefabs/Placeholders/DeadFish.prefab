@@ -13,8 +13,10 @@ GameObject:
   - component: {fileID: 901000073}
   - component: {fileID: 901000074}
   - component: {fileID: 901000075}
+  - component: {fileID: -2402770876190811055}
+  - component: {fileID: -7772469316279295012}
   m_Layer: 0
-  m_Name: DeadFish_Placeholder
+  m_Name: DeadFish
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -43,9 +45,17 @@ SphereCollider:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 901000070}
   m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
   m_IsTrigger: 1
+  m_ProvidesContacts: 0
   m_Enabled: 1
-  serializedVersion: 2
+  serializedVersion: 3
   m_Radius: 0.5
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!33 &901000073
@@ -115,8 +125,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 16efe9debcea6ba5a8505f2771f2d4f7, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   hungerRestoreAmount: 25
   prompt: eat
   respawnTime: 15
@@ -129,3 +139,40 @@ MonoBehaviour:
   onRespawned:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &-2402770876190811055
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 901000070}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cc75dbe52f8d0de45b0bca024e31e5b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractableHighlight
+  highlightColor: {r: 1, g: 0.95, b: 0.75, a: 1}
+  tintStrength: 0.3
+  brightness: 0.6
+  emission: {r: 1.5, g: 1.2, b: 0.6, a: 1}
+  fadeTime: 0.12
+  pulseSpeed: 1.5
+  pulseAmount: 0.35
+--- !u!114 &-7772469316279295012
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 901000070}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bdd58122e0def9f468f702c90a0820ba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractableIndicator
+  effectPrefab: {fileID: 3295423461172553804, guid: dc64b1000e8749d40b823b46d61a1af6, type: 3}
+  fitToModel: 1
+  fitPadding: 1.2
+  targetedRateMultiplier: 4
+  targetedBurst: 12
+  onlyWhileInteractable: 1

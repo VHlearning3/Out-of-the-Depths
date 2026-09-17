@@ -4303,7 +4303,7 @@ MonoBehaviour:
   maxHunger: 100
   startingHunger: 100
   depletionRate: 1
-  warningThreshold01: 0.25
+  warningThreshold01: 0.3
   warningSound: {fileID: 8300000, guid: aea4145a6b9af2041b598091cc5dbcc5, type: 3}
   warningVolume: 0.5
   hungerBar: {fileID: 900200022}
@@ -5183,6 +5183,23 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &900300005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900300001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 70c97e259bd712543725a2ac89729dd9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  target: {fileID: 900300002}
+  graphic: {fileID: 900300004}
+  punchScale: 2.5
+  hitColor: {r: 1, g: 0.3, b: 0.3, a: 1}
+  duration: 0.15
 --- !u!114 &900400001
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6694,6 +6711,59 @@ MonoBehaviour:
   onActivated:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &901100001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 163572558}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7bcc07722601230e88972ebb95b45e16, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  toggleKey: 50
+  pauseWhileOpen:
+  - {fileID: 900100008}
+  - {fileID: 900700001}
+  - {fileID: 900100011}
+  spawnables:
+  - label: Wandering fish
+    prefab: {fileID: 900900001, guid: 46d610e2de093967a8df6fb28a4af53f, type: 3}
+  - label: Pufferfish (hostile)
+    prefab: {fileID: 900900020, guid: 25679ba55b5665696f8072ea3bb25650, type: 3}
+  - label: Wall fish
+    prefab: {fileID: 900700030, guid: 1e3664c2bcb182682f62e08034fc8ec9, type: 3}
+  - label: Dead fish
+    prefab: {fileID: 901000070, guid: 7f96c8f9a721d888459a9dba8c5aba9d, type: 3}
+  - label: Hazard
+    prefab: {fileID: 901000060, guid: 06fd0d7848d9e6e7d94804a2ef1e1308, type: 3}
+  spawnOrigin: {fileID: 900100002}
+  spawnDistance: 3
+  fishTint: {r: 1, g: 1, b: 1, a: 1}
+--- !u!114 &901100002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 163572558}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8255c46abd659f6c93b5ee5dd96e2a96, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  fogColor: {r: 0.03, g: 0.18, b: 0.28, a: 1}
+  fogDensity: 0.045
+  ambientSky: {r: 0.1, g: 0.35, b: 0.5, a: 1}
+  ambientEquator: {r: 0.05, g: 0.2, b: 0.3, a: 1}
+  ambientGround: {r: 0.02, g: 0.08, b: 0.12, a: 1}
+  sun: {fileID: 0}
+  sunColor: {r: 0.55, g: 0.85, b: 1, a: 1}
+  sunIntensity: 0.8
+  shimmerAmount: 0.15
+  shimmerSpeed: 1.3
 --- !u!1 &940561656
 GameObject:
   m_ObjectHideFlags: 0
@@ -11428,6 +11498,63 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 1518c79d9dac3354db55c3a8c58f0c53, type: 3}
+--- !u!1001 &18752377380483448
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 3939700683099605335, guid: 4d55695fca78f624582577e45060df55, type: 3}
+      propertyPath: m_Name
+      value: Particle
+      objectReference: {fileID: 0}
+    - target: {fileID: 5596767386534719604, guid: 4d55695fca78f624582577e45060df55, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 5135.3857
+      objectReference: {fileID: 0}
+    - target: {fileID: 5596767386534719604, guid: 4d55695fca78f624582577e45060df55, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -0.00005
+      objectReference: {fileID: 0}
+    - target: {fileID: 5596767386534719604, guid: 4d55695fca78f624582577e45060df55, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 419.64508
+      objectReference: {fileID: 0}
+    - target: {fileID: 5596767386534719604, guid: 4d55695fca78f624582577e45060df55, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5596767386534719604, guid: 4d55695fca78f624582577e45060df55, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5596767386534719604, guid: 4d55695fca78f624582577e45060df55, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5596767386534719604, guid: 4d55695fca78f624582577e45060df55, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5596767386534719604, guid: 4d55695fca78f624582577e45060df55, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5596767386534719604, guid: 4d55695fca78f624582577e45060df55, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5596767386534719604, guid: 4d55695fca78f624582577e45060df55, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 4d55695fca78f624582577e45060df55, type: 3}
 --- !u!1001 &4211877308437641331
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -11485,76 +11612,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: ebf47eb784fee9a43a94c48101724dd7, type: 3}
---- !u!114 &900300005
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 900300001}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 70c97e259bd712543725a2ac89729dd9, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  target: {fileID: 900300002}
-  graphic: {fileID: 900300004}
-  punchScale: 2.5
-  hitColor: {r: 1, g: 0.3, b: 0.3, a: 1}
-  duration: 0.15
---- !u!114 &901100001
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 163572558}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7bcc07722601230e88972ebb95b45e16, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  toggleKey: 50
-  pauseWhileOpen:
-  - {fileID: 900100008}
-  - {fileID: 900700001}
-  - {fileID: 900100011}
-  spawnables:
-  - label: Wandering fish
-    prefab: {fileID: 900900001, guid: 46d610e2de093967a8df6fb28a4af53f, type: 3}
-  - label: Pufferfish (hostile)
-    prefab: {fileID: 900900020, guid: 25679ba55b5665696f8072ea3bb25650, type: 3}
-  - label: Wall fish
-    prefab: {fileID: 900700030, guid: 1e3664c2bcb182682f62e08034fc8ec9, type: 3}
-  - label: Dead fish
-    prefab: {fileID: 901000070, guid: 7f96c8f9a721d888459a9dba8c5aba9d, type: 3}
-  - label: Hazard
-    prefab: {fileID: 901000060, guid: 06fd0d7848d9e6e7d94804a2ef1e1308, type: 3}
-  spawnOrigin: {fileID: 900100002}
-  spawnDistance: 3
-  fishTint: {r: 1, g: 1, b: 1, a: 1}
---- !u!114 &901100002
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 163572558}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8255c46abd659f6c93b5ee5dd96e2a96, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  fogColor: {r: 0.03, g: 0.18, b: 0.28, a: 1}
-  fogDensity: 0.045
-  ambientSky: {r: 0.1, g: 0.35, b: 0.5, a: 1}
-  ambientEquator: {r: 0.05, g: 0.2, b: 0.3, a: 1}
-  ambientGround: {r: 0.02, g: 0.08, b: 0.12, a: 1}
-  sun: {fileID: 0}
-  sunColor: {r: 0.55, g: 0.85, b: 1, a: 1}
-  sunIntensity: 0.8
-  shimmerAmount: 0.15
-  shimmerSpeed: 1.3
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -11573,3 +11630,4 @@ SceneRoots:
   - {fileID: 2140554010}
   - {fileID: 1199117715}
   - {fileID: 761130156}
+  - {fileID: 18752377380483448}

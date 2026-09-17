@@ -13,9 +13,12 @@ public class HungerSystem : MonoBehaviour
     [SerializeField] private float depletionRate = 1f;
 
     [Header("Warning")]
-    [SerializeField, Range(0f, 1f)] private float warningThreshold01 = 0.25f;
+    [Tooltip("The warning runs while hunger is at or below this fraction of max (0.3 = 30%) and stops above it.")]
+    [SerializeField, Range(0f, 1f)] private float warningThreshold01 = 0.3f;
     [SerializeField] private AudioClip warningSound;
     [SerializeField, Range(0f, 1f)] private float warningVolume = 0.5f;
+    [Tooltip("Seconds between warning plays while low. 0 = loop the clip without gaps.")]
+    [SerializeField] private float warningInterval = 3f;
 
     [Header("UI")]
     [SerializeField] private StatBarUI hungerBar;
@@ -31,9 +34,11 @@ public class HungerSystem : MonoBehaviour
     public float HungerPercent01 => maxHunger <= 0f ? 0f : CurrentHunger / maxHunger;
     public bool IsLow => HungerPercent01 <= warningThreshold01;
     public bool IsStarving => CurrentHunger <= 0f;
+    public bool WarningMuted { get; set; }
 
     private bool depletedEventFired;
     private bool warningFired;
+    private float nextWarningTime;
     private AudioSource audioSource;
 
     private void Awake()
@@ -53,10 +58,48 @@ public class HungerSystem : MonoBehaviour
 
     private void Update()
     {
+        UpdateWarningSound();
+
         if (IsStarving)
             return;
 
         SetHunger(CurrentHunger - depletionRate * Time.deltaTime);
+    }
+
+    private void OnDisable()
+    {
+        if (audioSource != null)
+            audioSource.Stop();
+    }
+
+    // Plays only while low: looped when the interval is 0, otherwise repeated every warningInterval seconds. Stops as soon as hunger is above the threshold.
+    private void UpdateWarningSound()
+    {
+        if (!IsLow || WarningMuted || warningSound == null)
+        {
+            if (audioSource.isPlaying)
+                audioSource.Stop();
+            nextWarningTime = 0f;
+            return;
+        }
+
+        if (warningInterval <= 0f)
+        {
+            if (!audioSource.isPlaying)
+            {
+                audioSource.clip = warningSound;
+                audioSource.loop = true;
+                audioSource.volume = warningVolume;
+                audioSource.Play();
+            }
+            return;
+        }
+
+        if (Time.time >= nextWarningTime)
+        {
+            nextWarningTime = Time.time + warningInterval;
+            audioSource.PlayOneShot(warningSound, warningVolume);
+        }
     }
 
     public void Eat(float amount)
@@ -90,8 +133,6 @@ public class HungerSystem : MonoBehaviour
         {
             warningFired = true;
             onHungerWarning.Invoke();
-            if (warningSound != null)
-                audioSource.PlayOneShot(warningSound, warningVolume);
         }
         else if (!IsLow)
         {
