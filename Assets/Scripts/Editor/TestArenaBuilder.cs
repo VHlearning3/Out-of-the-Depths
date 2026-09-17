@@ -89,6 +89,15 @@ public static class TestArenaBuilder
                 Box($"Tile_{x}_{z}", new Vector3(-25f + x * 10f, -0.1f, -25f + z * 10f), new Vector3(10f, 0.2f, 10f),
                     (x + z) % 2 == 0 ? TileA : TileB, floor);
 
+        // Dead fish drift up into this and fade away.
+        var barrier = new GameObject("DeadFishBarrier");
+        barrier.transform.SetParent(arenaRoot, false);
+        barrier.transform.position = new Vector3(0f, 8.5f, 0f);
+        var barrierBox = barrier.AddComponent<BoxCollider>();
+        barrierBox.isTrigger = true;
+        barrierBox.size = new Vector3(62f, 1f, 62f);
+        barrier.AddComponent<DeadFishBarrier>();
+
         Transform walls = Group("Walls");
         Box("Wall_North", new Vector3(0f, 5f, 30.5f), new Vector3(62f, 10f, 1f), WallColor, walls);
         Box("Wall_South", new Vector3(0f, 5f, -30.5f), new Vector3(62f, 10f, 1f), WallColor, walls);

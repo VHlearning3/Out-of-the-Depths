@@ -130,11 +130,12 @@ public class SlashAttack : MonoBehaviour
 
         // A sphere cast ignores anything already overlapping its start, so also check
         // point-blank targets with an overlap right in front of the camera.
-        int overlapCount = Physics.OverlapSphereNonAlloc(origin + direction * hitRadius, hitRadius, overlapResults, hitMask, QueryTriggerInteraction.Ignore);
+        // Triggers included: moving fish use trigger colliders so they can't shove the player.
+        int overlapCount = Physics.OverlapSphereNonAlloc(origin + direction * hitRadius, hitRadius, overlapResults, hitMask, QueryTriggerInteraction.Collide);
         for (int i = 0; i < overlapCount; i++)
             TryDamage(overlapResults[i]);
 
-        int castCount = Physics.SphereCastNonAlloc(origin, hitRadius, direction, hitResults, range, hitMask, QueryTriggerInteraction.Ignore);
+        int castCount = Physics.SphereCastNonAlloc(origin, hitRadius, direction, hitResults, range, hitMask, QueryTriggerInteraction.Collide);
         for (int i = 0; i < castCount; i++)
             TryDamage(hitResults[i].collider);
 

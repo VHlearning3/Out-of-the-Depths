@@ -19,9 +19,16 @@ public class FishWander : MonoBehaviour
     [SerializeField] private float bodyRadius = 0.3f;
     [SerializeField] private float lookAhead = 1.5f;
 
+    [Header("Other fish")]
+    [Tooltip("Fish closer than this push each other apart, so packs don't overlap. 0 = off.")]
+    [SerializeField] private float separationDistance = 0.7f;
+    [SerializeField] private float separationStrength = 1.5f;
+
     public LayerMask ObstacleMask => obstacleMask;
     public float BodyRadius => bodyRadius;
     public float LookAhead => lookAhead;
+
+    private static readonly Collider[] neighbours = new Collider[16];
 
     private Vector3 home;
     private Vector3 target;
@@ -67,6 +74,7 @@ public class FishWander : MonoBehaviour
 
         Vector3 toTarget = target - transform.position;
         Vector3 desired = toTarget.sqrMagnitude > 0.0001f ? toTarget.normalized : transform.forward;
+        desired = (desired + Separation()).normalized;
         desired = FishSteering.Avoid(transform.position, desired, bodyRadius, lookAhead, obstacleMask);
 
         Quaternion look = Quaternion.LookRotation(desired, Vector3.up);
@@ -75,6 +83,28 @@ public class FishWander : MonoBehaviour
         Vector3 bob = Vector3.up * (Mathf.Sin(Time.time * 2f + bobOffset) * idleBobAmount * Time.deltaTime);
         Vector3 move = transform.forward * (moveSpeed * Time.deltaTime) + bob;
         transform.position += FishSteering.ClampMove(transform.position, move, bodyRadius, obstacleMask);
+    }
+
+    // A push away from every other fish inside separationDistance, stronger the closer they are.
+    private Vector3 Separation()
+    {
+        if (separationDistance <= 0f)
+            return Vector3.zero;
+
+        Vector3 push = Vector3.zero;
+        int count = Physics.OverlapSphereNonAlloc(transform.position, separationDistance, neighbours, ~0, QueryTriggerInteraction.Collide);
+        for (int i = 0; i < count; i++)
+        {
+            var other = neighbours[i].GetComponentInParent<FishWander>();
+            if (other == null || other == this)
+                continue;
+
+            Vector3 away = transform.position - other.transform.position;
+            float distance = away.magnitude;
+            away = distance > 0.001f ? away / distance : Random.insideUnitSphere;
+            push += away * (1f - Mathf.Clamp01(distance / separationDistance));
+        }
+        return push * separationStrength;
     }
 
     private void PickNewTarget()

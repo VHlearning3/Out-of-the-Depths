@@ -60,6 +60,19 @@ public class EdibleFish : MonoBehaviour, IInteractable
             gameObject.SetActive(false);
     }
 
+    // Take the fish out of the world without anyone eating it (it drifted into a barrier). Respawns just like an eaten one.
+    public void Despawn()
+    {
+        if (consumed)
+            return;
+
+        consumed = true;
+        if (respawnTime > 0f)
+            StartCoroutine(RespawnAfterDelay());
+        else
+            gameObject.SetActive(false);
+    }
+
     private IEnumerator RespawnAfterDelay()
     {
         SetVisible(false);

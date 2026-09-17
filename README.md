@@ -48,6 +48,10 @@ Each fish is a **root object** (all the scripts + collider) with a child called 
 
 Colour: the root has a **Renderer Tint** component — pick any colour, no new material needed. One shared `Fish.mat` covers all fish.
 
+**Death:** a killed fish flips belly-up and drifts upward (still edible) until it reaches a **`Dead Fish Barrier`** — a trigger box you stretch across the water surface or a room's top — then fades out and respawns like an eaten fish (`Edible Fish → Respawn Time`; 0 = gone for good). No barrier in reach? `Fish Controller → Drift Timeout` fades it anyway. Put one barrier per room / over the whole level.
+
+**Collisions:** moving fish (wanderers, pufferfish, dead fish) have *trigger* colliders, so they never push or block the player — slashing, eating and the barrier all use overlap queries and still work. The wall fish keeps a solid collider because it is meant to block. Fish steer around walls and the player, and push apart from each other so packs don't overlap (`Fish Wander → Other fish`).
+
 **Packs:** Create Empty → add **`Fish School`** → drag fish prefabs under it (or set `Fish Prefab` + `Spawn Count`). The pack's centre wanders around that object (`Wander Radius`, `Speed`) and every fish holds a slot within `Spread` of it, so they all swim the same route. A killed fish drops out and rejoins when it respawns. Fish steer around walls and the player and never push into them (`Fish Wander → Walls`); the pufferfish keeps this while chasing.
 
 ### Pickups (bone / stone fragments)
@@ -154,7 +158,7 @@ Every script starts with a one-line comment saying what it does. By folder:
 
 - **Player/** — `SwimController` (movement + camera feel), `HungerSystem`, `HealthSystem`, `DamageManager`, `DeathManager` (respawn), `PlayerInteractor` (E prompt), `PlayerInventory` (5-slot hotbar, 1-5 / wheel)
 - **Combat/** — `SlashAttack` (needs a weapon item in the inventory), `Damageable` (enemy HP), `IDamageable`, `IHandAnimator` + `PlaceholderHandAnimator`
-- **Creatures/** — `FishController` (alive → dead → edible → respawn), `FishWander` (solo wander or pack slot), `FishSchool` (a pack's shared route), `FishSteering` (wall avoidance), `FishAggression` (pufferfish chase/bite), `RendererTint`
+- **Creatures/** — `FishController` (alive → dead → drift up → fade → respawn), `DeadFishBarrier` (where dead fish fade), `FishWander` (solo wander or pack slot, separation), `FishSchool` (a pack's shared route), `FishSteering` (wall avoidance), `FishAggression` (pufferfish chase/bite), `RendererTint`
 - **Interaction/** — `IInteractable`, `EdibleFish`, `PickupItem`, `Door` (slide/swing, lock, closes behind), `IInteractTargetListener` (react to being looked at), `InteractableHighlight` (lights up on look), `InteractableIndicator` (sparkle), `HazardDamage`, `Checkpoint`
 - **Items/** — `ItemDefinition` (one asset per collectable), `ItemSocket` (pedestal / lock / crafting spot that takes items from the inventory)
 - **UI/** — `StatBarUI` (bar or any Filled sprite), `ScreenFlash`, `HitMarker`, `InventoryUI` (hotbar), `CollectibleCounterUI`, `MainMenuController`, `AdminPanel`
