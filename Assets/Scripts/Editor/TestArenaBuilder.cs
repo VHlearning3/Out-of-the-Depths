@@ -10,6 +10,7 @@ public static class TestArenaBuilder
     private const string ScenePath = "Assets/Scenes/TestArena.unity";
     private const string PrefabRoot = InteractablePrefabTools.PrefabRoot;
     private const string DoorPrefabPath = PrefabRoot + "/Placeholders/Door_Placeholder.prefab";
+    private const string TrapdoorPrefabPath = PrefabRoot + "/Placeholders/Trapdoor_Placeholder.prefab";
     private const string SfxFolder = "Assets/Sound/SFX Sound effects/";
 
     private static readonly Vector3 SpawnPosition = new Vector3(0f, 1.6f, -22f);
@@ -55,6 +56,7 @@ public static class TestArenaBuilder
         BuildPickups();
         BuildPuzzles();
         BuildDoors();
+        BuildHatch();
         PlacePlayer();
         ItemTools.EnsureInventoryHud();
         HudLayoutTools.Apply();
@@ -272,37 +274,91 @@ public static class TestArenaBuilder
         return door;
     }
 
+    // A raised deck with a hatch in its roof and a "basement" inside (with a key to find), like the GDD's kellari.
+    private static void BuildHatch()
+    {
+        Transform zone = Group("Zone_Hatch");
+        Vector3 c = new Vector3(-4f, 0f, -13f);
+        Box("Deck_N", c + new Vector3(0f, 1.25f, 3f), new Vector3(6f, 2.5f, 0.3f), PropColor, zone);
+        Box("Deck_S", c + new Vector3(0f, 1.25f, -3f), new Vector3(6f, 2.5f, 0.3f), PropColor, zone);
+        Box("Deck_E", c + new Vector3(3f, 1.25f, 0f), new Vector3(0.3f, 2.5f, 6f), PropColor, zone);
+        Box("Deck_W", c + new Vector3(-3f, 1.25f, 0f), new Vector3(0.3f, 2.5f, 6f), PropColor, zone);
+        // Roof with a 2 x 2 hole in the middle, covered by the hatch.
+        Box("Roof_N", c + new Vector3(0f, 2.5f, 2f), new Vector3(6f, 0.3f, 2f), PropColor, zone);
+        Box("Roof_S", c + new Vector3(0f, 2.5f, -2f), new Vector3(6f, 0.3f, 2f), PropColor, zone);
+        Box("Roof_E", c + new Vector3(2f, 2.5f, 0f), new Vector3(2f, 0.3f, 2f), PropColor, zone);
+        Box("Roof_W", c + new Vector3(-2f, 2.5f, 0f), new Vector3(2f, 0.3f, 2f), PropColor, zone);
+        SpawnTrapdoor("Trapdoor", c + new Vector3(-1f, 2.5f, -1f), zone);
+        CreatePickup(c + new Vector3(0f, 0.6f, 0f), "Item_SymbolKey", zone);
+        Label("HATCH - E opens the trapdoor, the basement is below", c + new Vector3(0f, 5f, 0f), zone);
+    }
+
+    private static Door SpawnTrapdoor(string name, Vector3 hinge, Transform parent)
+    {
+        GameObject prefab = EnsureTrapdoorPrefab();
+        var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent.gameObject.scene);
+        instance.transform.SetParent(parent, true);
+        instance.transform.SetPositionAndRotation(hinge, Quaternion.identity);
+        instance.name = name;
+        return instance.GetComponent<Door>();
+    }
+
     // Root = hinge + doorway trigger + Door + highlight; child Visual = a 2 x 3 panel with its collider. Swap the Visual for real art.
     private static GameObject EnsureDoorPrefab()
     {
-        var existing = AssetDatabase.LoadAssetAtPath<GameObject>(DoorPrefabPath);
+        return EnsureDoorLikePrefab(DoorPrefabPath, "Door_Placeholder",
+            new Vector3(1f, 1.5f, 0f), new Vector3(2.4f, 3.2f, 1.6f),
+            new Vector3(1f, 1.5f, 0f), new Vector3(2f, 3f, 0.15f), new Color(0.45f, 0.3f, 0.2f), null);
+    }
+
+    // Same as the door but lying flat: hinge along the root's Z edge, lid swings up, "through" is down.
+    private static GameObject EnsureTrapdoorPrefab()
+    {
+        return EnsureDoorLikePrefab(TrapdoorPrefabPath, "Trapdoor_Placeholder",
+            new Vector3(1f, 0f, 1f), new Vector3(2.4f, 1.6f, 2.4f),
+            new Vector3(1f, 0f, 1f), new Vector3(2f, 0.15f, 2f), new Color(0.4f, 0.28f, 0.18f), so =>
+            {
+                so.FindProperty("motion").enumValueIndex = (int)Door.Motion.Swing;
+                so.FindProperty("swingAxis").vector3Value = Vector3.forward;
+                so.FindProperty("swingAngle").floatValue = 100f;
+                so.FindProperty("throughAxis").vector3Value = Vector3.down;
+                so.FindProperty("openPrompt").stringValue = "open hatch";
+                so.FindProperty("closePrompt").stringValue = "close hatch";
+            });
+    }
+
+    private static GameObject EnsureDoorLikePrefab(string path, string name, Vector3 triggerCenter, Vector3 triggerSize,
+        Vector3 visualPosition, Vector3 visualScale, Color color, System.Action<SerializedObject> configure)
+    {
+        var existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
         if (existing != null)
             return existing;
 
-        var root = new GameObject("Door_Placeholder");
+        var root = new GameObject(name);
         var trigger = root.AddComponent<BoxCollider>();
         trigger.isTrigger = true;
-        trigger.center = new Vector3(1f, 1.5f, 0f);
-        trigger.size = new Vector3(2.4f, 3.2f, 1.6f);
+        trigger.center = triggerCenter;
+        trigger.size = triggerSize;
         var door = root.AddComponent<Door>();
         root.AddComponent<InteractableHighlight>();
 
         GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
         visual.name = "Visual";
         visual.transform.SetParent(root.transform, false);
-        visual.transform.localPosition = new Vector3(1f, 1.5f, 0f);
-        visual.transform.localScale = new Vector3(2f, 3f, 0.15f);
-        visual.AddComponent<RendererTint>().Tint = new Color(0.45f, 0.3f, 0.2f);
+        visual.transform.localPosition = visualPosition;
+        visual.transform.localScale = visualScale;
+        visual.AddComponent<RendererTint>().Tint = color;
 
         var so = new SerializedObject(door);
         so.FindProperty("visual").objectReferenceValue = visual.transform;
         so.FindProperty("openSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(SfxFolder + "Door opening sound effect.mp3");
         so.FindProperty("closeSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(SfxFolder + "Door closing sound effect.mp3");
+        configure?.Invoke(so);
         so.ApplyModifiedPropertiesWithoutUndo();
 
-        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, DoorPrefabPath);
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
         Object.DestroyImmediate(root);
-        Debug.Log("Created " + DoorPrefabPath);
+        Debug.Log("Created " + path);
         return prefab;
     }
 

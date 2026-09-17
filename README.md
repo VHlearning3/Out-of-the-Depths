@@ -14,7 +14,7 @@ Inside Unity, click **`Assets/_START HERE`** for the same guide in the Inspector
 |---|---|
 | `MainMenu` | Start screen. New Game / Settings / Credits / Quit. First scene in the build. |
 | `Main_Scene` | The real level. |
-| `TestArena` | Labelled test zones around a spawn pad: movement course (slalom, low tunnel, vertical shaft, ramp), fish + food (one dead fish respawns), combat pen, hazard lane ending in a far checkpoint, pickup shelf, puzzle zone (pedestal / seaweed / two locked doors), doors demo (swing door, closes-behind door). **Use this to try things.** Not included in builds. Regenerate it any time with **Tools → Out of the Depths → Rebuild Test Arena** — it keeps Player/HUD/admin panel and rebuilds the rest from the placeholder prefabs. |
+| `TestArena` | Labelled test zones around a spawn pad: movement course (slalom, low tunnel, vertical shaft, ramp), fish + food (one dead fish respawns), combat pen, hazard lane ending in a far checkpoint, pickup shelf, puzzle zone (pedestal / seaweed / two locked doors), doors demo (swing door, closes-behind door), a deck with a hatch and a basement. **Use this to try things.** Not included in builds. Regenerate it any time with **Tools → Out of the Depths → Rebuild Test Arena** — it keeps Player/HUD/admin panel and rebuilds the rest from the placeholder prefabs. |
 
 Open a scene and press Play. `MainMenu` → New Game loads `Main_Scene`.
 
@@ -81,6 +81,7 @@ The `RespawnPlate` prefab is a complete checkpoint: squashed cylinder + `Respawn
 - **E** opens/closes it, unless `Locked`. Locked doors are opened from events: `Item Socket → On Filled → Door.Open` (a key, the pedestal), or `Unlock` to let the player open it themselves.
 - `Close Behind Player`: once the player passes through (to the side the root's blue arrow points at), it closes and locks for good — the GDD's first room.
 - Sounds: `Open Sound` / `Close Sound` (the SFX door clips are pre-wired). Events: `On Opened`, `On Closed`.
+- **Trapdoor / hatch**: `Trapdoor_Placeholder` is the same `Door` lying flat — `Swing Axis` (0,0,1) so the lid tilts up around its edge, `Through Axis` down, prompt "open hatch". Swap its Visual the same way. Today it opens with a plain **E**; when the GDD's button-mash comes, that mechanic will just call `Open()` on it.
 
 ### Sparkle + highlight on fish and pickups
 Every prefab whose root is interactable (`Fish_Wanderer`, `Pufferfish`, `WallFish`, `DeadFish`, `Pickup_*`) carries `Interactable Highlight` and `Interactable Indicator`; a live fish only starts sparkling once it is dead and edible. If you add a new interactable prefab, run **Tools → Out of the Depths → Add Indicators To Interactable Prefabs** and it gets both, wired to `Particle_Placeholder`.
