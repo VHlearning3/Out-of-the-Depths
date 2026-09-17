@@ -66,7 +66,8 @@ public class PlayerInteractor : MonoBehaviour
         Vector3 origin = interactOrigin != null ? interactOrigin.position : transform.position;
         Vector3 forward = interactOrigin != null ? interactOrigin.forward : transform.forward;
 
-        int count = Physics.OverlapSphereNonAlloc(origin, interactRange, overlapResults, interactableMask);
+        // Include triggers explicitly: checkpoint plates and other "walk-through" interactables use trigger colliders.
+        int count = Physics.OverlapSphereNonAlloc(origin, interactRange, overlapResults, interactableMask, QueryTriggerInteraction.Collide);
         for (int i = 0; i < count; i++)
         {
             var interactable = overlapResults[i].GetComponentInParent<IInteractable>();

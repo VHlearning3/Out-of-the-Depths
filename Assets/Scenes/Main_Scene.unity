@@ -4475,8 +4475,8 @@ MonoBehaviour:
   maxHunger: 100
   startingHunger: 100
   depletionRate: 1
-  warningThreshold01: 0.3
-  warningSound: {fileID: 8300000, guid: aea4145a6b9af2041b598091cc5dbcc5, type: 3}
+  warningThreshold01: 0.25
+  warningSound: {fileID: 8300000, guid: c0ffee00a11ce5b0d1e5c0ffee5eab1e, type: 3}
   warningVolume: 0.2
   warningInterval: 3
   hungerBar: {fileID: 900200022}
