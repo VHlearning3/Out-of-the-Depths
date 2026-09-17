@@ -20,6 +20,7 @@ public class PickupItem : MonoBehaviour, IInteractable
     public UnityEvent onPickedUp = new UnityEvent();
 
     public ItemDefinition Item => item;
+    public int Amount => amount;
     public string Prompt => item != null ? "pick up " + item.DisplayName : "pick up";
 
     public void Interact(GameObject interactor)

@@ -94,6 +94,30 @@ public static class ItemTools
         AssetDatabase.SaveAssets();
     }
 
+    // Slash Attack hides its Weapon Visual until a weapon is owned; point it at the dagger placeholder under Hands if unset.
+    private static void WireWeaponVisual(GameObject player)
+    {
+        var slash = player.GetComponentInChildren<SlashAttack>(true);
+        if (slash == null)
+            return;
+
+        var so = new SerializedObject(slash);
+        SerializedProperty visual = so.FindProperty("weaponVisual");
+        if (visual == null || visual.objectReferenceValue != null)
+            return;
+
+        foreach (Transform t in player.GetComponentsInChildren<Transform>(true))
+        {
+            if (!t.name.StartsWith("Dagger", System.StringComparison.OrdinalIgnoreCase))
+                continue;
+            visual.objectReferenceValue = t.gameObject;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorSceneManager.MarkSceneDirty(player.scene);
+            Debug.Log("Slash Attack weapon visual set to " + t.name);
+            return;
+        }
+    }
+
     [MenuItem("Tools/Out of the Depths/Add Inventory HUD To Open Scene")]
     public static void EnsureInventoryHud()
     {
@@ -104,6 +128,7 @@ public static class ItemTools
             inventory = player.GetComponent<PlayerInventory>();
             if (inventory == null)
                 inventory = player.gameObject.AddComponent<PlayerInventory>();
+            WireWeaponVisual(player.gameObject);
         }
 
         var existing = Object.FindFirstObjectByType<InventoryUI>(FindObjectsInactive.Include);

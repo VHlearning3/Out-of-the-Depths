@@ -1,9 +1,11 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.InputSystem;
 
-// Hotbar inventory from the GDD: collected items stack into numbered slots shown at the bottom of the screen and are
-// selected with 1-5 or the mouse wheel. Puzzles check Has() and spend with Remove(); they don't need the item selected.
+// Hotbar inventory from the GDD: keys, puzzle pieces and weapons stack into numbered slots shown at the bottom of the
+// screen, selected with 1-5 or the mouse wheel. Collectibles (pearls, shells) don't take a slot: they're just counted.
+// Puzzles check Has() and spend with Remove(); they don't need the item selected.
 public class PlayerInventory : MonoBehaviour
 {
     [System.Serializable]
@@ -22,16 +24,43 @@ public class PlayerInventory : MonoBehaviour
     [Header("Events")]
     public UnityEvent onChanged = new UnityEvent();
     public UnityEvent<int> onSelectionChanged = new UnityEvent<int>();
+    public UnityEvent<ItemDefinition, int> onCollectibleChanged = new UnityEvent<ItemDefinition, int>();
 
     private Slot[] slots;
+    private readonly Dictionary<ItemDefinition, int> collectibles = new Dictionary<ItemDefinition, int>();
 
     public int SlotCount => slotCount;
+
+    public int TotalCollectibles
+    {
+        get
+        {
+            int total = 0;
+            foreach (KeyValuePair<ItemDefinition, int> pair in collectibles)
+                total += pair.Value;
+            return total;
+        }
+    }
     public int SelectedIndex { get; private set; }
-    public ItemDefinition SelectedItem => slots[SelectedIndex].item;
-    public Slot GetSlot(int index) => slots[index];
+    public ItemDefinition SelectedItem => GetSlot(SelectedIndex).item;
+
+    public Slot GetSlot(int index)
+    {
+        EnsureSlots();
+        return slots[index];
+    }
 
     private void Awake()
     {
+        EnsureSlots();
+    }
+
+    // Other components may ask before our Awake has run (script order isn't guaranteed).
+    private void EnsureSlots()
+    {
+        if (slots != null)
+            return;
+
         slots = new Slot[slotCount];
         for (int i = 0; i < slots.Length; i++)
             slots[i] = new Slot();
@@ -76,8 +105,14 @@ public class PlayerInventory : MonoBehaviour
         onSelectionChanged.Invoke(index);
     }
 
+    private static bool IsCollectible(ItemDefinition item) => item != null && item.Kind == ItemDefinition.Category.Collectible;
+
     public int Count(ItemDefinition item)
     {
+        if (IsCollectible(item))
+            return collectibles.TryGetValue(item, out int collected) ? collected : 0;
+
+        EnsureSlots();
         int total = 0;
         foreach (Slot slot in slots)
         {
@@ -89,12 +124,36 @@ public class PlayerInventory : MonoBehaviour
 
     public bool Has(ItemDefinition item, int amount = 1) => item != null && Count(item) >= amount;
 
+    // e.g. "any weapon": the dagger or the trident unlocks slashing.
+    public bool HasCategory(ItemDefinition.Category category)
+    {
+        if (category == ItemDefinition.Category.Collectible)
+            return TotalCollectibles > 0;
+
+        EnsureSlots();
+        foreach (Slot slot in slots)
+        {
+            if (!slot.IsEmpty && slot.item.Kind == category)
+                return true;
+        }
+        return false;
+    }
+
     // Returns how many were actually stored; the rest didn't fit.
     public int Add(ItemDefinition item, int amount = 1)
     {
         if (item == null || amount <= 0)
             return 0;
 
+        if (IsCollectible(item))
+        {
+            collectibles[item] = Count(item) + amount;
+            onCollectibleChanged.Invoke(item, collectibles[item]);
+            onChanged.Invoke();
+            return amount;
+        }
+
+        EnsureSlots();
         int remaining = amount;
         foreach (Slot slot in slots)
         {
@@ -130,6 +189,14 @@ public class PlayerInventory : MonoBehaviour
     {
         if (!Has(item, amount))
             return false;
+
+        if (IsCollectible(item))
+        {
+            collectibles[item] -= amount;
+            onCollectibleChanged.Invoke(item, collectibles[item]);
+            onChanged.Invoke();
+            return true;
+        }
 
         int remaining = amount;
         for (int i = slots.Length - 1; i >= 0 && remaining > 0; i--)

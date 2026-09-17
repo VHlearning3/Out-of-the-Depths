@@ -56,14 +56,21 @@ public class FishAggression : MonoBehaviour
         if (!IsChasing)
             return;
 
+        // Steer around walls on the way, but never treat the player being chased as one.
         Vector3 toTarget = (targetPoint - transform.position).normalized;
+        toTarget = FishSteering.Avoid(transform.position, toTarget, wander.BodyRadius, wander.LookAhead, wander.ObstacleMask, target.transform);
         Quaternion desired = Quaternion.LookRotation(toTarget, Vector3.up);
         transform.rotation = Quaternion.Slerp(transform.rotation, desired, turnSpeed * Time.deltaTime);
 
         if (distance > attackRange)
-            transform.position += transform.forward * (chaseSpeed * Time.deltaTime);
+        {
+            Vector3 move = transform.forward * (chaseSpeed * Time.deltaTime);
+            transform.position += FishSteering.ClampMove(transform.position, move, wander.BodyRadius, wander.ObstacleMask, target.transform);
+        }
         else if (Time.time >= nextAttackTime)
+        {
             Bite();
+        }
     }
 
     private void Bite()

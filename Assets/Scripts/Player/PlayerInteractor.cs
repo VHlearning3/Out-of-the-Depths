@@ -19,6 +19,8 @@ public class PlayerInteractor : MonoBehaviour
     [Header("Prompt")]
     [SerializeField] private Text promptLabel;
     [SerializeField] private string promptFormat = "Press E to {0}";
+    [Tooltip("Optional: shown only while there is a target, e.g. the keycap + label group.")]
+    [SerializeField] private GameObject promptRoot;
 
     [Header("Events")]
     public UnityEvent<GameObject> onTargetChanged = new UnityEvent<GameObject>();
@@ -104,6 +106,8 @@ public class PlayerInteractor : MonoBehaviour
 
         if (promptLabel != null)
             promptLabel.text = target != null ? string.Format(promptFormat, target.Prompt) : string.Empty;
+        if (promptRoot != null)
+            promptRoot.SetActive(target != null);
 
         onTargetChanged.Invoke(targetObject);
     }

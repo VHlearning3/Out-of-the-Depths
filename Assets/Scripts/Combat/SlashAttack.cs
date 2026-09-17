@@ -12,6 +12,12 @@ public class SlashAttack : MonoBehaviour
     [SerializeField] private Transform attackOrigin;
     [SerializeField] private MonoBehaviour handAnimator;
 
+    [Header("Weapon")]
+    [Tooltip("Slashing needs a Weapon item (dagger, trident) in the inventory. Off = always armed, for testing.")]
+    [SerializeField] private bool requireWeapon = true;
+    [Tooltip("Shown only while a weapon is owned, e.g. the dagger placeholder under Hands. Empty = the hand animator's object.")]
+    [SerializeField] private GameObject weaponVisual;
+
     [Header("Attack")]
     [SerializeField] private bool canAttack = true;
     [SerializeField] private float damage = 10f;
@@ -35,8 +41,11 @@ public class SlashAttack : MonoBehaviour
     public UnityEvent onSlashStarted = new UnityEvent();
     public UnityEvent onSlashHit = new UnityEvent();
 
+    public bool HasWeapon => !requireWeapon || (inventory != null && inventory.HasCategory(ItemDefinition.Category.Weapon));
+
     private InputAction attackAction;
     private IHandAnimator hands;
+    private PlayerInventory inventory;
     private AudioSource audioSource;
     private float nextAttackTime;
     private readonly RaycastHit[] hitResults = new RaycastHit[16];
@@ -47,6 +56,7 @@ public class SlashAttack : MonoBehaviour
     {
         attackAction = inputActions.FindActionMap("Player").FindAction("Attack");
         hands = handAnimator as IHandAnimator;
+        inventory = GetComponentInParent<PlayerInventory>();
 
         audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.playOnAwake = false;
@@ -54,16 +64,23 @@ public class SlashAttack : MonoBehaviour
 
         if (handAnimator != null && hands == null)
             Debug.LogError($"{name}: Hand Animator must implement IHandAnimator.", this);
+        if (requireWeapon && inventory == null)
+            Debug.LogWarning($"{name}: no Player Inventory on the player, so no weapon can be owned and slashing stays locked.", this);
     }
 
     private void OnEnable()
     {
         attackAction.performed += OnAttackPerformed;
+        if (inventory != null)
+            inventory.onChanged.AddListener(RefreshWeapon);
+        RefreshWeapon();
     }
 
     private void OnDisable()
     {
         attackAction.performed -= OnAttackPerformed;
+        if (inventory != null)
+            inventory.onChanged.RemoveListener(RefreshWeapon);
     }
 
     public void SetCanAttack(bool value)
@@ -71,9 +88,16 @@ public class SlashAttack : MonoBehaviour
         canAttack = value;
     }
 
+    private void RefreshWeapon()
+    {
+        GameObject visual = weaponVisual != null ? weaponVisual : (handAnimator != null ? handAnimator.gameObject : null);
+        if (visual != null)
+            visual.SetActive(HasWeapon);
+    }
+
     private void OnAttackPerformed(InputAction.CallbackContext context)
     {
-        if (!canAttack || Time.time < nextAttackTime)
+        if (!canAttack || !HasWeapon || Time.time < nextAttackTime)
             return;
 
         nextAttackTime = Time.time + attackCooldown;

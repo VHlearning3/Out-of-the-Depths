@@ -9,6 +9,8 @@ public static class TestArenaBuilder
 {
     private const string ScenePath = "Assets/Scenes/TestArena.unity";
     private const string PrefabRoot = InteractablePrefabTools.PrefabRoot;
+    private const string DoorPrefabPath = PrefabRoot + "/Placeholders/Door_Placeholder.prefab";
+    private const string SfxFolder = "Assets/Sound/SFX Sound effects/";
 
     private static readonly Vector3 SpawnPosition = new Vector3(0f, 1.6f, -22f);
 
@@ -52,8 +54,10 @@ public static class TestArenaBuilder
         BuildHazardLane();
         BuildPickups();
         BuildPuzzles();
+        BuildDoors();
         PlacePlayer();
         ItemTools.EnsureInventoryHud();
+        HudLayoutTools.Apply();
         TuneWarningThresholds();
 
         EditorSceneManager.MarkSceneDirty(scene);
@@ -103,7 +107,8 @@ public static class TestArenaBuilder
             if (checkpoint != null)
                 SetField(checkpoint, "startsActivated", p => p.boolValue = true);
         }
-        Label("SPAWN - HUD check, admin panel = 0", new Vector3(0f, 4f, -18f), zone);
+        CreatePickup(new Vector3(2f, 1.2f, -19f), "Item_Dagger", zone);
+        Label("SPAWN - take the dagger (E) to be able to slash\nadmin panel = 0", new Vector3(0f, 4f, -18f), zone);
     }
 
     private static void BuildMovementCourse()
@@ -135,11 +140,10 @@ public static class TestArenaBuilder
     private static void BuildFishAndFood()
     {
         Transform zone = Group("Zone_Fish");
-        Spawn("Fish_Wanderer", new Vector3(-20f, 2f, 20f), zone);
-        Spawn("Fish_Wanderer", new Vector3(-14f, 2.5f, 14f), zone, 120f);
+        CreateSchool("Fish_Wanderer", 6, new Vector3(-19f, 2.5f, 20f), zone);
         Spawn("Fish_Wanderer", new Vector3(-24f, 1.5f, 12f), zone, 240f);
         Spawn("WallFish", new Vector3(-28.5f, 2f, 22f), zone, 90f);
-        Label("FISH - wanderers + wall fish", new Vector3(-19f, 5.5f, 20f), zone);
+        Label("FISH - a pack of 6, a loner, wall fish", new Vector3(-19f, 5.5f, 20f), zone);
 
         Transform food = Group("Zone_Food");
         Spawn("DeadFish", new Vector3(-10f, 1f, 10f), food, 0f);
@@ -164,7 +168,7 @@ public static class TestArenaBuilder
         Spawn("Pufferfish", new Vector3(14f, 2f, 20f), zone, 200f);
         Spawn("Pufferfish", new Vector3(22f, 2f, 18f), zone, 160f);
         Spawn("Fish_Wanderer", new Vector3(18f, 2f, 23f), zone);
-        Label("COMBAT - left click to slash", new Vector3(18f, 5.5f, 25f), zone);
+        Label("COMBAT - left click to slash (needs the dagger)", new Vector3(18f, 5.5f, 25f), zone);
     }
 
     private static void BuildHazardLane()
@@ -202,7 +206,13 @@ public static class TestArenaBuilder
     {
         Transform zone = Group("Zone_Puzzles");
         Color stone = new Color(0.7f, 0.65f, 0.5f);
-        Color door = new Color(0.5f, 0.3f, 0.2f);
+
+        // A wall with two locked doors: the pedestal opens the left one, the bone key the right one.
+        Box("PuzzleWall_L", new Vector3(-5.5f, 2f, 14f), new Vector3(3f, 4f, 0.5f), PropColor, zone);
+        Box("PuzzleWall_M", new Vector3(0f, 2f, 14f), new Vector3(4f, 4f, 0.5f), PropColor, zone);
+        Box("PuzzleWall_R", new Vector3(5.5f, 2f, 14f), new Vector3(3f, 4f, 0.5f), PropColor, zone);
+        Door doorStone = SpawnDoor("Door_Stone", new Vector3(-4f, 0f, 14f), true, false, zone);
+        Door doorBone = SpawnDoor("Door_BoneKey", new Vector3(2f, 0f, 14f), true, false, zone);
 
         // Pedestal: E with stone fragments on you places them automatically (GDD); 3 of them open the left door.
         GameObject pedestal = Box("Pedestal", new Vector3(0f, 0.6f, 6f), new Vector3(1.2f, 1.2f, 1.2f), PropColor, zone);
@@ -212,7 +222,6 @@ public static class TestArenaBuilder
             pieces[i] = Box("Placed_Stone_" + (i + 1), new Vector3(-0.35f + i * 0.35f, 1.35f, 6f), new Vector3(0.25f, 0.3f, 0.25f), stone, zone);
             pieces[i].SetActive(false);
         }
-        GameObject doorStone = Box("Door_Stone", new Vector3(-3f, 2f, 14f), new Vector3(5f, 4f, 0.5f), door, zone);
         OpenOnFilled(Socket(pedestal, "Item_StoneFragment", 3, true, "place", null, pieces), doorStone);
 
         // Seaweed: 3 bone key fragments + E = a bone key (the GDD's tie-them-together step).
@@ -220,11 +229,72 @@ public static class TestArenaBuilder
         Socket(seaweed, "Item_BoneKeyFragment", 3, true, "tie", "Item_BoneKey", null);
 
         // Lock: the bone key opens the right door.
-        GameObject lockBox = Box("Lock_BoneKey", new Vector3(3f, 1.2f, 13.4f), new Vector3(0.5f, 0.5f, 0.3f), new Color(0.8f, 0.7f, 0.3f), zone);
-        GameObject doorBone = Box("Door_BoneKey", new Vector3(3f, 2f, 14f), new Vector3(5f, 4f, 0.5f), door, zone);
+        GameObject lockBox = Box("Lock_BoneKey", new Vector3(4.6f, 1.2f, 13.4f), new Vector3(0.5f, 0.5f, 0.3f), new Color(0.8f, 0.7f, 0.3f), zone);
         OpenOnFilled(Socket(lockBox, "Item_BoneKey", 1, true, "unlock with", null, null), doorBone);
 
         Label("PUZZLES\npedestal: 3 stone fragments -> left door\nseaweed: 3 bone fragments -> bone key -> right door", new Vector3(0f, 6f, 12f), zone);
+    }
+
+    private static void BuildDoors()
+    {
+        Transform zone = Group("Zone_Doors");
+        Door swing = SpawnDoor("Door_Swing", new Vector3(6f, 0f, -12f), false, false, zone);
+        SetField(swing, "motion", p => p.enumValueIndex = (int)Door.Motion.Swing);
+        SpawnDoor("Door_ClosesBehind", new Vector3(10f, 0f, -12f), false, true, zone);
+        Label("DOORS - left: E opens / closes (swings)\nright: slides up, then shuts and locks once you're through", new Vector3(9f, 5f, -11f), zone);
+    }
+
+    // The Door_Placeholder prefab (made on first use) at a hinge point, with a frame around the 2 x 3 opening.
+    private static Door SpawnDoor(string name, Vector3 hinge, bool locked, bool closeBehind, Transform parent)
+    {
+        GameObject prefab = EnsureDoorPrefab();
+        var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent.gameObject.scene);
+        instance.transform.SetParent(parent, true);
+        instance.transform.SetPositionAndRotation(hinge, Quaternion.identity);
+        instance.name = name;
+
+        var door = instance.GetComponent<Door>();
+        SetField(door, "locked", p => p.boolValue = locked);
+        SetField(door, "closeBehindPlayer", p => p.boolValue = closeBehind);
+
+        Box("Frame_Post", hinge + new Vector3(-0.2f, 1.5f, 0f), new Vector3(0.4f, 3f, 0.4f), PropColor, parent);
+        Box("Frame_Post", hinge + new Vector3(2.2f, 1.5f, 0f), new Vector3(0.4f, 3f, 0.4f), PropColor, parent);
+        Box("Frame_Top", hinge + new Vector3(1f, 3.2f, 0f), new Vector3(2.8f, 0.4f, 0.4f), PropColor, parent);
+        return door;
+    }
+
+    // Root = hinge + doorway trigger + Door + highlight; child Visual = a 2 x 3 panel with its collider. Swap the Visual for real art.
+    private static GameObject EnsureDoorPrefab()
+    {
+        var existing = AssetDatabase.LoadAssetAtPath<GameObject>(DoorPrefabPath);
+        if (existing != null)
+            return existing;
+
+        var root = new GameObject("Door_Placeholder");
+        var trigger = root.AddComponent<BoxCollider>();
+        trigger.isTrigger = true;
+        trigger.center = new Vector3(1f, 1.5f, 0f);
+        trigger.size = new Vector3(2.4f, 3.2f, 1.6f);
+        var door = root.AddComponent<Door>();
+        root.AddComponent<InteractableHighlight>();
+
+        GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        visual.name = "Visual";
+        visual.transform.SetParent(root.transform, false);
+        visual.transform.localPosition = new Vector3(1f, 1.5f, 0f);
+        visual.transform.localScale = new Vector3(2f, 3f, 0.15f);
+        visual.AddComponent<RendererTint>().Tint = new Color(0.45f, 0.3f, 0.2f);
+
+        var so = new SerializedObject(door);
+        so.FindProperty("visual").objectReferenceValue = visual.transform;
+        so.FindProperty("openSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(SfxFolder + "Door opening sound effect.mp3");
+        so.FindProperty("closeSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(SfxFolder + "Door closing sound effect.mp3");
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, DoorPrefabPath);
+        Object.DestroyImmediate(root);
+        Debug.Log("Created " + DoorPrefabPath);
+        return prefab;
     }
 
     private static ItemSocket Socket(GameObject host, string itemAsset, int amount, bool consume, string verb, string rewardAsset, GameObject[] visuals)
@@ -250,9 +320,9 @@ public static class TestArenaBuilder
         return socket;
     }
 
-    private static void OpenOnFilled(ItemSocket socket, GameObject door)
+    private static void OpenOnFilled(ItemSocket socket, Door door)
     {
-        UnityEditor.Events.UnityEventTools.AddBoolPersistentListener(socket.onFilled, door.SetActive, false);
+        UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(socket.onFilled, door.Open);
     }
 
     // ---- player / settings --------------------------------------------------------------------------------------
@@ -349,6 +419,22 @@ public static class TestArenaBuilder
         mesh.alignment = TextAlignment.Center;
         mesh.color = LabelColor;
         go.GetComponent<MeshRenderer>().sharedMaterial = labelFont.material;
+    }
+
+    // A Fish School object with the fish placed as prefab-linked children in a ring, so they show in the editor and can be tuned.
+    private static void CreateSchool(string prefabName, int count, Vector3 position, Transform parent)
+    {
+        var school = new GameObject("FishSchool_" + prefabName);
+        school.transform.SetParent(parent, false);
+        school.transform.position = position;
+        school.AddComponent<FishSchool>();
+
+        for (int i = 0; i < count; i++)
+        {
+            float angle = i * Mathf.PI * 2f / count;
+            Vector3 offset = new Vector3(Mathf.Cos(angle), i % 2 == 0 ? 0.2f : -0.2f, Mathf.Sin(angle)) * 1.2f;
+            Spawn(prefabName, position + offset, school.transform, 90f);
+        }
     }
 
     private static GameObject Spawn(string prefabName, Vector3 position, Transform parent, float yaw = 0f)
