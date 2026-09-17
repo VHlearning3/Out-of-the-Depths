@@ -65,7 +65,7 @@ When the ENA-style hand frames are ready: put them on a camera-facing quad under
 `Slash Attack → Hit Delay` sets when the damage lands after the click — match it to your impact frame.
 
 ### Checkpoint plate
-`Checkpoint_*` objects use a squashed cylinder and `RespawnPlate.mat` (emissive cyan). The player activates one by looking at it and pressing **E** (swimming over it does nothing). Swap the mesh freely; the `Checkpoint` component only needs a collider. Active/inactive glow colours and the prompt text are on the component.
+The `RespawnPlate` prefab is a complete checkpoint: squashed cylinder + `RespawnPlate.mat` (emissive cyan) + a trigger collider + the `Checkpoint` script — drop one anywhere and it works. The player activates it by looking at it and pressing **E** (swimming over it does nothing). Swap the mesh freely; the `Checkpoint` component only needs a collider. Active/inactive glow colours and the prompt text are on the component.
 
 ### Sparkle + highlight on fish and pickups
 Every prefab whose root is interactable (`Fish_Wanderer`, `Pufferfish`, `WallFish`, `DeadFish`, `Pickup_*`) carries `Interactable Highlight` and `Interactable Indicator`; a live fish only starts sparkling once it is dead and edible. If you add a new interactable prefab, run **Tools → Out of the Depths → Add Indicators To Interactable Prefabs** and it gets both, wired to `Particle_Placeholder`.
@@ -93,8 +93,8 @@ Drop a clip into the field, done:
 | Eat | `EdibleFish → Eat Sound` (per fish prefab) |
 | Enemy hit / death | `Damageable → Hit Sound / Death Sound` |
 | Pufferfish bite | `Fish Aggression → Attack Sound` |
-| Low hunger warning | `Player → Hunger System → Warning Sound` — runs while hunger ≤ `Warning Threshold` (30%), repeats every `Warning Interval` seconds (0 = loop), stops above |
-| Low health warning | `Player → Health System → Warning Sound` — same rules, own threshold |
+| Low hunger warning | `Player → Hunger System → Warning Sound` — plays **once** when hunger drops to `Warning Threshold` (25%); re-arms after eating back above it. Stand-in: a generated stomach gurgle |
+| Low health warning | `Player → Health System → Warning Sound` — runs while health ≤ `Warning Threshold` (30%), repeats every `Warning Interval` seconds (0 = loop), stops above |
 | Checkpoint | `Checkpoint → Activate Sound` |
 
 `Checkpoint chime.wav` and `Hit impact.wav` in `Assets/Sound/SFX Sound effects` are generated stand-ins — replace them.

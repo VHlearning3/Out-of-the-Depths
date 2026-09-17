@@ -284,7 +284,7 @@ public static class TestArenaBuilder
     private static void TuneWarningThresholds()
     {
         foreach (var hunger in Object.FindObjectsByType<HungerSystem>(FindObjectsSortMode.None))
-            SetField(hunger, "warningThreshold01", p => p.floatValue = 0.3f);
+            SetField(hunger, "warningThreshold01", p => p.floatValue = 0.25f);
         foreach (var health in Object.FindObjectsByType<HealthSystem>(FindObjectsSortMode.None))
             SetField(health, "warningThreshold01", p => p.floatValue = 0.3f);
     }

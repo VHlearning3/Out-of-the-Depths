@@ -24,7 +24,7 @@ MonoBehaviour:
     linkText:
     url:
   - heading: Artists - swapping placeholders
-    text: 'Everything grey and blocky is a placeholder. Replace the visual, keep the object that has the scripts. Fish prefabs are in Art/Prefabs/Placeholders: swap the Visual child for your model (nose along +Z) and set Fish Controller > Visual. Colour fish with the Renderer Tint component. Pickups: Pickup_* prefabs use the same root + Visual layout; Interactable Highlight lights an object up when looked at and Interactable Indicator adds the Particle_Placeholder sparkle - add both to any interactable. Hands: Player > CameraPivot > Hands; anything implementing IHandAnimator plugs into Slash Attack. Sounds: every sound is a field on the component that plays it; hunger and health warnings run while the bar is at or below 30%.'
+    text: 'Everything grey and blocky is a placeholder. Replace the visual, keep the object that has the scripts. Fish prefabs are in Art/Prefabs/Placeholders: swap the Visual child for your model (nose along +Z) and set Fish Controller > Visual. Colour fish with the Renderer Tint component. Pickups: Pickup_* prefabs use the same root + Visual layout; Interactable Highlight lights an object up when looked at and Interactable Indicator adds the Particle_Placeholder sparkle - add both to any interactable. Hands: Player > CameraPivot > Hands; anything implementing IHandAnimator plugs into Slash Attack. Sounds: every sound is a field on the component that plays it; the hunger warning plays once at 25%, the health warning repeats while health is at or below 30%.'
     linkText: Open the full guide (README.md on GitHub)
     url: https://github.com/VHlearning3/Out-of-the-Depths
   - heading: Where things are
