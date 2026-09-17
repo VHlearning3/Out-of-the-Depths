@@ -79,7 +79,7 @@ MonoBehaviour:
   destroyDelay: 0
   hitFlashColor: {r: 1, g: 1, b: 1, a: 1}
   hitFlashDuration: 0.08
-  hitSound: {fileID: 0}
+  hitSound: {fileID: 8300000, guid: 58d17cc6695b6a343a9d7cc331332dfe, type: 3}
   deathSound: {fileID: 8300000, guid: ec410fc3155e1844c9f4632e9390fd2e, type: 3}
   soundVolume: 0.7
   onHealthChanged:
