@@ -126,5 +126,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   hungerRestoreAmount: 25
-  eatSound: {fileID: 0}
+  prompt: eat
+  respawnTime: 0
+  eatSound: {fileID: 8300000, guid: a84b9a2df82233342a5cd0ceee34fa26, type: 3}
+  eatVolume: 0.6
   consumedVfx: {fileID: 0}
+  onEaten:
+    m_PersistentCalls:
+      m_Calls: []
+  onRespawned:
+    m_PersistentCalls:
+      m_Calls: []

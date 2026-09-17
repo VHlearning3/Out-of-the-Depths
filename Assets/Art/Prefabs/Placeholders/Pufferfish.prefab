@@ -17,7 +17,7 @@ GameObject:
   - component: {fileID: 900900027}
   - component: {fileID: 900900028}
   m_Layer: 0
-  m_Name: Pufferfish_Hostile
+  m_Name: Pufferfish
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -47,9 +47,17 @@ SphereCollider:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 900900020}
   m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
   m_IsTrigger: 0
+  m_ProvidesContacts: 0
   m_Enabled: 1
-  serializedVersion: 2
+  serializedVersion: 3
   m_Radius: 0.5
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &900900023
@@ -62,14 +70,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e0914f2d2f812c73d9957563e89be1ed, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   maxHealth: 40
   destroyOnDeath: 0
   destroyDelay: 0
   hitFlashColor: {r: 1, g: 1, b: 1, a: 1}
   hitFlashDuration: 0.08
-  hitSound: {fileID: 0}
+  hitSound: {fileID: 8300000, guid: 58d17cc6695b6a343a9d7cc331332dfe, type: 3}
   deathSound: {fileID: 8300000, guid: ec410fc3155e1844c9f4632e9390fd2e, type: 3}
   soundVolume: 0.7
   onHealthChanged:
@@ -91,8 +99,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 16efe9debcea6ba5a8505f2771f2d4f7, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   hungerRestoreAmount: 40
   prompt: eat
   respawnTime: 30
@@ -115,8 +123,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3413f66cb50c02baa15eed0c6a27351f, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   wanderRadius: 2.5
   verticalRange: 0.8
   speed: 1
@@ -133,8 +141,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 82d7d88709ea6b0de9b970460b68beec, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   detectRange: 5
   loseRange: 8
   chaseSpeed: 3
@@ -154,8 +162,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 67c3a6f8a8f69bf88ff652980c6bb6eb, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   wander: {fileID: 900900025}
   disabledWhileDead:
   - {fileID: 900900026}
@@ -163,6 +171,19 @@ MonoBehaviour:
   deathFlipDuration: 0.5
   deathFloatSpeed: 0.25
   deathFloatDistance: 0.8
+--- !u!114 &900900028
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 900900020}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eb1ff2eeaebcb26dd93706756659291e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  tint: {r: 1, g: 1, b: 1, a: 1}
 --- !u!1 &900900030
 GameObject:
   m_ObjectHideFlags: 0
@@ -253,16 +274,3 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &900900028
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 900900020}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: eb1ff2eeaebcb26dd93706756659291e, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  tint: {r: 1, g: 1, b: 1, a: 1}
