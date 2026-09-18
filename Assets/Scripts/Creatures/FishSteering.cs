@@ -17,7 +17,11 @@ public static class FishSteering
         Vector3 slide = Vector3.ProjectOnPlane(desired, hit.normal);
         if (slide.sqrMagnitude < 0.001f)
             slide = Vector3.Cross(hit.normal, Vector3.up);
-        return (slide.normalized + hit.normal * closeness).normalized;
+        if (slide.sqrMagnitude < 0.001f)
+            slide = Vector3.Cross(hit.normal, Vector3.right);   // head-on into a floor or ceiling
+
+        Vector3 steered = slide.normalized + hit.normal * Mathf.Max(closeness, 0.05f);
+        return steered.sqrMagnitude > 0.0001f ? steered.normalized : hit.normal;
     }
 
     // Shortens a move so it stops just short of the first wall in its way.

@@ -18,8 +18,11 @@ public class InventoryUI : MonoBehaviour
     [SerializeField] private Color selectedColor = new Color(0.25f, 0.65f, 0.75f, 0.85f);
     [SerializeField] private Color textColor = Color.white;
     [SerializeField] private int fontSize = 14;
+    [Tooltip("The selected slot grows to this size, smoothly.")]
+    [SerializeField] private float selectedScale = 1.12f;
 
     private Image[] boxes;
+    private int selected;
     private Image[] icons;
     private Text[] labels;
     private Text[] counts;
@@ -146,7 +149,24 @@ public class InventoryUI : MonoBehaviour
         if (boxes == null)
             return;
 
+        selected = index;
         for (int i = 0; i < boxes.Length; i++)
             boxes[i].color = i == index ? selectedColor : slotColor;
+    }
+
+    private void Update()
+    {
+        if (boxes == null)
+            return;
+
+        // Ease the slot sizes toward their targets so selection reads as a pop, not a jump.
+        float blend = 1f - Mathf.Exp(-14f * Time.deltaTime);
+        for (int i = 0; i < boxes.Length; i++)
+        {
+            float target = i == selected ? selectedScale : 1f;
+            RectTransform rect = boxes[i].rectTransform;
+            float size = Mathf.Lerp(rect.localScale.x, target, blend);
+            rect.localScale = new Vector3(size, size, 1f);
+        }
     }
 }

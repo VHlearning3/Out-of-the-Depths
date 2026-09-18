@@ -35,6 +35,7 @@ public class FishWander : MonoBehaviour
     public LayerMask ObstacleMask => obstacleMask;
     public float BodyRadius => bodyRadius;
     public float LookAhead => lookAhead;
+    public bool IsEntering => entering;
 
     private static readonly Collider[] neighbours = new Collider[16];
 
@@ -138,6 +139,8 @@ public class FishWander : MonoBehaviour
 
         desired = desired.sqrMagnitude > 0.0001f ? desired.normalized : transform.forward;
         desired = FishSteering.Avoid(transform.position, desired, bodyRadius, lookAhead, obstacleMask);
+        if (desired.sqrMagnitude < 0.0001f)
+            desired = transform.forward;
 
         Quaternion look = Quaternion.LookRotation(desired, Vector3.up);
         transform.rotation = Quaternion.Slerp(transform.rotation, look, turnSpeed * Time.deltaTime);

@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -18,6 +19,9 @@ public class Checkpoint : MonoBehaviour, IInteractable
     [SerializeField, Range(0f, 1f)] private float activateVolume = 0.7f;
     [SerializeField] private Color activeEmission = new Color(0.3f, 1.5f, 1.5f);
     [SerializeField] private Color inactiveEmission = new Color(0.05f, 0.25f, 0.25f);
+    [Tooltip("The glow flares to this many times the active colour on activation and settles over Flash Duration.")]
+    [SerializeField] private float activateFlash = 3f;
+    [SerializeField] private float flashDuration = 0.8f;
 
     [Header("Events")]
     public UnityEvent onActivated = new UnityEvent();
@@ -66,6 +70,7 @@ public class Checkpoint : MonoBehaviour, IInteractable
             AudioSource.PlayClipAtPoint(activateSound, transform.position, activateVolume);
 
         ApplyState();
+        StartCoroutine(Flash());
         onActivated.Invoke();
     }
 
@@ -73,7 +78,23 @@ public class Checkpoint : MonoBehaviour, IInteractable
     private void ApplyState()
     {
         enabled = !IsActive;
-        block.SetColor(EmissionId, IsActive ? activeEmission : inactiveEmission);
+        SetEmission(IsActive ? activeEmission : inactiveEmission);
+    }
+
+    private IEnumerator Flash()
+    {
+        for (float t = 0f; t < flashDuration; t += Time.deltaTime)
+        {
+            float k = Ease.OutCubic(t / flashDuration);
+            SetEmission(Color.Lerp(activeEmission * activateFlash, activeEmission, k));
+            yield return null;
+        }
+        SetEmission(activeEmission);
+    }
+
+    private void SetEmission(Color color)
+    {
+        block.SetColor(EmissionId, color);
         foreach (var r in renderers)
             r.SetPropertyBlock(block);
     }

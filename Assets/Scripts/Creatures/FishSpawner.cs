@@ -100,6 +100,13 @@ public class FishSpawner : MonoBehaviour
             if (controller == null || !controller.IsAlive || wander == null)
                 continue;
 
+            // Not in the room yet: no need to swim back out, just wait out of sight.
+            if (wander.IsEntering)
+            {
+                Park(go);
+                continue;
+            }
+
             Transform opening = NearestOpening(go.transform.position);
             var window = opening.GetComponent<FishWindow>();
             Vector3[] path = window != null
@@ -112,13 +119,13 @@ public class FishSpawner : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (startMode == StartMode.PlayerEntersTrigger && other.GetComponentInParent<DeathManager>() != null)
+        if (startMode == StartMode.PlayerEntersTrigger && PlayerBody.Is(other))
             Activate();
     }
 
     private void OnTriggerExit(Collider other)
     {
-        if (startMode == StartMode.PlayerEntersTrigger && other.GetComponentInParent<DeathManager>() != null)
+        if (startMode == StartMode.PlayerEntersTrigger && PlayerBody.Is(other))
             Deactivate();
     }
 

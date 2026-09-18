@@ -60,8 +60,11 @@ public class FishSchool : MonoBehaviour
         if (Vector3.Distance(Center, target) < targetReachDistance)
             PickNewTarget();
 
-        Vector3 desired = (target - Center).normalized;
+        Vector3 desired = target - Center;
+        desired = desired.sqrMagnitude > 0.0001f ? desired.normalized : heading;
         desired = FishSteering.Avoid(Center, desired, clearance, lookAhead, obstacleMask);
+        if (desired.sqrMagnitude < 0.0001f)
+            desired = heading;
         heading = Vector3.Slerp(heading, desired, turnSpeed * Time.deltaTime).normalized;
 
         Vector3 move = heading * (speed * Time.deltaTime);

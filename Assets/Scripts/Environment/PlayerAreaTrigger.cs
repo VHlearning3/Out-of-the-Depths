@@ -22,7 +22,7 @@ public class PlayerAreaTrigger : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.GetComponentInParent<DeathManager>() == null)
+        if (!PlayerBody.Is(other))
             return;
         if (once && fired)
             return;
@@ -33,7 +33,7 @@ public class PlayerAreaTrigger : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        if (other.GetComponentInParent<DeathManager>() == null)
+        if (!PlayerBody.Is(other))
             return;
         onPlayerExit.Invoke();
     }

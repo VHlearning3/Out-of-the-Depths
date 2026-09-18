@@ -150,7 +150,7 @@ public class FishController : MonoBehaviour
 
         for (float t = 0f; t < fadeDuration; t += Time.deltaTime)
         {
-            SetVisibility(1f - t / fadeDuration);
+            SetVisibility(1f - Ease.InOutSine(t / fadeDuration));
             yield return null;
         }
 

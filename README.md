@@ -98,7 +98,8 @@ Straight from the GDD: collected items go into a **5-slot hotbar** (bottom-right
   - pedestal — `Required Item` stone fragment, `Required Amount` 3, `Consume Items` on; fragments go in automatically when you press E with them on you
   - lock / door — required item bone key, amount 1
   - seaweed — required item bone key fragment ×3, `Reward Item` bone key (turns the pieces into the key)
-  - `Placed Visuals` are switched on one per placed piece; `On Filled` is where you hook the door opening (`GameObject.SetActive(false)`, an animation, etc.)
+  - `Placed Visuals` are the pieces as they should end up (place them on the pedestal); each one flies in from the player in an arc, spinning, and lands with a little bounce (`Place Duration`, `Place Arc Height`, `Place Spins`, `Between Pieces`). `On Filled` fires after the **last** piece has landed — that's where you hook the door (`Door.Open`).
+  - Pickups bob and spin (`Pickup Item → Idle motion`) and pop when taken (`Collect Duration`).
 - **HUD**: `Inventory` under `HUD` (`Inventory UI`). Missing in a scene? **Tools → Out of the Depths → Add Inventory HUD To Open Scene** adds it, the `Player Inventory` component, and points `Slash Attack → Weapon Visual` at the dagger placeholder.
 
 `TestArena`'s puzzle zone has all three socket types working end to end.
@@ -160,13 +161,14 @@ Assets/
 
 Every script starts with a one-line comment saying what it does. By folder:
 
-- **Player/** — `SwimController` (movement + camera feel), `HungerSystem`, `HealthSystem`, `DamageManager`, `DeathManager` (respawn), `PlayerInteractor` (E prompt), `PlayerInventory` (5-slot hotbar, 1-5 / wheel)
+- **Player/** — `SwimController` (movement + camera feel), `HungerSystem`, `HealthSystem`, `DamageManager`, `DeathManager` (respawn), `PlayerInteractor` (E prompt), `PlayerInventory` (5-slot hotbar, 1-5 / wheel), `PlayerBody` (the "is this collider the player?" check for triggers)
 - **Combat/** — `SlashAttack` (needs a weapon item in the inventory), `Damageable` (enemy HP), `IDamageable`, `IHandAnimator` + `PlaceholderHandAnimator`
 - **Creatures/** — `FishController` (alive → dead → drift up → fade → respawn), `DeadFishBarrier` (where dead fish fade), `FishWander` (solo wander or pack slot, separation), `FishSchool` (a pack's shared route), `FishSpawner` (fish swim in through windows/holes), `FishWindow` (one window's entry path; the prefab), `FishSteering` (wall avoidance), `FishAggression` (pufferfish chase/bite), `RendererTint`
 - **Interaction/** — `IInteractable`, `EdibleFish`, `PickupItem`, `Door` (slide/swing, lock, closes behind), `IInteractTargetListener` (react to being looked at), `InteractableHighlight` (lights up on look), `InteractableIndicator` (sparkle), `HazardDamage`, `Checkpoint`
 - **Items/** — `ItemDefinition` (one asset per collectable), `ItemSocket` (pedestal / lock / crafting spot that takes items from the inventory)
 - **UI/** — `StatBarUI` (bar or any Filled sprite), `ScreenFlash`, `HitMarker`, `InventoryUI` (hotbar), `CollectibleCounterUI`, `MainMenuController`, `AdminPanel`
 - **Environment/** — `UnderwaterLighting`, `ProximityLabel` (3D signs that face the player and fade in nearby; the arena zone labels), `WallCutter` (cuts a hole through a box wall for a Fish Window), `PlayerAreaTrigger` (trigger volume with player enter/exit events)
+- **Utility/** — `Ease` (easing curves used by every hand-rolled animation: doors, placing pieces, fades, pops)
 - **Editor/** — the *Tools → Out of the Depths* menu: `TestArenaBuilder`, `InteractablePrefabTools` (indicators on prefabs), `ItemTools` (GDD items, inventory HUD), `HudLayoutTools` (GDD HUD layout); editor-only
 
 How the pieces connect: `SlashAttack` → `Damageable` → (fish) `FishController` enables `EdibleFish` → `PlayerInteractor` → `HungerSystem` → `HealthSystem` → `DeathManager` → `Checkpoint`. Items: `PlayerInteractor` → `PickupItem` → `PlayerInventory` → `ItemSocket` (pedestal / lock / crafting) → `onFilled` opens a door, enables a chest, etc.

@@ -116,7 +116,7 @@ public class Door : MonoBehaviour, IInteractable
         float time = Mathf.Abs(target - from) * duration;
         for (float t = 0f; t < time; t += Time.deltaTime)
         {
-            openness = Mathf.Lerp(from, target, Mathf.SmoothStep(0f, 1f, t / time));
+            openness = Mathf.Lerp(from, target, Ease.InOutCubic(t / time));
             ApplyPose();
             yield return null;
         }
@@ -153,7 +153,7 @@ public class Door : MonoBehaviour, IInteractable
     {
         if (!closeBehindPlayer || !IsOpen)
             return;
-        if (other.GetComponentInParent<DeathManager>() == null)
+        if (!PlayerBody.Is(other))
             return;
 
         if (lockBehind)
