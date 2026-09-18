@@ -14,7 +14,7 @@ Inside Unity, click **`Assets/_START HERE`** for the same guide in the Inspector
 |---|---|
 | `MainMenu` | Start screen. New Game / Settings / Credits / Quit. First scene in the build. |
 | `Main_Scene` | The real level. |
-| `TestArena` | Labelled test zones around a spawn pad: movement course (slalom, low tunnel, vertical shaft, ramp), fish + food (one dead fish respawns), combat pen, hazard lane ending in a far checkpoint, pickup shelf, puzzle zone (pedestal / seaweed / two locked doors), doors demo (swing door, closes-behind door), a deck with a hatch and a basement. **Use this to try things.** Not included in builds. Regenerate it any time with **Tools → Out of the Depths → Rebuild Test Arena** — it keeps Player/HUD/admin panel and rebuilds the rest from the placeholder prefabs. |
+| `TestArena` | Labelled test zones around a spawn pad: movement course (slalom, low tunnel, vertical shaft, ramp), fish + food (one dead fish respawns), combat pen, hazard lane ending in a far checkpoint, pickup shelf, puzzle zone (pedestal / seaweed / two locked doors), doors demo (swing door, closes-behind door), a deck with a hatch and a basement, and the team mascot framed on the wall behind the spawn pad. **Use this to try things.** Not included in builds. Regenerate it any time with **Tools → Out of the Depths → Rebuild Test Arena** — it keeps Player/HUD/admin panel and rebuilds the rest from the placeholder prefabs. |
 
 Open a scene and press Play. `MainMenu` → New Game loads `Main_Scene`.
 
@@ -149,7 +149,7 @@ Assets/
     FBX 3D mallit/        models
     Materials/            Fish.mat, RespawnPlate.mat, FloorColors/
     Prefabs/Placeholders/ all placeholder prefabs (spawnable from the admin panel)
-    Textures/UI/          UI_White.png
+    Textures/             DogPhoto.jpg (the mascot, framed behind TestArena's spawn pad), UI/UI_White.png
   Items/                  one ItemDefinition asset per collectable (Tools → Out of the Depths → Create GDD Items)
   Scenes/                 MainMenu, Main_Scene, TestArena
   Scripts/                see below

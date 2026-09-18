@@ -14,6 +14,8 @@ public static class TestArenaBuilder
     private const string TrapdoorPrefabPath = PrefabRoot + "/Placeholders/Trapdoor_Placeholder.prefab";
     private const string FishWindowPrefabPath = PrefabRoot + "/Placeholders/FishWindow_Placeholder.prefab";
     private const string SfxFolder = "Assets/Sound/SFX Sound effects/";
+    private const string PhotoTexturePath = "Assets/Art/Textures/DogPhoto.jpg";
+    private const string PhotoMaterialPath = "Assets/Art/Materials/DogPhoto.mat";
 
     private static readonly Vector3 SpawnPosition = new Vector3(0f, 1.6f, -22f);
 
@@ -59,6 +61,7 @@ public static class TestArenaBuilder
         // Each step on its own, so one failure is reported in the Console and the rest of the arena still gets built.
         Step("Floor and walls", BuildFloorAndWalls);
         Step("Spawn", BuildSpawn);
+        Step("Mascot", BuildMascot);
         Step("Movement course", BuildMovementCourse);
         Step("Fish and food", BuildFishAndFood);
         Step("Combat pen", BuildCombatPen);
@@ -136,7 +139,7 @@ public static class TestArenaBuilder
     {
         Transform zone = Group("Zone_Spawn");
         Patch(zone, new Vector2(0f, -22f), new Vector2(10f, 10f), new Color(0.2f, 0.36f, 0.4f));
-        Label("WELCOME - N: fish and ship windows. NE: combat pen. E: hazard lane. SE: pickup shelf. S/E: doors. Centre: puzzles. SW: hatch and basement. W: movement course. Walk up to a sign to read it.", new Vector3(-4f, 0f, -25f), zone);
+        Label("WELCOME - N: fish and ship windows. NE: combat pen. E: hazard lane. SE: pickup shelf. S/E: doors. Centre: puzzles. SW: hatch and basement. W: movement course. Walk up to a sign to read it. Turn around to meet the QA lead.", new Vector3(-4f, 0f, -25f), zone);
         GameObject plate = Spawn("RespawnPlate", new Vector3(SpawnPosition.x, 0.05f, SpawnPosition.z), zone);
         if (plate != null)
         {
@@ -149,6 +152,77 @@ public static class TestArenaBuilder
         Label("SPAWN - take the dagger (E) to be able to slash\nadmin panel = 0", new Vector3(0f, 4f, -18f), zone);
     }
 
+
+    // The team mascot: a framed photo on the south wall right behind the spawn pad (turn around), with a plaque and its
+    // own spotlight. Photo: Art/Textures/DogPhoto.jpg - swap the file to change the picture.
+    private static void BuildMascot()
+    {
+        Transform zone = Group("Zone_Mascot");
+        Vector3 wall = new Vector3(0f, 3f, -30f);      // inner face of the south wall, north side
+        const float width = 2.4f, height = 1.8f;       // the photo is 4:3
+
+        Box("Frame", wall + new Vector3(0f, 0f, 0.05f), new Vector3(width + 0.24f, height + 0.24f, 0.1f), new Color(0.32f, 0.22f, 0.12f), zone);
+
+        // A Quad is seen from its -Z side, so it is turned to look north, toward the spawn pad.
+        GameObject photo = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        photo.name = "Photo";
+        Object.DestroyImmediate(photo.GetComponent<Collider>());
+        photo.transform.SetParent(zone, false);
+        photo.transform.SetPositionAndRotation(wall + new Vector3(0f, 0f, 0.105f), Quaternion.Euler(0f, 180f, 0f));
+        photo.transform.localScale = new Vector3(width, height, 1f);
+        Material material = EnsurePhotoMaterial();
+        if (material != null)
+            photo.GetComponent<Renderer>().sharedMaterial = material;
+
+        var plaque = new GameObject("Plaque");
+        plaque.transform.SetParent(zone, false);
+        plaque.transform.position = wall + new Vector3(0f, -(height * 0.5f + 0.45f), 0f);
+        RimPiece(plaque, "Board", new Vector3(0f, 0f, 0.04f), new Vector3(1.9f, 0.42f, 0.08f), new Color(0.6f, 0.48f, 0.2f));
+        SignFace(plaque, new[] { "HEAD OF QUALITY ASSURANCE", "(asleep on the job)" }, new Vector3(0f, 0f, 0.085f), 180f, 1.9f, 0.42f);
+
+        var spot = new GameObject("Spotlight");
+        spot.transform.SetParent(zone, false);
+        spot.transform.position = wall + new Vector3(0f, 3.5f, 3f);
+        spot.transform.LookAt(wall);
+        var light = spot.AddComponent<Light>();
+        light.type = LightType.Spot;
+        light.spotAngle = 55f;
+        light.range = 10f;
+        light.intensity = 4f;
+        light.color = new Color(1f, 0.95f, 0.85f);
+    }
+
+    // DogPhoto.mat: URP Lit with the photo as base map plus a faint emissive copy so it reads in dim water.
+    private static Material EnsurePhotoMaterial()
+    {
+        var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(PhotoTexturePath);
+        if (texture == null)
+        {
+            AssetDatabase.ImportAsset(PhotoTexturePath);
+            texture = AssetDatabase.LoadAssetAtPath<Texture2D>(PhotoTexturePath);
+        }
+        if (texture == null)
+        {
+            Debug.LogWarning($"TestArena: no picture at {PhotoTexturePath}, the mascot frame stays empty.");
+            return null;
+        }
+
+        var material = AssetDatabase.LoadAssetAtPath<Material>(PhotoMaterialPath);
+        if (material == null)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            material = new Material(shader != null ? shader : Shader.Find("Standard"));
+            AssetDatabase.CreateAsset(material, PhotoMaterialPath);
+        }
+        material.SetTexture("_BaseMap", texture);
+        material.SetTexture("_MainTex", texture);
+        material.SetFloat("_Smoothness", 0.35f);
+        material.EnableKeyword("_EMISSION");
+        material.SetTexture("_EmissionMap", texture);
+        material.SetColor("_EmissionColor", Color.white * 0.35f);
+        EditorUtility.SetDirty(material);
+        return material;
+    }
     private static void BuildMovementCourse()
     {
         Transform zone = Group("Zone_Movement");
