@@ -70,6 +70,20 @@ public static class ItemTools
     public static ItemDefinition Load(string assetName) =>
         AssetDatabase.LoadAssetAtPath<ItemDefinition>($"{ItemFolder}/{assetName}.asset");
 
+    // Every item asset in the folder, by name.
+    public static ItemDefinition[] LoadAll()
+    {
+        var list = new System.Collections.Generic.List<ItemDefinition>();
+        foreach (string guid in AssetDatabase.FindAssets("t:ItemDefinition", new[] { ItemFolder }))
+        {
+            var item = AssetDatabase.LoadAssetAtPath<ItemDefinition>(AssetDatabase.GUIDToAssetPath(guid));
+            if (item != null)
+                list.Add(item);
+        }
+        list.Sort((a, b) => string.Compare(a.name, b.name, System.StringComparison.Ordinal));
+        return list.ToArray();
+    }
+
     // Pickup prefabs made before item assets existed have no Item set: default them to a bone key fragment.
     private static void FixPickupPrefabs()
     {

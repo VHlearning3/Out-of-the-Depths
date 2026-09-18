@@ -6011,10 +6011,10 @@ MonoBehaviour:
   mouseSensitivity: 0.12
   minPitch: -85
   maxPitch: 85
-  swimSpeed: 3.5
-  sprintMultiplier: 1.8
-  acceleration: 4
-  drag: 1.5
+  swimSpeed: 2.2
+  sprintMultiplier: 1.6
+  acceleration: 1.6
+  drag: 0.7
   strafeRollAngle: 4
   turnRollAngle: 5
   rollSmoothTime: 0.3

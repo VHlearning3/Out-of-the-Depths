@@ -47,6 +47,8 @@ public static class FishSteering
         for (int i = 0; i < count; i++)
         {
             RaycastHit hit = hits[i];
+            if (hit.distance <= 0f && hit.point == Vector3.zero)
+                continue;   // the sweep started inside this collider: it is around us, not ahead of us
             if (hit.distance >= best)
                 continue;
             if (hit.collider.GetComponentInParent<FishController>() != null)

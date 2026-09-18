@@ -70,8 +70,11 @@ public static class TestArenaBuilder
         Step("Puzzles", BuildPuzzles);
         Step("Doors", BuildDoors);
         Step("Hatch", BuildHatch);
+        Step("Chase corridor", BuildChaseCorridor);
         Step("Player", PlacePlayer);
         Step("Inventory HUD", ItemTools.EnsureInventoryHud);
+        Step("Chase HUD", ChaseTools.EnsureDangerHud);
+        Step("Admin panel", WireAdminPanel);
         Step("HUD layout", HudLayoutTools.Apply);
         Step("Warning thresholds", TuneWarningThresholds);
 
@@ -129,7 +132,10 @@ public static class TestArenaBuilder
         barrier.AddComponent<DeadFishBarrier>();
 
         Transform walls = Group("Walls");
-        Box("Wall_North", new Vector3(0f, 5f, 30.5f), new Vector3(62f, 10f, 1f), WallColor, walls);
+        // The north wall has a 2.8 m doorway at x 2..4 for the chase corridor (Door_Final and its frame fill it).
+        Box("Wall_North_W", new Vector3(-14.7f, 5f, 30.5f), new Vector3(32.6f, 10f, 1f), WallColor, walls);
+        Box("Wall_North_E", new Vector3(17.7f, 5f, 30.5f), new Vector3(26.6f, 10f, 1f), WallColor, walls);
+        Box("Wall_North_Top", new Vector3(3f, 6.7f, 30.5f), new Vector3(2.8f, 6.6f, 1f), WallColor, walls);
         Box("Wall_South", new Vector3(0f, 5f, -30.5f), new Vector3(62f, 10f, 1f), WallColor, walls);
         Box("Wall_East", new Vector3(30.5f, 5f, 0f), new Vector3(1f, 10f, 62f), WallColor, walls);
         Box("Wall_West", new Vector3(-30.5f, 5f, 0f), new Vector3(1f, 10f, 62f), WallColor, walls);
@@ -139,7 +145,7 @@ public static class TestArenaBuilder
     {
         Transform zone = Group("Zone_Spawn");
         Patch(zone, new Vector2(0f, -22f), new Vector2(10f, 10f), new Color(0.2f, 0.36f, 0.4f));
-        Label("WELCOME - N: fish and ship windows. NE: combat pen. E: hazard lane. SE: pickup shelf. S/E: doors. Centre: puzzles. SW: hatch and basement. W: movement course. Walk up to a sign to read it. Turn around to meet the QA lead.", new Vector3(-4f, 0f, -25f), zone);
+        Label("WELCOME - N: fish and ship windows. NE: combat pen. E: hazard lane. SE: pickup shelf. S/E: doors. Centre: puzzles. SW: hatch and basement. W: movement course. N door: the chase. Walk up to a sign to read it. Turn around to meet the QA lead.", new Vector3(-4f, 0f, -25f), zone);
         GameObject plate = Spawn("RespawnPlate", new Vector3(SpawnPosition.x, 0.05f, SpawnPosition.z), zone);
         if (plate != null)
         {
@@ -326,7 +332,6 @@ public static class TestArenaBuilder
         for (int i = 0; i < items.Length; i++)
             CreatePickup(new Vector3(10f + i * 2f, 1.25f, -20f), items[i], zone);
         Label("PICKUPS - E to take, 1-5 / wheel selects a slot", new Vector3(16f, 3.5f, -19f), zone);
-        AddPickupToAdminPanel();
     }
 
     private static void BuildPuzzles()
@@ -371,25 +376,6 @@ public static class TestArenaBuilder
         SetField(swing, "motion", p => p.enumValueIndex = (int)Door.Motion.Swing);
         SpawnDoor("Door_ClosesBehind", new Vector3(10f, 0f, -12f), false, true, zone);
         Label("DOORS - left: E opens / closes (swings)\nright: slides up, then shuts and locks once you're through", new Vector3(9f, 5f, -11f), zone);
-    }
-
-    // The Door_Placeholder prefab (made on first use) at a hinge point, with a frame around the 2 x 3 opening.
-    private static Door SpawnDoor(string name, Vector3 hinge, bool locked, bool closeBehind, Transform parent)
-    {
-        GameObject prefab = EnsureDoorPrefab();
-        var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent.gameObject.scene);
-        instance.transform.SetParent(parent, true);
-        instance.transform.SetPositionAndRotation(hinge, Quaternion.identity);
-        instance.name = name;
-
-        var door = instance.GetComponent<Door>();
-        SetField(door, "locked", p => p.boolValue = locked);
-        SetField(door, "closeBehindPlayer", p => p.boolValue = closeBehind);
-
-        Box("Frame_Post", hinge + new Vector3(-0.2f, 1.5f, 0f), new Vector3(0.4f, 3f, 0.4f), PropColor, parent);
-        Box("Frame_Post", hinge + new Vector3(2.2f, 1.5f, 0f), new Vector3(0.4f, 3f, 0.4f), PropColor, parent);
-        Box("Frame_Top", hinge + new Vector3(1f, 3.2f, 0f), new Vector3(2.8f, 0.4f, 0.4f), PropColor, parent);
-        return door;
     }
 
     // A raised deck with a hatch in its roof and a "basement" inside (with a key to find), like the GDD's kellari.
@@ -509,6 +495,193 @@ public static class TestArenaBuilder
         UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(socket.onFilled, door.Open);
     }
 
+    // The Door_Placeholder prefab (made on first use) at a hinge point, with a frame around the 2 x 3 opening.
+    // yaw turns the whole thing: 0 = the door spans +X and you pass through along Z, 90 = it spans -Z and you pass along X.
+    private static Door SpawnDoor(string name, Vector3 hinge, bool locked, bool closeBehind, Transform parent, float yaw = 0f)
+    {
+        GameObject prefab = EnsureDoorPrefab();
+        var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent.gameObject.scene);
+        instance.transform.SetParent(parent, true);
+        Quaternion rotation = Quaternion.Euler(0f, yaw, 0f);
+        instance.transform.SetPositionAndRotation(hinge, rotation);
+        instance.name = name;
+
+        var door = instance.GetComponent<Door>();
+        SetField(door, "locked", p => p.boolValue = locked);
+        SetField(door, "closeBehindPlayer", p => p.boolValue = closeBehind);
+
+        FramePiece("Frame_Post", hinge, rotation, new Vector3(-0.2f, 1.5f, 0f), new Vector3(0.4f, 3f, 0.4f), parent);
+        FramePiece("Frame_Post", hinge, rotation, new Vector3(2.2f, 1.5f, 0f), new Vector3(0.4f, 3f, 0.4f), parent);
+        FramePiece("Frame_Top", hinge, rotation, new Vector3(1f, 3.2f, 0f), new Vector3(2.8f, 0.4f, 0.4f), parent);
+        return door;
+    }
+
+    private static void FramePiece(string name, Vector3 hinge, Quaternion rotation, Vector3 offset, Vector3 size, Transform parent)
+    {
+        GameObject piece = Box(name, hinge + rotation * offset, size, PropColor, parent);
+        piece.transform.rotation = rotation;
+    }
+
+    // ---- chase (GDD map room 9: the hallway, the room after it, the corridor where the rubble comes down) -----------
+
+    private static AudioClip Sfx(string file) => AssetDatabase.LoadAssetAtPath<AudioClip>(SfxFolder + file);
+
+    // A box without a collider: murals and other set dressing nothing should bump into.
+    private static GameObject Decor(string name, Vector3 center, Vector3 size, Color color, Transform parent)
+    {
+        GameObject box = Box(name, center, size, color, parent);
+        Object.DestroyImmediate(box.GetComponent<Collider>());
+        return box;
+    }
+
+    private static void BuildChaseCorridor()
+    {
+        Transform zone = Group("Zone_Chase");
+        Color hull = new Color(0.14f, 0.16f, 0.2f);
+        Color deck = new Color(0.18f, 0.2f, 0.24f);
+        Color mural = new Color(0.45f, 0.2f, 0.7f);
+        Color stone = new Color(0.7f, 0.65f, 0.5f);
+        Color rock = new Color(0.3f, 0.27f, 0.24f);
+
+        // Briefing and a checkpoint in front of the final door (the door itself sits in the arena's north wall).
+        GameObject plate = Spawn("RespawnPlate", new Vector3(3f, 0.05f, 27.5f), zone);
+        if (plate != null)
+            plate.name = "Checkpoint_Chase";
+        Door finalDoor = SpawnDoor("Door_Final", new Vector3(2f, 0f, 30.5f), false, true, zone);
+        SetField(finalDoor, "lockBehind", p => p.boolValue = false);
+        Label("CHASE - E on the plate first. Through the door the grate at the far end of the hallway behind you bursts and three chase pufferfish come out: the dagger does nothing to them, three bites and you're dead. Grab the two stone fragments (Space / Ctrl), slot them in the tablet by the far door, then take the trident at the end of the long corridor and the rubble seals it behind you.", new Vector3(6.5f, 0f, 27f), zone);
+
+        // Floor and ceilings outside the arena wall: the hallway (room 9), the room after it and the long corridor.
+        Box("Floor_Chase", new Vector3(12f, -0.1f, 46.5f), new Vector3(46f, 0.2f, 31f), deck, zone);
+        Box("Ceiling_Hall", new Vector3(7.5f, 4.65f, 33.25f), new Vector3(36f, 0.3f, 4.5f), hull, zone);
+        Box("Ceiling_Room", new Vector3(29.75f, 4.65f, 35.25f), new Vector3(8.5f, 0.3f, 8.5f), hull, zone);
+        Box("Ceiling_Corridor", new Vector3(30.25f, 4.65f, 51f), new Vector3(4.5f, 0.3f, 22.5f), hull, zone);
+
+        // Hallway: x -10..25.5, z 31..35.5, murals on the north wall like the map. The door is 12 m along it, so the
+        // vent in its west end (where the pack waits) is well behind the player when they come in.
+        Box("Hall_N", new Vector3(7.5f, 2.4f, 35.75f), new Vector3(36f, 4.8f, 0.5f), hull, zone);
+        Box("Hall_W_Low", new Vector3(-10.25f, 1.2f, 33.25f), new Vector3(0.5f, 2.4f, 4.5f), hull, zone);
+        Box("Hall_W_High", new Vector3(-10.25f, 4.4f, 33.25f), new Vector3(0.5f, 0.8f, 4.5f), hull, zone);
+        Box("Hall_W_S", new Vector3(-10.25f, 3.2f, 31.5f), new Vector3(0.5f, 1.6f, 1f), hull, zone);
+        Box("Hall_W_N", new Vector3(-10.25f, 3.2f, 34.95f), new Vector3(0.5f, 1.6f, 1.1f), hull, zone);
+        // The vent: a hollow duct behind the hole (back, floor, ceiling, sides), open into the hallway, so the pack waits in open water.
+        Color duct = new Color(0.03f, 0.03f, 0.04f);
+        Box("Vent_Back", new Vector3(-12.6f, 3.2f, 33.2f), new Vector3(0.2f, 2f, 2.8f), duct, zone);
+        Box("Vent_Floor", new Vector3(-11.25f, 2.3f, 33.2f), new Vector3(2.5f, 0.2f, 2.8f), duct, zone);
+        Box("Vent_Ceiling", new Vector3(-11.25f, 4.1f, 33.2f), new Vector3(2.5f, 0.2f, 2.8f), duct, zone);
+        Box("Vent_S", new Vector3(-11.25f, 3.2f, 31.9f), new Vector3(2.5f, 2f, 0.2f), duct, zone);
+        Box("Vent_N", new Vector3(-11.25f, 3.2f, 34.5f), new Vector3(2.5f, 2f, 0.2f), duct, zone);
+        Decor("Mural", new Vector3(-4f, 2.4f, 35.45f), new Vector3(5f, 1.6f, 0.06f), mural, zone);
+        Decor("Mural", new Vector3(8f, 2.4f, 35.45f), new Vector3(5f, 1.6f, 0.06f), mural, zone);
+        Decor("Mural", new Vector3(17f, 2.4f, 35.45f), new Vector3(4f, 1.6f, 0.06f), mural, zone);
+
+        // The pack: three chase pufferfish asleep in the vent; the trigger just inside the door wakes them.
+        var chaseGo = new GameObject("ChaseSequence");
+        chaseGo.transform.SetParent(zone, false);
+        chaseGo.transform.position = new Vector3(-11.25f, 3.2f, 33.2f);
+        var chase = chaseGo.AddComponent<ChaseSequence>();
+        SetField(chase, "startSound", p => p.objectReferenceValue = Sfx("Deep Sea Monster sound effect.mp3"));
+        SetField(chase, "endSound", p => p.objectReferenceValue = Sfx("Puzzle Completed Sound effect.mp3"));
+        GameObject pursuerPrefab = ChaseTools.EnsurePursuerPrefab();
+        Vector3[] slots = { new Vector3(-12f, 3.2f, 32.6f), new Vector3(-11.3f, 3.2f, 33.2f), new Vector3(-10.6f, 3.2f, 33.8f) };
+        for (int i = 0; i < slots.Length; i++)
+        {
+            var fish = (GameObject)PrefabUtility.InstantiatePrefab(pursuerPrefab, zone.gameObject.scene);
+            fish.transform.SetParent(chaseGo.transform, true);
+            fish.transform.SetPositionAndRotation(slots[i], Quaternion.Euler(0f, 90f, 0f));
+            fish.name = "ChasePufferfish_" + (i + 1);
+            fish.SetActive(false);
+        }
+
+        // The grate over the vent: blown off and dropped to the floor when the chase starts, and the camera is drawn to it.
+        var grate = new GameObject("VentGrate");
+        grate.transform.SetParent(zone, false);
+        grate.transform.SetPositionAndRotation(new Vector3(-10.25f, 3.2f, 33.2f), Quaternion.Euler(0f, 90f, 0f));
+        Color iron = new Color(0.2f, 0.2f, 0.22f);
+        foreach (float z in new[] { 32.55f, 33.2f, 33.85f })
+            Decor("Bar", new Vector3(-10.25f, 3.2f, z), new Vector3(0.08f, 1.6f, 0.08f), iron, zone).transform.SetParent(grate.transform, true);
+        foreach (float y in new[] { 2.85f, 3.55f })
+            Decor("Bar", new Vector3(-10.25f, y, 33.2f), new Vector3(0.08f, 0.08f, 2.4f), iron, zone).transform.SetParent(grate.transform, true);
+        SetField(chase, "grate", p => p.objectReferenceValue = grate.transform);
+        SetField(chase, "grateSound", p => p.objectReferenceValue = Sfx("Hit impact.wav"));
+
+        var start = new GameObject("ChaseStart");
+        start.transform.SetParent(zone, false);
+        start.transform.position = new Vector3(3.5f, 2.4f, 33.25f);
+        var startBox = start.AddComponent<BoxCollider>();
+        startBox.isTrigger = true;
+        startBox.size = new Vector3(4f, 4.8f, 4.5f);
+        SetField(chase, "startTrigger", p => p.objectReferenceValue = start.AddComponent<PlayerAreaTrigger>());
+
+        // Under pressure: two stone fragments, one up by the ceiling and one on the floor, for the tablet that opens the far door.
+        CreatePickup(new Vector3(9f, 3.7f, 33.2f), "Item_StoneFragment", zone);
+        CreatePickup(new Vector3(17f, 0.5f, 34.5f), "Item_StoneFragment", zone);
+        Box("Hall_E_S", new Vector3(25.75f, 2.4f, 31.9f), new Vector3(0.5f, 4.8f, 1.8f), hull, zone);
+        Box("Hall_E_Top", new Vector3(25.75f, 4.1f, 34.2f), new Vector3(0.5f, 1.4f, 2.8f), hull, zone);
+        Box("Hall_E_N", new Vector3(25.75f, 2.4f, 35.8f), new Vector3(0.5f, 4.8f, 0.6f), hull, zone);
+        Door hallDoor = SpawnDoor("Door_Hallway", new Vector3(25.75f, 0f, 35.2f), true, false, zone, 90f);
+        GameObject tablet = Box("RuneTablet", new Vector3(23.5f, 1.8f, 35.4f), new Vector3(1.1f, 1.3f, 0.2f), stone, zone);
+        var slotted = new GameObject[2];
+        for (int i = 0; i < slotted.Length; i++)
+        {
+            slotted[i] = Box("Placed_Stone_" + (i + 1), new Vector3(23.2f + i * 0.6f, 1.8f, 35.22f), new Vector3(0.3f, 0.35f, 0.16f), new Color(0.4f, 0.8f, 0.85f), zone);
+            slotted[i].SetActive(false);
+        }
+        OpenOnFilled(Socket(tablet, "Item_StoneFragment", 2, true, "slot", null, slotted), hallDoor);
+
+        // The room after the hallway (normal fish, like the map) and the long corridor north out of it.
+        Box("Room_W", new Vector3(25.75f, 2.4f, 37.8f), new Vector3(0.5f, 4.8f, 3.6f), hull, zone);
+        Box("Room_S", new Vector3(32.75f, 2.4f, 30.75f), new Vector3(3.5f, 4.8f, 0.5f), hull, zone);
+        Box("Room_E", new Vector3(34.25f, 2.4f, 35.25f), new Vector3(0.5f, 4.8f, 9f), hull, zone);
+        Box("Room_N_W", new Vector3(26.75f, 2.4f, 39.75f), new Vector3(2.5f, 4.8f, 0.5f), hull, zone);
+        Box("Room_N_E", new Vector3(33.5f, 2.4f, 39.75f), new Vector3(2f, 4.8f, 0.5f), hull, zone);
+        CreateSchool("Fish_Wanderer", 3, new Vector3(30f, 2.2f, 35f), zone);
+        Box("Corridor_W", new Vector3(27.75f, 2.4f, 51f), new Vector3(0.5f, 4.8f, 22.5f), hull, zone);
+        Box("Corridor_E", new Vector3(32.75f, 2.4f, 51f), new Vector3(0.5f, 4.8f, 22.5f), hull, zone);
+        Box("Corridor_End", new Vector3(30.25f, 2.4f, 62.25f), new Vector3(5.5f, 4.8f, 0.5f), hull, zone);
+
+        // Rubble: rocks placed where they land (Rubble Fall lifts them out of sight at start) and a blocker sealing the gaps.
+        var rubbleGo = new GameObject("Rubble");
+        rubbleGo.transform.SetParent(zone, false);
+        rubbleGo.transform.position = new Vector3(30.25f, 0f, 53.5f);
+        var blockerGo = new GameObject("Blocker");
+        blockerGo.transform.SetParent(rubbleGo.transform, false);
+        blockerGo.transform.localPosition = new Vector3(0f, 2.25f, 0f);
+        var blocker = blockerGo.AddComponent<BoxCollider>();
+        blocker.size = new Vector3(4.5f, 4.5f, 1.8f);
+        Vector3[] spots =
+        {
+            new Vector3(-1.5f, 0.75f, 0.3f), new Vector3(0f, 0.8f, -0.2f), new Vector3(1.5f, 0.7f, 0.2f),
+            new Vector3(-0.9f, 2.1f, -0.1f), new Vector3(0.7f, 2.2f, 0.3f),
+            new Vector3(-0.2f, 3.5f, 0f), new Vector3(1.4f, 3.4f, -0.3f), new Vector3(-1.6f, 3.6f, 0.2f),
+        };
+        Vector3[] sizes =
+        {
+            new Vector3(1.7f, 1.5f, 1.6f), new Vector3(1.8f, 1.6f, 1.7f), new Vector3(1.6f, 1.4f, 1.5f),
+            new Vector3(1.5f, 1.4f, 1.4f), new Vector3(1.6f, 1.5f, 1.5f),
+            new Vector3(1.5f, 1.3f, 1.4f), new Vector3(1.3f, 1.2f, 1.3f), new Vector3(1.2f, 1.2f, 1.2f),
+        };
+        for (int i = 0; i < spots.Length; i++)
+        {
+            GameObject r = Box("Rock", rubbleGo.transform.position + spots[i], sizes[i], rock, rubbleGo.transform);
+            r.transform.rotation = Quaternion.Euler(i * 17f % 30f - 15f, i * 41f % 90f, i * 23f % 30f - 15f);
+        }
+        var rubble = rubbleGo.AddComponent<RubbleFall>();
+        SetField(rubble, "blocker", p => p.objectReferenceValue = blocker);
+        SetField(rubble, "thudSound", p => p.objectReferenceValue = Sfx("Hit impact.wav"));
+        SetField(chase, "endRubble", p => p.objectReferenceValue = rubble);
+
+        // The trident on its pedestal: taking it (E for now, the button mash comes later) drops the rubble.
+        Box("Pedestal_Trident", new Vector3(30.25f, 0.6f, 57.5f), new Vector3(1.2f, 1.2f, 1.2f), PropColor, zone);
+        GameObject trident = CreatePickup(new Vector3(30.25f, 1.7f, 57.5f), "Item_Trident", zone);
+        PickupItem pickup = trident != null ? trident.GetComponentInChildren<PickupItem>() : null;
+        SetField(rubble, "dropOnPickup", p => p.objectReferenceValue = pickup);
+        GameObject exitPlate = Spawn("RespawnPlate", new Vector3(30.25f, 0.05f, 60f), zone);
+        if (exitPlate != null)
+            exitPlate.name = "Checkpoint_Exit";
+        Label("EXIT - E takes the trident (button mash later) and the rubble comes down behind you. Trident combat starts here.", new Vector3(30.25f, 0f, 61.2f), zone);
+    }
+
     // ---- player / settings --------------------------------------------------------------------------------------
 
     private static void PlacePlayer()
@@ -565,6 +738,25 @@ public static class TestArenaBuilder
         SerializedProperty entry = list.GetArrayElementAtIndex(list.arraySize - 1);
         entry.FindPropertyRelative("label").stringValue = "Pickup";
         entry.FindPropertyRelative("prefab").objectReferenceValue = prefab;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // The admin panel's Give list: every item asset, so any of them can be handed out while testing.
+    private static void WireAdminPanel()
+    {
+        AddPickupToAdminPanel();
+        var admin = Object.FindFirstObjectByType<AdminPanel>(FindObjectsInactive.Include);
+        if (admin == null)
+            return;
+
+        ItemDefinition[] items = ItemTools.LoadAll();
+        var so = new SerializedObject(admin);
+        SerializedProperty list = so.FindProperty("items");
+        if (list == null)
+            return;
+        list.arraySize = items.Length;
+        for (int i = 0; i < items.Length; i++)
+            list.GetArrayElementAtIndex(i).objectReferenceValue = items[i];
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 
@@ -794,7 +986,7 @@ public static class TestArenaBuilder
     private static ParticleSystem FindSparkle() => InteractablePrefabTools.FindSparkle();
 
     // Uses Pickup_Placeholder.prefab when the team has made one, otherwise builds the same thing from primitives.
-    private static void CreatePickup(Vector3 position, string itemAssetName, Transform parent)
+    private static GameObject CreatePickup(Vector3 position, string itemAssetName, Transform parent)
     {
         GameObject root;
         GameObject prefab = FindPrefab("Pickup_Placeholder");
@@ -830,6 +1022,7 @@ public static class TestArenaBuilder
         if (pickup != null && item != null)
             SetField(pickup, "item", p => p.objectReferenceValue = item);
         root.name = "Pickup_" + itemAssetName.Replace("Item_", "");
+        return root;
     }
 
     private static void SetField(Object target, string field, System.Action<SerializedProperty> set)

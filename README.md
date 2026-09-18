@@ -14,7 +14,7 @@ Inside Unity, click **`Assets/_START HERE`** for the same guide in the Inspector
 |---|---|
 | `MainMenu` | Start screen. New Game / Settings / Credits / Quit. First scene in the build. |
 | `Main_Scene` | The real level. |
-| `TestArena` | Labelled test zones around a spawn pad: movement course (slalom, low tunnel, vertical shaft, ramp), fish + food (one dead fish respawns), combat pen, hazard lane ending in a far checkpoint, pickup shelf, puzzle zone (pedestal / seaweed / two locked doors), doors demo (swing door, closes-behind door), a deck with a hatch and a basement, and the team mascot framed on the wall behind the spawn pad. **Use this to try things.** Not included in builds. Regenerate it any time with **Tools → Out of the Depths → Rebuild Test Arena** — it keeps Player/HUD/admin panel and rebuilds the rest from the placeholder prefabs. |
+| `TestArena` | Labelled test zones around a spawn pad: movement course (slalom, low tunnel, vertical shaft, ramp), fish + food (one dead fish respawns), combat pen, hazard lane ending in a far checkpoint, pickup shelf, puzzle zone (pedestal / seaweed / two locked doors), doors demo (swing door, closes-behind door), a deck with a hatch and a basement, and the team mascot framed on the wall behind the spawn pad, and the chase corridor (GDD step 9) behind the door in the north wall. **Use this to try things.** Not included in builds. Regenerate it any time with **Tools → Out of the Depths → Rebuild Test Arena** — it keeps Player/HUD/admin panel and rebuilds the rest from the placeholder prefabs. |
 
 Open a scene and press Play. `MainMenu` → New Game loads `Main_Scene`.
 
@@ -22,8 +22,9 @@ Open a scene and press Play. `MainMenu` → New Game loads `Main_Scene`.
 
 | Input | Does |
 |---|---|
-| Mouse | Look. Looking up/down while swimming forward changes depth. |
-| W A S D | Swim |
+| Mouse | Look. Swimming forward follows where you look, so looking up/down changes depth. |
+| W A S D | Swim (slow to get going, glides when you let go: `Swim Controller → Acceleration / Drag`) |
+| Space / Ctrl | Swim straight up / down |
 | Shift | Sprint |
 | 1–5 / mouse wheel | Select an inventory slot |
 | E | Interact (eat a dead fish, pick up an item, activate a checkpoint, later: doors, chests) |
@@ -140,6 +141,18 @@ Restyle anything; the scripts only need the references that are already wired. E
 
 ---
 
+## Chase sequence (GDD step 9)
+
+Three **chase pufferfish** hunt the player until **rubble** seals the corridor behind them. `TestArena` has the whole thing behind the door in the north wall (activate the checkpoint in front of it first). Every piece is a plain component you place by hand, so a level can be tuned freely; the only wiring is dragging references into Inspector fields.
+
+1. **The pack:** Create Empty where they wait (a vent, a hole in the hull) → add **`Chase Sequence`** → drag three `ChasePufferfish_Placeholder` (`Art/Prefabs/Placeholders`) under it, placed inside the hole **facing the way out** (blue arrow; each swims `Emerge Distance` straight out before hunting), and **untick their checkbox** (inactive). Optional reveal: put a `Grate` object over the hole (any object; on start it is blown off, tips over and drops to the floor) and set `Look Pull Seconds` (the camera is drawn toward it for that long; the mouse can still fight it). Sounds and the danger distances are on the component. The Scene view shows the pack's start points and lines to whatever starts and ends it.
+2. **Start it:** drag a **`Player Area Trigger`** (a trigger box just inside the final door) into `Start Trigger`, or the final door itself into `Start Door` (it starts when the door opens). Anything else can call `Begin` through a UnityEvent.
+3. **End it:** Create Empty → add **`Rubble Fall`** → rock cubes under it **where they should land** (they are lifted out of sight at start) and a child with a Box Collider over the whole pile as the `Blocker`. Drag the trident pickup into the rubble's `Drop On Pickup` (or a trigger into `Drop On Trigger`), and drag the rubble into the sequence's `End Rubble`: the pack turns tail and fades when it comes down.
+4. **HUD:** **Tools → Out of the Depths → Add Chase Danger HUD To Open Scene** adds the red pulse that beats faster the closer they are.
+5. **Testing:** in Play mode use the admin panel's **Chase** section (Start / End / Reset) and **Go to**, or right-click the `Chase Sequence` / `Rubble Fall` component header for *Begin chase*, *End chase*, *Reset chase* and *Drop*.
+
+How they differ from the normal pufferfish (`Chase Pufferfish` component): they never lose you — they follow your exact route (breadcrumbs from `Player Trail`, added to the player automatically) through doors and round corners; they speed up when far behind (`Catch Up Boost`) and ease off right behind you (`Close Speed Factor`), so sprinting keeps them back and stopping to solve something lets them catch up; they puff up, lunge and bite with a shove (`Knockback`), and **`Hits To Kill` = 3** bites from full health. The dagger does nothing to them. Speed lives on the prefab (`Speed`, `Catch Up Boost`, `Lunge Speed`), so one change tunes every chase. Dying resets the chase: the pack goes back to its hole and comes again a couple of seconds after the respawn (if the player is still near; otherwise the trigger starts it again).
+
 ## Folder map
 
 ```
@@ -161,21 +174,21 @@ Assets/
 
 Every script starts with a one-line comment saying what it does. By folder:
 
-- **Player/** — `SwimController` (movement + camera feel), `HungerSystem`, `HealthSystem`, `DamageManager`, `DeathManager` (respawn), `PlayerInteractor` (E prompt), `PlayerInventory` (5-slot hotbar, 1-5 / wheel), `PlayerBody` (the "is this collider the player?" check for triggers)
+- **Player/** — `SwimController` (movement + camera feel), `HungerSystem`, `HealthSystem`, `DamageManager`, `DeathManager` (respawn), `PlayerInteractor` (E prompt), `PlayerInventory` (5-slot hotbar, 1-5 / wheel), `PlayerBody` (the "is this collider the player?" check for triggers), `PlayerTrail` (breadcrumbs the chase pack follows)
 - **Combat/** — `SlashAttack` (needs a weapon item in the inventory), `Damageable` (enemy HP), `IDamageable`, `IHandAnimator` + `PlaceholderHandAnimator`
-- **Creatures/** — `FishController` (alive → dead → drift up → fade → respawn), `DeadFishBarrier` (where dead fish fade), `FishWander` (solo wander or pack slot, separation), `FishSchool` (a pack's shared route), `FishSpawner` (fish swim in through windows/holes), `FishWindow` (one window's entry path; the prefab), `FishSteering` (wall avoidance), `FishAggression` (pufferfish chase/bite), `RendererTint`
+- **Creatures/** — `FishController` (alive → dead → drift up → fade → respawn), `DeadFishBarrier` (where dead fish fade), `FishWander` (solo wander or pack slot, separation), `FishSchool` (a pack's shared route), `FishSpawner` (fish swim in through windows/holes), `FishWindow` (one window's entry path; the prefab), `FishSteering` (wall avoidance), `FishAggression` (pufferfish chase/bite), `ChasePufferfish` (the chase-sequence hunter: follows your route, lunges, 3 bites kill), `ChaseSequence` (runs the chase: Begin / End, restarts after death), `RendererTint`
 - **Interaction/** — `IInteractable`, `EdibleFish`, `PickupItem`, `Door` (slide/swing, lock, closes behind), `IInteractTargetListener` (react to being looked at), `InteractableHighlight` (lights up on look), `InteractableIndicator` (sparkle), `HazardDamage`, `Checkpoint`
 - **Items/** — `ItemDefinition` (one asset per collectable), `ItemSocket` (pedestal / lock / crafting spot that takes items from the inventory)
-- **UI/** — `StatBarUI` (bar or any Filled sprite), `ScreenFlash`, `HitMarker`, `InventoryUI` (hotbar), `CollectibleCounterUI`, `MainMenuController`, `AdminPanel`
-- **Environment/** — `UnderwaterLighting`, `ProximityLabel` (3D signs that face the player and fade in nearby; the arena zone labels), `WallCutter` (cuts a hole through a box wall for a Fish Window), `PlayerAreaTrigger` (trigger volume with player enter/exit events)
+- **UI/** — `StatBarUI` (bar or any Filled sprite), `ScreenFlash`, `HitMarker`, `InventoryUI` (hotbar), `CollectibleCounterUI`, `MainMenuController`, `AdminPanel`, `ChaseDangerUI` (red pulse while the chase pack is near)
+- **Environment/** — `UnderwaterLighting`, `ProximityLabel` (3D signs that face the player and fade in nearby; the arena zone labels), `WallCutter` (cuts a hole through a box wall for a Fish Window), `PlayerAreaTrigger` (trigger volume with player enter/exit events), `RubbleFall` (rocks that drop on Drop() and seal a corridor)
 - **Utility/** — `Ease` (easing curves used by every hand-rolled animation: doors, placing pieces, fades, pops)
-- **Editor/** — the *Tools → Out of the Depths* menu: `TestArenaBuilder`, `InteractablePrefabTools` (indicators on prefabs), `ItemTools` (GDD items, inventory HUD), `HudLayoutTools` (GDD HUD layout); editor-only
+- **Editor/** — the *Tools → Out of the Depths* menu: `TestArenaBuilder`, `InteractablePrefabTools` (indicators on prefabs), `ItemTools` (GDD items, inventory HUD), `HudLayoutTools` (GDD HUD layout), `ChaseTools` (chase pufferfish prefab, danger HUD); editor-only
 
 How the pieces connect: `SlashAttack` → `Damageable` → (fish) `FishController` enables `EdibleFish` → `PlayerInteractor` → `HungerSystem` → `HealthSystem` → `DeathManager` → `Checkpoint`. Items: `PlayerInteractor` → `PickupItem` → `PlayerInventory` → `ItemSocket` (pedestal / lock / crafting) → `onFilled` opens a door, enables a chest, etc.
 
 ## Admin panel (press 0)
 
-Spawn any placeholder in front of you, fill/starve/kill the player, god mode, time scale, recolour all fish. It is a debug tool (IMGUI) — safe to leave in, it draws nothing until opened.
+An IMGUI window that works in any scene without a canvas, and grows with the screen. Sections: **Player** (live health and hunger bars; **God mode** = no damage from anything, starving included; **No hunger drain**; fill / hurt / kill / starve / teleport to the active checkpoint), **Give** (every item in `Assets/Items`, `x3` for stackables, clear inventory), **Spawn in front of you** (the prefabs in `Spawnables`), **Go to** (teleport in front of any sign or onto any checkpoint in the scene), **Chase** (start / end / reset the Chase Sequence, live danger), **World** (time scale with presets, unlock + open or close all doors, drop all rubble, kill all fish, fish colour). *Rebuild Test Arena* fills `Items` and `Spawnables`; in another scene set them on the `AdminPanel` component.
 
 ## Conventions
 

@@ -15,6 +15,8 @@ public class HealthSystem : MonoBehaviour
     [SerializeField] private HungerSystem hungerSystem;
     [SerializeField] private float starveDamagePerTick = 5f;
     [SerializeField] private float starveTickInterval = 1f;
+    [Tooltip("Starvation damage goes through this, so God mode and the hit window apply to it too. Empty = the one on this object.")]
+    [SerializeField] private DamageManager damageManager;
 
     [Header("Regeneration")]
     [Tooltip("Health regained per second while well fed and not recently hurt.")]
@@ -56,6 +58,8 @@ public class HealthSystem : MonoBehaviour
     private void Awake()
     {
         CurrentHealth = Mathf.Clamp(startingHealth, 0f, maxHealth);
+        if (damageManager == null)
+            damageManager = GetComponent<DamageManager>();
         audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.playOnAwake = false;
         audioSource.spatialBlend = 0f;
@@ -86,7 +90,10 @@ public class HealthSystem : MonoBehaviour
             if (Time.time >= nextStarveTickTime)
             {
                 nextStarveTickTime = Time.time + starveTickInterval;
-                TakeDamage(starveDamagePerTick);
+                if (damageManager != null)
+                    damageManager.ApplyDamage(starveDamagePerTick);
+                else
+                    TakeDamage(starveDamagePerTick);
             }
             return;
         }

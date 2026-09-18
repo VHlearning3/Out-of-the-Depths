@@ -33,6 +33,9 @@ public class HungerSystem : MonoBehaviour
     public bool IsLow => HungerPercent01 <= warningThreshold01;
     public bool IsStarving => CurrentHunger <= 0f;
 
+    // Admin panel: hunger stops going down while this is on.
+    public bool DrainPaused { get; set; }
+
     private bool depletedEventFired;
     private bool warningFired;
     private AudioSource audioSource;
@@ -54,7 +57,7 @@ public class HungerSystem : MonoBehaviour
 
     private void Update()
     {
-        if (IsStarving)
+        if (IsStarving || DrainPaused)
             return;
 
         SetHunger(CurrentHunger - depletionRate * Time.deltaTime);
@@ -77,6 +80,13 @@ public class HungerSystem : MonoBehaviour
         depletedEventFired = false;
         warningFired = false;
         SetHunger(maxHunger);
+    }
+
+    // Straight to empty (admin panel): starvation damage starts on the next tick.
+    public void Starve()
+    {
+        depletedEventFired = false;
+        SetHunger(0f);
     }
 
     private void SetHunger(float value)
