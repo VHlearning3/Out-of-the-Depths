@@ -129,7 +129,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   wanderRadius: 2.5
   verticalRange: 0.8
-  speed: 1
+  speed: 0.5
   turnSpeed: 2.5
   targetReachDistance: 0.4
   idleBobAmount: 0.08
