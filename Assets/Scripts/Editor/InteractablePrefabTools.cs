@@ -49,6 +49,8 @@ public static class InteractablePrefabTools
                         dirty = true;
                     }
                 }
+
+                dirty |= ApplyStyle(root.GetComponent<InteractableHighlight>(), indicator);
             }
 
             if (dirty)
@@ -61,6 +63,49 @@ public static class InteractablePrefabTools
         }
 
         Debug.Log($"Interactable prefabs updated: {changed}");
+    }
+
+    // One look for every interactable: quiet sparkle, soft highlight. Re-applied on each run so old prefabs pick up the current style.
+    private static bool ApplyStyle(InteractableHighlight highlight, InteractableIndicator indicator)
+    {
+        bool changed = false;
+        if (highlight != null)
+        {
+            var so = new SerializedObject(highlight);
+            changed |= SetFloat(so, "tintStrength", 0.2f);
+            changed |= SetFloat(so, "brightness", 0.35f);
+            changed |= SetFloat(so, "pulseSpeed", 1.2f);
+            changed |= SetFloat(so, "pulseAmount", 0.2f);
+            SerializedProperty emission = so.FindProperty("emission");
+            if (emission != null && emission.colorValue != new Color(1.2f, 1f, 0.6f))
+            {
+                emission.colorValue = new Color(1.2f, 1f, 0.6f);
+                changed = true;
+            }
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+        if (indicator != null)
+        {
+            var so = new SerializedObject(indicator);
+            changed |= SetFloat(so, "targetedRateMultiplier", 3f);
+            SerializedProperty burst = so.FindProperty("targetedBurst");
+            if (burst != null && burst.intValue != 6)
+            {
+                burst.intValue = 6;
+                changed = true;
+            }
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+        return changed;
+    }
+
+    private static bool SetFloat(SerializedObject so, string field, float value)
+    {
+        SerializedProperty prop = so.FindProperty(field);
+        if (prop == null || Mathf.Approximately(prop.floatValue, value))
+            return false;
+        prop.floatValue = value;
+        return true;
     }
 
     // Exact file name first, otherwise the first prefab whose name starts with it (Pickup_Placeholder 1, Hazard_Placeholder...).

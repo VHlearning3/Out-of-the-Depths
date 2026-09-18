@@ -138,6 +138,7 @@ GameObject:
   - component: {fileID: 4034784078240870703}
   - component: {fileID: 4948268952759247997}
   - component: {fileID: 8791077666978317161}
+  - component: {fileID: 4277983340084389437}
   m_Layer: 0
   m_Name: Trapdoor_Placeholder
   m_TagString: Untagged
@@ -229,9 +230,30 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractableHighlight
   highlightColor: {r: 1, g: 0.95, b: 0.75, a: 1}
-  tintStrength: 0.3
-  brightness: 0.6
-  emission: {r: 1.5, g: 1.2, b: 0.6, a: 1}
+  tintStrength: 0.2
+  brightness: 0.35
+  emission: {r: 1.2, g: 1, b: 0.6, a: 1}
   fadeTime: 0.12
-  pulseSpeed: 1.5
-  pulseAmount: 0.35
+  pulseSpeed: 1.2
+  pulseAmount: 0.2
+--- !u!114 &4277983340084389437
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3270130327881427519}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bdd58122e0def9f468f702c90a0820ba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InteractableIndicator
+  effectPrefab: {fileID: 3295423461172553804, guid: dc64b1000e8749d40b823b46d61a1af6, type: 3}
+  fitToModel: 1
+  fitPadding: 1.2
+  idleRateScale: 0.35
+  sizeScale: 0.8
+  targetedRateMultiplier: 3
+  targetedBurst: 6
+  onlyWhileInteractable: 1
+  showWithinDistance: 10

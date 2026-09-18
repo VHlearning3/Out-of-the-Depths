@@ -18,6 +18,10 @@ public class FishController : MonoBehaviour
     [SerializeField] private float deathFloatSpeed = 0.25f;
     [Tooltip("Slow roll while drifting up, degrees per second. 0 = none.")]
     [SerializeField] private float deathDriftSpin = 10f;
+    [Tooltip("Sideways wobble while drifting up, metres per second.")]
+    [SerializeField] private float deathDriftSway = 0.12f;
+    [Tooltip("How much each death varies: flip time, rise speed, spin and sway are scaled by a random factor in 1 ± this.")]
+    [SerializeField, Range(0f, 0.9f)] private float deathVariation = 0.45f;
     [Tooltip("Fade anyway after drifting this long without reaching a barrier. 0 = never.")]
     [SerializeField] private float driftTimeout = 40f;
     [SerializeField] private float fadeDuration = 1.5f;
@@ -38,6 +42,11 @@ public class FishController : MonoBehaviour
     private Quaternion visualRestRotation;
     private Vector3 visualRestScale = Vector3.one;
     private float drifted;
+    private float riseSpeed;
+    private float spinSpeed;
+    private Vector3 swayAxis;
+    private float swayPhase;
+    private float flipTime;
 
     private void Awake()
     {
@@ -77,10 +86,11 @@ public class FishController : MonoBehaviour
         float radius = wander != null ? wander.BodyRadius : 0.3f;
         LayerMask mask = wander != null ? wander.ObstacleMask : (LayerMask)~0;
 
-        Vector3 rise = Vector3.up * (deathFloatSpeed * Time.deltaTime);
-        transform.position += FishSteering.ClampMove(transform.position, rise, radius, mask);
-        if (deathDriftSpin != 0f)
-            transform.Rotate(0f, deathDriftSpin * Time.deltaTime, 0f, Space.World);
+        // Each corpse rises at its own pace, with its own roll and a lazy sideways wobble.
+        Vector3 move = Vector3.up * riseSpeed + swayAxis * Mathf.Sin(Time.time * 0.8f + swayPhase);
+        transform.position += FishSteering.ClampMove(transform.position, move * Time.deltaTime, radius, mask);
+        if (spinSpeed != 0f)
+            transform.Rotate(0f, spinSpeed * Time.deltaTime, 0f, Space.World);
 
         if (TouchingBarrier(radius) || (driftTimeout > 0f && drifted >= driftTimeout))
             StartCoroutine(FadeOut());
@@ -90,6 +100,12 @@ public class FishController : MonoBehaviour
     {
         IsAlive = false;
         drifted = 0f;
+        riseSpeed = deathFloatSpeed * Vary();
+        spinSpeed = deathDriftSpin * Vary() * (Random.value < 0.5f ? -1f : 1f);
+        flipTime = deathFlipDuration * Vary();
+        Vector2 side = Random.insideUnitCircle.normalized * (deathDriftSway * Vary());
+        swayAxis = new Vector3(side.x, 0f, side.y);
+        swayPhase = Random.value * 10f;
         SetBehavioursEnabled(false);
         if (wander != null)
             wander.enabled = false;
@@ -107,11 +123,13 @@ public class FishController : MonoBehaviour
         float t = 0f;
         while (t < 1f)
         {
-            t += Time.deltaTime / Mathf.Max(0.01f, deathFlipDuration);
+            t += Time.deltaTime / Mathf.Max(0.01f, flipTime);
             visual.localRotation = Quaternion.Slerp(from, to, Mathf.SmoothStep(0f, 1f, t));
             yield return null;
         }
     }
+
+    private float Vary() => Random.Range(1f - deathVariation, 1f + deathVariation);
 
     // Static triggers don't send events to colliders without a rigidbody, so the fish looks for the barrier itself.
     private bool TouchingBarrier(float radius)

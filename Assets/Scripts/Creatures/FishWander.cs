@@ -21,8 +21,16 @@ public class FishWander : MonoBehaviour
 
     [Header("Other fish")]
     [Tooltip("Fish closer than this push each other apart, so packs don't overlap. 0 = off.")]
-    [SerializeField] private float separationDistance = 0.7f;
+    [SerializeField] private float separationDistance = 0.9f;
     [SerializeField] private float separationStrength = 1.5f;
+
+    [Header("In a pack")]
+    [Tooltip("Beyond this distance from its slot a fish pulls hard toward it; within it, it mostly just swims along with the pack.")]
+    [SerializeField] private float slotPullDistance = 2f;
+    [Tooltip("Extra speed (as a fraction of pack speed) a fish uses to catch up with its slot.")]
+    [SerializeField] private float catchUp = 0.8f;
+    [Tooltip("Small sideways sway inside the pack so it looks alive.")]
+    [SerializeField] private float sway = 0.25f;
 
     public LayerMask ObstacleMask => obstacleMask;
     public float BodyRadius => bodyRadius;
@@ -36,6 +44,10 @@ public class FishWander : MonoBehaviour
     private FishSchool school;
     private Vector3 slotOffset;
     private float speedScale = 1f;
+    private bool entering;
+    private Vector3[] entryPath;
+    private int entryIndex;
+    private System.Action arrived;
 
     private void Awake()
     {
@@ -57,24 +69,74 @@ public class FishWander : MonoBehaviour
         speedScale = speedMultiplier;
     }
 
+    // Swim through the given points in order (e.g. up a shaft, then out through a hole), ignoring walls on the way,
+    // then wander around homeAfter. onArrived fires at the last point (used to park a fish that swam back out).
+    public void SwimOut(Vector3[] path, Vector3 homeAfter, System.Action onArrived = null)
+    {
+        entryPath = path;
+        entryIndex = 0;
+        entering = path != null && path.Length > 0;
+        home = homeAfter;
+        arrived = onArrived;
+        if (entering)
+            target = path[0];
+    }
+
     private void Update()
     {
-        float moveSpeed = speed * speedScale;
-        if (school != null)
+        if (entering)
         {
-            target = school.Center + slotOffset;
-            // Catch up when far from the slot, cruise at the pack's pace once in it.
-            float gap = Vector3.Distance(transform.position, target);
-            moveSpeed = Mathf.Lerp(school.Speed * speedScale, moveSpeed * 1.5f, Mathf.Clamp01((gap - targetReachDistance) / 2f));
-        }
-        else if (Vector3.Distance(transform.position, target) < targetReachDistance)
-        {
-            PickNewTarget();
+            Vector3 toPoint = target - transform.position;
+            if (toPoint.magnitude < targetReachDistance)
+            {
+                entryIndex++;
+                if (entryIndex < entryPath.Length)
+                {
+                    target = entryPath[entryIndex];
+                    return;
+                }
+                entering = false;
+                PickNewTarget();
+                System.Action callback = arrived;
+                arrived = null;
+                callback?.Invoke();
+                if (!isActiveAndEnabled)
+                    return;
+            }
+            else
+            {
+                Quaternion entryLook = Quaternion.LookRotation(toPoint.normalized, Vector3.up);
+                transform.rotation = Quaternion.Slerp(transform.rotation, entryLook, turnSpeed * Time.deltaTime);
+                transform.position += transform.forward * (speed * speedScale * Time.deltaTime);
+                return;
+            }
         }
 
-        Vector3 toTarget = target - transform.position;
-        Vector3 desired = toTarget.sqrMagnitude > 0.0001f ? toTarget.normalized : transform.forward;
-        desired = (desired + Separation()).normalized;
+        float moveSpeed = speed * speedScale;
+        Vector3 desired;
+        if (school != null)
+        {
+            // Flocking: swim along with the pack, get pulled toward your slot the further you are from it, keep apart from neighbours.
+            Vector3 slot = school.Center + school.Frame * slotOffset
+                           + school.Frame * Vector3.right * (Mathf.Sin(Time.time * 1.3f + bobOffset) * sway);
+            Vector3 toSlot = slot - transform.position;
+            float gap = toSlot.magnitude;
+            float pull = Mathf.Clamp01(gap / Mathf.Max(0.01f, slotPullDistance));
+            Vector3 slotDirection = gap > 0.01f ? toSlot / gap : Vector3.zero;
+
+            desired = school.Heading * (1f - 0.6f * pull) + slotDirection * (1.3f * pull) + Separation();
+            moveSpeed = school.Speed * speedScale * (1f + catchUp * pull);
+        }
+        else
+        {
+            if (Vector3.Distance(transform.position, target) < targetReachDistance)
+                PickNewTarget();
+
+            Vector3 toTarget = target - transform.position;
+            desired = (toTarget.sqrMagnitude > 0.0001f ? toTarget.normalized : transform.forward) + Separation();
+        }
+
+        desired = desired.sqrMagnitude > 0.0001f ? desired.normalized : transform.forward;
         desired = FishSteering.Avoid(transform.position, desired, bodyRadius, lookAhead, obstacleMask);
 
         Quaternion look = Quaternion.LookRotation(desired, Vector3.up);
@@ -119,7 +181,7 @@ public class FishWander : MonoBehaviour
         if (school != null)
         {
             Gizmos.color = new Color(0.3f, 1f, 0.6f, 0.6f);
-            Gizmos.DrawLine(transform.position, school.Center + slotOffset);
+            Gizmos.DrawLine(transform.position, school.Center + school.Frame * slotOffset);
             return;
         }
 

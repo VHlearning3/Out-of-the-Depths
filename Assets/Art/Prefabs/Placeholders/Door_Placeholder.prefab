@@ -199,11 +199,15 @@ MonoBehaviour:
   motion: 0
   slideOffset: {x: 0, y: 2.9, z: 0}
   swingAngle: 100
+  swingAxis: {x: 0, y: 1, z: 0}
   duration: 1
   startOpen: 0
   locked: 0
   interactable: 1
+  openPrompt: open door
+  closePrompt: close door
   closeBehindPlayer: 0
+  throughAxis: {x: 0, y: 0, z: 1}
   openSound: {fileID: 8300000, guid: 9e6685778f96be94c860cb4e243427ac, type: 3}
   closeSound: {fileID: 8300000, guid: ab5c18bf3ec72e14f8d04452a7a61cca, type: 3}
   volume: 0.7
@@ -226,12 +230,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractableHighlight
   highlightColor: {r: 1, g: 0.95, b: 0.75, a: 1}
-  tintStrength: 0.3
-  brightness: 0.6
-  emission: {r: 1.5, g: 1.2, b: 0.6, a: 1}
+  tintStrength: 0.2
+  brightness: 0.35
+  emission: {r: 1.2, g: 1, b: 0.6, a: 1}
   fadeTime: 0.12
-  pulseSpeed: 1.5
-  pulseAmount: 0.35
+  pulseSpeed: 1.2
+  pulseAmount: 0.2
 --- !u!114 &1874002836265283939
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -247,6 +251,9 @@ MonoBehaviour:
   effectPrefab: {fileID: 3295423461172553804, guid: dc64b1000e8749d40b823b46d61a1af6, type: 3}
   fitToModel: 1
   fitPadding: 1.2
-  targetedRateMultiplier: 4
-  targetedBurst: 12
+  idleRateScale: 0.35
+  sizeScale: 0.8
+  targetedRateMultiplier: 3
+  targetedBurst: 6
   onlyWhileInteractable: 1
+  showWithinDistance: 10

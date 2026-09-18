@@ -19,6 +19,8 @@ public class Door : MonoBehaviour, IInteractable
     [SerializeField] private float swingAngle = 100f;
     [Tooltip("Swing: the hinge axis in this object's local space. Up (0,1,0) for a normal door, Forward (0,0,1) for a trapdoor lying flat.")]
     [SerializeField] private Vector3 swingAxis = Vector3.up;
+    [Tooltip("Swing: push open away from whoever opens it, so it never swings into the player's face. Off = always the same direction.")]
+    [SerializeField] private bool swingAwayFromPlayer = true;
     [SerializeField] private float duration = 1f;
 
     [Header("Behaviour")]
@@ -29,9 +31,12 @@ public class Door : MonoBehaviour, IInteractable
     [SerializeField] private bool interactable = true;
     [SerializeField] private string openPrompt = "open door";
     [SerializeField] private string closePrompt = "close door";
-    [Tooltip("Once the player passes through, the door closes and locks for good. Needs a trigger collider on this object covering the doorway.")]
+    [Tooltip("The door closes by itself when the player walks away from it. Needs a trigger collider on this object covering the doorway.")]
     [SerializeField] private bool closeBehindPlayer = false;
-    [Tooltip("Close Behind Player: the local direction that counts as 'through'. Forward for a door, Down (0,-1,0) for a hatch.")]
+    [Tooltip("Close Behind Player: also lock it, and only once the player has actually gone through (the GDD's first room). " +
+             "Off = it just shuts behind you and can be opened again from either side.")]
+    [SerializeField] private bool lockBehind = true;
+    [Tooltip("The local direction that counts as 'through' / the front of the door. Forward for a door, Down (0,-1,0) for a hatch.")]
     [SerializeField] private Vector3 throughAxis = Vector3.forward;
 
     [Header("Feedback")]
@@ -50,6 +55,7 @@ public class Door : MonoBehaviour, IInteractable
     private Vector3 closedPosition;
     private Quaternion closedRotation;
     private float openness;
+    private float swingDirection = 1f;
     private Coroutine motionRoutine;
 
     private void Awake()
@@ -72,6 +78,14 @@ public class Door : MonoBehaviour, IInteractable
     {
         if (!interactable || locked)
             return;
+
+        // Opening: swing toward the side the player is NOT on. Closing keeps the same arc.
+        if (!IsOpen && swingAwayFromPlayer && motion == Motion.Swing)
+        {
+            Vector3 front = transform.TransformDirection(throughAxis.normalized);
+            float side = Vector3.Dot(interactor.transform.position - transform.position, front);
+            swingDirection = side >= 0f ? 1f : -1f;
+        }
         Toggle();
     }
 
@@ -130,7 +144,7 @@ public class Door : MonoBehaviour, IInteractable
         }
 
         // Rotate the closed pose around this object's origin, so the hinge is here whatever the mesh's own pivot is.
-        Quaternion swing = Quaternion.AngleAxis(swingAngle * openness, swingAxis.normalized);
+        Quaternion swing = Quaternion.AngleAxis(swingAngle * swingDirection * openness, swingAxis.normalized);
         visual.localPosition = swing * closedPosition;
         visual.localRotation = swing * closedRotation;
     }
@@ -142,12 +156,15 @@ public class Door : MonoBehaviour, IInteractable
         if (other.GetComponentInParent<DeathManager>() == null)
             return;
 
-        Vector3 through = transform.TransformDirection(throughAxis.normalized);
-        bool wentThrough = Vector3.Dot(other.transform.position - transform.position, through) > 0f;
-        if (!wentThrough)
-            return;
+        if (lockBehind)
+        {
+            Vector3 through = transform.TransformDirection(throughAxis.normalized);
+            bool wentThrough = Vector3.Dot(other.transform.position - transform.position, through) > 0f;
+            if (!wentThrough)
+                return;
+            locked = true;
+        }
 
-        locked = true;
         Close();
     }
 }
