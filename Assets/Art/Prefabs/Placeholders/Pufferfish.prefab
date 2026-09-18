@@ -129,10 +129,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   wanderRadius: 2.5
   verticalRange: 0.8
-  speed: 1
+  speed: 0.5
   turnSpeed: 2.5
   targetReachDistance: 0.4
   idleBobAmount: 0.08
+  obstacleMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  bodyRadius: 0.3
+  lookAhead: 1.5
+  separationDistance: 0.7
+  separationStrength: 1.5
 --- !u!114 &900900026
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -172,7 +179,9 @@ MonoBehaviour:
   visual: {fileID: 900900031}
   deathFlipDuration: 0.5
   deathFloatSpeed: 0.25
-  deathFloatDistance: 0.8
+  deathDriftSpin: 10
+  driftTimeout: 40
+  fadeDuration: 1.5
 --- !u!114 &900900028
 MonoBehaviour:
   m_ObjectHideFlags: 0
