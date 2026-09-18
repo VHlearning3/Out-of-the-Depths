@@ -9,8 +9,8 @@ public class FishSchool : MonoBehaviour
     [Tooltip("Optional: spawned as children at start, on top of any fish already under this object.")]
     [SerializeField] private GameObject fishPrefab;
     [SerializeField, Min(0)] private int spawnCount = 0;
-    [Tooltip("How wide the pack is: each fish keeps a slot within this radius of the centre.")]
-    [SerializeField] private float spread = 1.5f;
+    [Tooltip("How wide the pack is. Slots are spread this far sideways, less up-down, and further along the swim direction, in the pack's own frame.")]
+    [SerializeField] private float spread = 2.5f;
     [Tooltip("Random per-fish speed multiplier (min, max), so the pack doesn't swim in lockstep.")]
     [SerializeField] private Vector2 speedVariation = new Vector2(0.9f, 1.15f);
 
@@ -29,6 +29,9 @@ public class FishSchool : MonoBehaviour
 
     public Vector3 Center { get; private set; }
     public float Speed => speed;
+    public Vector3 Heading => heading;
+    // The pack's frame: slots live in it, so the formation turns with the pack instead of staying fixed in the world.
+    public Quaternion Frame => Quaternion.LookRotation(heading, Vector3.up);
 
     private Vector3 heading;
     private Vector3 target;
@@ -43,7 +46,13 @@ public class FishSchool : MonoBehaviour
             Instantiate(fishPrefab, Center + SlotOffset(), Quaternion.LookRotation(heading, Vector3.up), transform);
 
         foreach (FishWander fish in GetComponentsInChildren<FishWander>())
-            fish.JoinSchool(this, SlotOffset(), Random.Range(speedVariation.x, speedVariation.y));
+            Add(fish);
+    }
+
+    // Give a fish a slot in the pack (also used by Fish Spawner for fish that swim in from windows).
+    public void Add(FishWander fish)
+    {
+        fish.JoinSchool(this, SlotOffset(), Random.Range(speedVariation.x, speedVariation.y));
     }
 
     private void Update()
@@ -51,19 +60,24 @@ public class FishSchool : MonoBehaviour
         if (Vector3.Distance(Center, target) < targetReachDistance)
             PickNewTarget();
 
-        Vector3 desired = (target - Center).normalized;
+        Vector3 desired = target - Center;
+        desired = desired.sqrMagnitude > 0.0001f ? desired.normalized : heading;
         desired = FishSteering.Avoid(Center, desired, clearance, lookAhead, obstacleMask);
+        if (desired.sqrMagnitude < 0.0001f)
+            desired = heading;
         heading = Vector3.Slerp(heading, desired, turnSpeed * Time.deltaTime).normalized;
 
         Vector3 move = heading * (speed * Time.deltaTime);
         Center += FishSteering.ClampMove(Center, move, clearance, obstacleMask);
     }
 
+    // A slot in the pack's local frame (x sideways, y up, z along the swim direction): real schools are wide and long, not tall.
     private Vector3 SlotOffset()
     {
-        Vector3 offset = Random.insideUnitSphere * spread;
-        offset.y *= 0.5f;
-        return offset;
+        return new Vector3(
+            Random.Range(-1f, 1f) * spread,
+            Random.Range(-0.35f, 0.35f) * spread,
+            Random.Range(-1.4f, 1.4f) * spread);
     }
 
     private void PickNewTarget()

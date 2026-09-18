@@ -14,7 +14,7 @@ Inside Unity, click **`Assets/_START HERE`** for the same guide in the Inspector
 |---|---|
 | `MainMenu` | Start screen. New Game / Settings / Credits / Quit. First scene in the build. |
 | `Main_Scene` | The real level. |
-| `TestArena` | Labelled test zones around a spawn pad: movement course (slalom, low tunnel, vertical shaft, ramp), fish + food (one dead fish respawns), combat pen, hazard lane ending in a far checkpoint, pickup shelf, puzzle zone (pedestal / seaweed / two locked doors), doors demo (swing door, closes-behind door), a deck with a hatch and a basement. **Use this to try things.** Not included in builds. Regenerate it any time with **Tools → Out of the Depths → Rebuild Test Arena** — it keeps Player/HUD/admin panel and rebuilds the rest from the placeholder prefabs. |
+| `TestArena` | Labelled test zones around a spawn pad: movement course (slalom, low tunnel, vertical shaft, ramp), fish + food (one dead fish respawns), combat pen, hazard lane ending in a far checkpoint, pickup shelf, puzzle zone (pedestal / seaweed / two locked doors), doors demo (swing door, closes-behind door), a deck with a hatch and a basement, and the team mascot framed on the wall behind the spawn pad. **Use this to try things.** Not included in builds. Regenerate it any time with **Tools → Out of the Depths → Rebuild Test Arena** — it keeps Player/HUD/admin panel and rebuilds the rest from the placeholder prefabs. |
 
 Open a scene and press Play. `MainMenu` → New Game loads `Main_Scene`.
 
@@ -52,6 +52,8 @@ Colour: the root has a **Renderer Tint** component — pick any colour, no new m
 
 **Collisions:** moving fish (wanderers, pufferfish, dead fish) have *trigger* colliders, so they never push or block the player — slashing, eating and the barrier all use overlap queries and still work. The wall fish keeps a solid collider because it is meant to block. Fish steer around walls and the player, and push apart from each other so packs don't overlap (`Fish Wander → Other fish`).
 
+**Spawning from windows / holes:** Create Empty in the room → add **`Fish Spawner`** → set `Fish Prefab` and `Count` (**`Count` is the pack size** when `Join School` is set). `Start Mode` decides when they come: **Scene Start**, **Player Enters Trigger** (add a Box Collider to the spawner, tick *Is Trigger*, size it over the room — the fish come in when the player swims into it, and with `Despawn When Player Leaves` the live ones swim back out through the nearest window when the player leaves and return when they come back; TestArena's closed fish room works this way), or **Manual** (call `Activate` / `Deactivate` from events — e.g. a **`Player Area Trigger`** volume anywhere, which has `On Player Enter / Exit` events you can wire to anything). Then drop **`FishWindow_Placeholder`** (`Art/Prefabs/Placeholders`) on the room-side face of the wall, blue arrow pointing into the room, **as a child of the spawner** — the spawner uses every Fish Window under it automatically, so **Ctrl+D** the window for more. **It cuts its own hole**: on a box wall (any scaled cube, i.e. all the greybox walls) the wall behind is replaced by pieces around a `Hole Size` opening and the hole is lined with a frame through the wall's full depth (`Sleeve Thickness / Color`) — automatically when you press Play, or permanently via the **Cut hole in the wall behind** button on the component / **Tools → Out of the Depths → Cut Holes For All Fish Windows** (undoable). A modelled hull mesh can't be cut that way; model the hole into it and the window just sits over it. Each window owns its entry path (`Fish Window → Start Depth / Start Drop / Exit Distance / scatter`, drawn in the Scene view): the fish appears behind and below the opening — deep under the sill outside, out of any sightline — rises into view outside the window, comes through it, fans out into the room, then wanders around the spawner or joins the pack. When one is eaten or fades at the barrier, its replacement comes in through a window again after the prefab's `Edible Fish → Respawn Time`. Swap the rim meshes on the prefab freely; the hole itself is modelled into the hull. (`Fish School → Fish Prefab / Spawn Count` is the other way to size a pack: those appear at the pack's centre at start instead of swimming in.)
+
 **Packs:** Create Empty → add **`Fish School`** → drag fish prefabs under it (or set `Fish Prefab` + `Spawn Count`). The pack's centre wanders around that object (`Wander Radius`, `Speed`) and every fish holds a slot within `Spread` of it, so they all swim the same route. A killed fish drops out and rejoins when it respawns. Fish steer around walls and the player and never push into them (`Fish Wander → Walls`); the pufferfish keeps this while chasing.
 
 ### Pickups (bone / stone fragments)
@@ -79,7 +81,8 @@ The `RespawnPlate` prefab is a complete checkpoint: squashed cylinder + `Respawn
 
 - `Motion`: **Slide** (moves the visual by `Slide Offset`, default straight up) or **Swing** (rotates it `Swing Angle` degrees around the root — so put the root at the door's edge).
 - **E** opens/closes it, unless `Locked`. Locked doors are opened from events: `Item Socket → On Filled → Door.Open` (a key, the pedestal), or `Unlock` to let the player open it themselves.
-- `Close Behind Player`: once the player passes through (to the side the root's blue arrow points at), it closes and locks for good — the GDD's first room.
+- `Close Behind Player`: the door shuts by itself when the player walks away from the doorway. With `Lock Behind` on it only does so once the player has gone through (to the side the root's blue arrow points at) and then locks for good — the GDD's first room; with it off it just closes and can be opened again from either side (the arena's fish room).
+- Swing doors push open **away from whoever opens them** (`Swing Away From Player`), so they never swing into the player's face.
 - Sounds: `Open Sound` / `Close Sound` (the SFX door clips are pre-wired). Events: `On Opened`, `On Closed`.
 - **Trapdoor / hatch**: `Trapdoor_Placeholder` is the same `Door` lying flat — `Swing Axis` (0,0,1) so the lid tilts up around its edge, `Through Axis` down, prompt "open hatch". Swap its Visual the same way. Today it opens with a plain **E**; when the GDD's button-mash comes, that mechanic will just call `Open()` on it.
 
@@ -95,7 +98,8 @@ Straight from the GDD: collected items go into a **5-slot hotbar** (bottom-right
   - pedestal — `Required Item` stone fragment, `Required Amount` 3, `Consume Items` on; fragments go in automatically when you press E with them on you
   - lock / door — required item bone key, amount 1
   - seaweed — required item bone key fragment ×3, `Reward Item` bone key (turns the pieces into the key)
-  - `Placed Visuals` are switched on one per placed piece; `On Filled` is where you hook the door opening (`GameObject.SetActive(false)`, an animation, etc.)
+  - `Placed Visuals` are the pieces as they should end up (place them on the pedestal); each one flies in from the player in an arc, spinning, and lands with a little bounce (`Place Duration`, `Place Arc Height`, `Place Spins`, `Between Pieces`). `On Filled` fires after the **last** piece has landed — that's where you hook the door (`Door.Open`).
+  - Pickups bob and spin (`Pickup Item → Idle motion`) and pop when taken (`Collect Duration`).
 - **HUD**: `Inventory` under `HUD` (`Inventory UI`). Missing in a scene? **Tools → Out of the Depths → Add Inventory HUD To Open Scene** adds it, the `Player Inventory` component, and points `Slash Attack → Weapon Visual` at the dagger placeholder.
 
 `TestArena`'s puzzle zone has all three socket types working end to end.
@@ -145,7 +149,7 @@ Assets/
     FBX 3D mallit/        models
     Materials/            Fish.mat, RespawnPlate.mat, FloorColors/
     Prefabs/Placeholders/ all placeholder prefabs (spawnable from the admin panel)
-    Textures/UI/          UI_White.png
+    Textures/             DogPhoto.jpg (the mascot, framed behind TestArena's spawn pad), UI/UI_White.png
   Items/                  one ItemDefinition asset per collectable (Tools → Out of the Depths → Create GDD Items)
   Scenes/                 MainMenu, Main_Scene, TestArena
   Scripts/                see below
@@ -157,13 +161,14 @@ Assets/
 
 Every script starts with a one-line comment saying what it does. By folder:
 
-- **Player/** — `SwimController` (movement + camera feel), `HungerSystem`, `HealthSystem`, `DamageManager`, `DeathManager` (respawn), `PlayerInteractor` (E prompt), `PlayerInventory` (5-slot hotbar, 1-5 / wheel)
+- **Player/** — `SwimController` (movement + camera feel), `HungerSystem`, `HealthSystem`, `DamageManager`, `DeathManager` (respawn), `PlayerInteractor` (E prompt), `PlayerInventory` (5-slot hotbar, 1-5 / wheel), `PlayerBody` (the "is this collider the player?" check for triggers)
 - **Combat/** — `SlashAttack` (needs a weapon item in the inventory), `Damageable` (enemy HP), `IDamageable`, `IHandAnimator` + `PlaceholderHandAnimator`
-- **Creatures/** — `FishController` (alive → dead → drift up → fade → respawn), `DeadFishBarrier` (where dead fish fade), `FishWander` (solo wander or pack slot, separation), `FishSchool` (a pack's shared route), `FishSteering` (wall avoidance), `FishAggression` (pufferfish chase/bite), `RendererTint`
+- **Creatures/** — `FishController` (alive → dead → drift up → fade → respawn), `DeadFishBarrier` (where dead fish fade), `FishWander` (solo wander or pack slot, separation), `FishSchool` (a pack's shared route), `FishSpawner` (fish swim in through windows/holes), `FishWindow` (one window's entry path; the prefab), `FishSteering` (wall avoidance), `FishAggression` (pufferfish chase/bite), `RendererTint`
 - **Interaction/** — `IInteractable`, `EdibleFish`, `PickupItem`, `Door` (slide/swing, lock, closes behind), `IInteractTargetListener` (react to being looked at), `InteractableHighlight` (lights up on look), `InteractableIndicator` (sparkle), `HazardDamage`, `Checkpoint`
 - **Items/** — `ItemDefinition` (one asset per collectable), `ItemSocket` (pedestal / lock / crafting spot that takes items from the inventory)
 - **UI/** — `StatBarUI` (bar or any Filled sprite), `ScreenFlash`, `HitMarker`, `InventoryUI` (hotbar), `CollectibleCounterUI`, `MainMenuController`, `AdminPanel`
-- **Environment/** — `UnderwaterLighting`
+- **Environment/** — `UnderwaterLighting`, `ProximityLabel` (3D signs that face the player and fade in nearby; the arena zone labels), `WallCutter` (cuts a hole through a box wall for a Fish Window), `PlayerAreaTrigger` (trigger volume with player enter/exit events)
+- **Utility/** — `Ease` (easing curves used by every hand-rolled animation: doors, placing pieces, fades, pops)
 - **Editor/** — the *Tools → Out of the Depths* menu: `TestArenaBuilder`, `InteractablePrefabTools` (indicators on prefabs), `ItemTools` (GDD items, inventory HUD), `HudLayoutTools` (GDD HUD layout); editor-only
 
 How the pieces connect: `SlashAttack` → `Damageable` → (fish) `FishController` enables `EdibleFish` → `PlayerInteractor` → `HungerSystem` → `HealthSystem` → `DeathManager` → `Checkpoint`. Items: `PlayerInteractor` → `PickupItem` → `PlayerInventory` → `ItemSocket` (pedestal / lock / crafting) → `onFilled` opens a door, enables a chest, etc.

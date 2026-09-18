@@ -138,8 +138,11 @@ MonoBehaviour:
     m_Bits: 4294967295
   bodyRadius: 0.3
   lookAhead: 1.5
-  separationDistance: 0.7
+  separationDistance: 0.9
   separationStrength: 1.5
+  slotPullDistance: 2
+  catchUp: 0.8
+  sway: 0.25
 --- !u!114 &900900026
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -180,6 +183,8 @@ MonoBehaviour:
   deathFlipDuration: 0.5
   deathFloatSpeed: 0.25
   deathDriftSpin: 10
+  deathDriftSway: 0.12
+  deathVariation: 0.45
   driftTimeout: 40
   fadeDuration: 1.5
 --- !u!114 &900900028
@@ -208,12 +213,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InteractableHighlight
   highlightColor: {r: 1, g: 0.95, b: 0.75, a: 1}
-  tintStrength: 0.3
-  brightness: 0.6
-  emission: {r: 1.5, g: 1.2, b: 0.6, a: 1}
+  tintStrength: 0.2
+  brightness: 0.35
+  emission: {r: 1.2, g: 1, b: 0.6, a: 1}
   fadeTime: 0.12
-  pulseSpeed: 1.5
-  pulseAmount: 0.35
+  pulseSpeed: 1.2
+  pulseAmount: 0.2
 --- !u!114 &3370144173927086202
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -229,9 +234,12 @@ MonoBehaviour:
   effectPrefab: {fileID: 3295423461172553804, guid: dc64b1000e8749d40b823b46d61a1af6, type: 3}
   fitToModel: 1
   fitPadding: 1.2
-  targetedRateMultiplier: 4
-  targetedBurst: 12
+  idleRateScale: 0.35
+  sizeScale: 0.8
+  targetedRateMultiplier: 3
+  targetedBurst: 6
   onlyWhileInteractable: 1
+  showWithinDistance: 10
 --- !u!1 &900900030
 GameObject:
   m_ObjectHideFlags: 0

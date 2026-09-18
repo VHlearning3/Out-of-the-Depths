@@ -8,17 +8,17 @@ public class InteractableHighlight : MonoBehaviour, IInteractTargetListener
     [Tooltip("Colour the meshes blend towards while targeted.")]
     [SerializeField] private Color highlightColor = new Color(1f, 0.95f, 0.75f);
     [Tooltip("0 = keep the mesh colour, 1 = fully the highlight colour.")]
-    [SerializeField, Range(0f, 1f)] private float tintStrength = 0.3f;
+    [SerializeField, Range(0f, 1f)] private float tintStrength = 0.2f;
     [Tooltip("Extra brightness on top of the tint, so even white placeholders visibly light up.")]
-    [SerializeField, Range(0f, 2f)] private float brightness = 0.6f;
+    [SerializeField, Range(0f, 2f)] private float brightness = 0.35f;
     [Tooltip("Added glow. Only visible on materials that have Emission enabled.")]
-    [SerializeField, ColorUsage(false, true)] private Color emission = new Color(1.5f, 1.2f, 0.6f);
+    [SerializeField, ColorUsage(false, true)] private Color emission = new Color(1.2f, 1f, 0.6f);
 
     [Header("Animation")]
-    [SerializeField] private float fadeTime = 0.12f;
+    [SerializeField] private float fadeTime = 0.15f;
     [Tooltip("Pulses per second while targeted. 0 = steady.")]
-    [SerializeField] private float pulseSpeed = 1.5f;
-    [SerializeField, Range(0f, 1f)] private float pulseAmount = 0.35f;
+    [SerializeField] private float pulseSpeed = 1.2f;
+    [SerializeField, Range(0f, 1f)] private float pulseAmount = 0.2f;
 
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorId = Shader.PropertyToID("_Color");

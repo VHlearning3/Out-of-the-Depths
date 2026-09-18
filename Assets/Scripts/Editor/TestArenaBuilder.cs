@@ -2,6 +2,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 // Tools > Out of the Depths > Rebuild Test Arena. Keeps Player, HUD, lights and the admin panel in TestArena.unity and
 // replaces the arena itself with labelled test zones built from the placeholder prefabs. Safe to run again any time.
@@ -11,9 +12,18 @@ public static class TestArenaBuilder
     private const string PrefabRoot = InteractablePrefabTools.PrefabRoot;
     private const string DoorPrefabPath = PrefabRoot + "/Placeholders/Door_Placeholder.prefab";
     private const string TrapdoorPrefabPath = PrefabRoot + "/Placeholders/Trapdoor_Placeholder.prefab";
+    private const string FishWindowPrefabPath = PrefabRoot + "/Placeholders/FishWindow_Placeholder.prefab";
     private const string SfxFolder = "Assets/Sound/SFX Sound effects/";
+    private const string PhotoTexturePath = "Assets/Art/Textures/DogPhoto.jpg";
+    private const string PhotoMaterialPath = "Assets/Art/Materials/DogPhoto.mat";
 
     private static readonly Vector3 SpawnPosition = new Vector3(0f, 1.6f, -22f);
+
+    // Fish windows: framed openings through the north wall onto open water, like looking out of the ship.
+    private static readonly float[] WindowXs = { -24f, -14f };
+    private const float WindowY = 3f;
+    private const float WindowWidth = 2.6f;
+    private const float WindowHeight = 1.6f;
 
     // Root objects whose names start with one of these are arena content and get rebuilt. Everything else is kept.
     private static readonly string[] ArenaPrefixes =
@@ -42,29 +52,47 @@ public static class TestArenaBuilder
         ItemTools.EnsureItemDefinitions();
 
         Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        failedSteps = 0;
         RemoveOldArena(scene);
 
         arenaRoot = new GameObject("Arena").transform;
         labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
-        BuildFloorAndWalls();
-        BuildSpawn();
-        BuildMovementCourse();
-        BuildFishAndFood();
-        BuildCombatPen();
-        BuildHazardLane();
-        BuildPickups();
-        BuildPuzzles();
-        BuildDoors();
-        BuildHatch();
-        PlacePlayer();
-        ItemTools.EnsureInventoryHud();
-        HudLayoutTools.Apply();
-        TuneWarningThresholds();
+        // Each step on its own, so one failure is reported in the Console and the rest of the arena still gets built.
+        Step("Floor and walls", BuildFloorAndWalls);
+        Step("Spawn", BuildSpawn);
+        Step("Mascot", BuildMascot);
+        Step("Movement course", BuildMovementCourse);
+        Step("Fish and food", BuildFishAndFood);
+        Step("Combat pen", BuildCombatPen);
+        Step("Hazard lane", BuildHazardLane);
+        Step("Pickups", BuildPickups);
+        Step("Puzzles", BuildPuzzles);
+        Step("Doors", BuildDoors);
+        Step("Hatch", BuildHatch);
+        Step("Player", PlacePlayer);
+        Step("Inventory HUD", ItemTools.EnsureInventoryHud);
+        Step("HUD layout", HudLayoutTools.Apply);
+        Step("Warning thresholds", TuneWarningThresholds);
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
-        Debug.Log("TestArena rebuilt and saved: " + ScenePath);
+        Debug.Log($"TestArena rebuilt and saved: {ScenePath} ({failedSteps} step(s) failed - see errors above)".Replace(" (0 step(s) failed - see errors above)", ""));
+    }
+
+    private static int failedSteps;
+
+    private static void Step(string name, System.Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (System.Exception e)
+        {
+            failedSteps++;
+            Debug.LogError($"TestArena: step '{name}' failed: {e.Message}\n{e.StackTrace}");
+        }
     }
 
     private static void RemoveOldArena(Scene scene)
@@ -110,6 +138,8 @@ public static class TestArenaBuilder
     private static void BuildSpawn()
     {
         Transform zone = Group("Zone_Spawn");
+        Patch(zone, new Vector2(0f, -22f), new Vector2(10f, 10f), new Color(0.2f, 0.36f, 0.4f));
+        Label("WELCOME - N: fish and ship windows. NE: combat pen. E: hazard lane. SE: pickup shelf. S/E: doors. Centre: puzzles. SW: hatch and basement. W: movement course. Walk up to a sign to read it. Turn around to meet the QA lead.", new Vector3(-4f, 0f, -25f), zone);
         GameObject plate = Spawn("RespawnPlate", new Vector3(SpawnPosition.x, 0.05f, SpawnPosition.z), zone);
         if (plate != null)
         {
@@ -122,9 +152,81 @@ public static class TestArenaBuilder
         Label("SPAWN - take the dagger (E) to be able to slash\nadmin panel = 0", new Vector3(0f, 4f, -18f), zone);
     }
 
+
+    // The team mascot: a framed photo on the south wall right behind the spawn pad (turn around), with a plaque and its
+    // own spotlight. Photo: Art/Textures/DogPhoto.jpg - swap the file to change the picture.
+    private static void BuildMascot()
+    {
+        Transform zone = Group("Zone_Mascot");
+        Vector3 wall = new Vector3(0f, 3f, -30f);      // inner face of the south wall, north side
+        const float width = 2.4f, height = 1.8f;       // the photo is 4:3
+
+        Box("Frame", wall + new Vector3(0f, 0f, 0.05f), new Vector3(width + 0.24f, height + 0.24f, 0.1f), new Color(0.32f, 0.22f, 0.12f), zone);
+
+        // A Quad is seen from its -Z side, so it is turned to look north, toward the spawn pad.
+        GameObject photo = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        photo.name = "Photo";
+        Object.DestroyImmediate(photo.GetComponent<Collider>());
+        photo.transform.SetParent(zone, false);
+        photo.transform.SetPositionAndRotation(wall + new Vector3(0f, 0f, 0.105f), Quaternion.Euler(0f, 180f, 0f));
+        photo.transform.localScale = new Vector3(width, height, 1f);
+        Material material = EnsurePhotoMaterial();
+        if (material != null)
+            photo.GetComponent<Renderer>().sharedMaterial = material;
+
+        var plaque = new GameObject("Plaque");
+        plaque.transform.SetParent(zone, false);
+        plaque.transform.position = wall + new Vector3(0f, -(height * 0.5f + 0.45f), 0f);
+        RimPiece(plaque, "Board", new Vector3(0f, 0f, 0.04f), new Vector3(1.9f, 0.42f, 0.08f), new Color(0.6f, 0.48f, 0.2f));
+        SignFace(plaque, new[] { "HEAD OF QUALITY ASSURANCE", "(asleep on the job)" }, new Vector3(0f, 0f, 0.085f), 180f, 1.9f, 0.42f);
+
+        var spot = new GameObject("Spotlight");
+        spot.transform.SetParent(zone, false);
+        spot.transform.position = wall + new Vector3(0f, 3.5f, 3f);
+        spot.transform.LookAt(wall);
+        var light = spot.AddComponent<Light>();
+        light.type = LightType.Spot;
+        light.spotAngle = 55f;
+        light.range = 10f;
+        light.intensity = 4f;
+        light.color = new Color(1f, 0.95f, 0.85f);
+    }
+
+    // DogPhoto.mat: URP Lit with the photo as base map plus a faint emissive copy so it reads in dim water.
+    private static Material EnsurePhotoMaterial()
+    {
+        var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(PhotoTexturePath);
+        if (texture == null)
+        {
+            AssetDatabase.ImportAsset(PhotoTexturePath);
+            texture = AssetDatabase.LoadAssetAtPath<Texture2D>(PhotoTexturePath);
+        }
+        if (texture == null)
+        {
+            Debug.LogWarning($"TestArena: no picture at {PhotoTexturePath}, the mascot frame stays empty.");
+            return null;
+        }
+
+        var material = AssetDatabase.LoadAssetAtPath<Material>(PhotoMaterialPath);
+        if (material == null)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            material = new Material(shader != null ? shader : Shader.Find("Standard"));
+            AssetDatabase.CreateAsset(material, PhotoMaterialPath);
+        }
+        material.SetTexture("_BaseMap", texture);
+        material.SetTexture("_MainTex", texture);
+        material.SetFloat("_Smoothness", 0.35f);
+        material.EnableKeyword("_EMISSION");
+        material.SetTexture("_EmissionMap", texture);
+        material.SetColor("_EmissionColor", Color.white * 0.35f);
+        EditorUtility.SetDirty(material);
+        return material;
+    }
     private static void BuildMovementCourse()
     {
         Transform zone = Group("Zone_Movement");
+        Patch(zone, new Vector2(-19f, -16f), new Vector2(20f, 26f), new Color(0.2f, 0.3f, 0.45f));
 
         // Slalom: five pillars, alternating sides.
         for (int i = 0; i < 5; i++)
@@ -151,10 +253,21 @@ public static class TestArenaBuilder
     private static void BuildFishAndFood()
     {
         Transform zone = Group("Zone_Fish");
-        CreateSchool("Fish_Wanderer", 6, new Vector3(-19f, 2.5f, 20f), zone);
+        Patch(zone, new Vector2(-18.5f, 19f), new Vector2(22f, 22f), new Color(0.2f, 0.38f, 0.32f));
+
+        // A closed room (arena walls to the west and north) with one swing door on the south side.
+        Box("FishRoom_E", new Vector3(-7f, 5f, 19f), new Vector3(0.5f, 10f, 22f), WallColor, zone);
+        Box("FishRoom_S_W", new Vector3(-24.5f, 5f, 8f), new Vector3(11f, 10f, 0.5f), WallColor, zone);
+        Box("FishRoom_S_E", new Vector3(-12f, 5f, 8f), new Vector3(10f, 10f, 0.5f), WallColor, zone);
+        Box("FishRoom_S_Top", new Vector3(-18f, 6.5f, 8f), new Vector3(2f, 7f, 0.5f), WallColor, zone);
+        Door roomDoor = SpawnDoor("Door_FishRoom", new Vector3(-19f, 0f, 8f), false, true, zone);
+        SetField(roomDoor, "lockBehind", p => p.boolValue = false);
+
+        FishSchool school = CreateSchool("Fish_Wanderer", 0, new Vector3(-19f, 2.5f, 20f), zone);
+        BuildFishWindows(zone, school);
         Spawn("Fish_Wanderer", new Vector3(-24f, 1.5f, 12f), zone, 240f);
         Spawn("WallFish", new Vector3(-28.5f, 2f, 22f), zone, 90f);
-        Label("FISH - a pack of 6, a loner, wall fish", new Vector3(-19f, 5.5f, 20f), zone);
+        Label("FISH ROOM - open the door (it swings away from you and shuts behind you) and swim in: the pack comes in through the ship windows (pack size = Fish Spawner > Count). Leave and they swim back out.", new Vector3(-16f, 0f, 5f), zone);
 
         Transform food = Group("Zone_Food");
         Spawn("DeadFish", new Vector3(-10f, 1f, 10f), food, 0f);
@@ -173,6 +286,7 @@ public static class TestArenaBuilder
     private static void BuildCombatPen()
     {
         Transform zone = Group("Zone_Combat");
+        Patch(zone, new Vector2(18f, 19f), new Vector2(18f, 16f), new Color(0.4f, 0.25f, 0.25f));
         Box("Pen_W", new Vector3(10f, 2f, 19f), new Vector3(0.5f, 4f, 14f), PropColor, zone);
         Box("Pen_E", new Vector3(26f, 2f, 19f), new Vector3(0.5f, 4f, 14f), PropColor, zone);
         Box("Pen_N", new Vector3(18f, 2f, 26f), new Vector3(16.5f, 4f, 0.5f), PropColor, zone);
@@ -185,6 +299,7 @@ public static class TestArenaBuilder
     private static void BuildHazardLane()
     {
         Transform zone = Group("Zone_Hazards");
+        Patch(zone, new Vector2(19f, -1f), new Vector2(22f, 11f), new Color(0.42f, 0.32f, 0.2f));
         Box("Lane_N", new Vector3(19f, 1.5f, 4.5f), new Vector3(22f, 3f, 0.4f), PropColor, zone);
         Box("Lane_S", new Vector3(19f, 1.5f, -6.5f), new Vector3(22f, 3f, 0.4f), PropColor, zone);
         Spawn("Hazard", new Vector3(12f, 1f, 1f), zone, 0f);
@@ -200,6 +315,7 @@ public static class TestArenaBuilder
     private static void BuildPickups()
     {
         Transform zone = Group("Zone_Pickups");
+        Patch(zone, new Vector2(16f, -20f), new Vector2(18f, 8f), new Color(0.4f, 0.38f, 0.22f));
         Box("Shelf", new Vector3(16f, 0.5f, -20f), new Vector3(16f, 1f, 1.5f), PropColor, zone);
         string[] items =
         {
@@ -216,6 +332,7 @@ public static class TestArenaBuilder
     private static void BuildPuzzles()
     {
         Transform zone = Group("Zone_Puzzles");
+        Patch(zone, new Vector2(0f, 9f), new Vector2(14f, 12f), new Color(0.33f, 0.25f, 0.42f));
         Color stone = new Color(0.7f, 0.65f, 0.5f);
 
         // A wall with two locked doors: the pedestal opens the left one, the bone key the right one.
@@ -249,6 +366,7 @@ public static class TestArenaBuilder
     private static void BuildDoors()
     {
         Transform zone = Group("Zone_Doors");
+        Patch(zone, new Vector2(9f, -12f), new Vector2(10f, 6f), new Color(0.35f, 0.28f, 0.22f));
         Door swing = SpawnDoor("Door_Swing", new Vector3(6f, 0f, -12f), false, false, zone);
         SetField(swing, "motion", p => p.enumValueIndex = (int)Door.Motion.Swing);
         SpawnDoor("Door_ClosesBehind", new Vector3(10f, 0f, -12f), false, true, zone);
@@ -279,6 +397,7 @@ public static class TestArenaBuilder
     {
         Transform zone = Group("Zone_Hatch");
         Vector3 c = new Vector3(-4f, 0f, -13f);
+        Patch(zone, new Vector2(c.x, c.z), new Vector2(8f, 8f), new Color(0.28f, 0.3f, 0.32f));
         Box("Deck_N", c + new Vector3(0f, 1.25f, 3f), new Vector3(6f, 2.5f, 0.3f), PropColor, zone);
         Box("Deck_S", c + new Vector3(0f, 1.25f, -3f), new Vector3(6f, 2.5f, 0.3f), PropColor, zone);
         Box("Deck_E", c + new Vector3(3f, 1.25f, 0f), new Vector3(0.3f, 2.5f, 6f), PropColor, zone);
@@ -469,30 +588,102 @@ public static class TestArenaBuilder
         return box;
     }
 
+    // A signpost: post + board, text on both faces as small world-space UI (depth-tested, so the back face never shows
+    // through), turned toward the spawn pad, fading in when the player is near.
     private static void Label(string text, Vector3 position, Transform parent)
     {
-        var go = new GameObject("Label_" + text);
-        go.transform.SetParent(parent, false);
-        go.transform.position = position;
+        string[] lines = Wrap(text.Replace(" - ", "\n"), 26);
+        float lineHeight = 0.22f;
+        float boardHeight = lines.Length * lineHeight + 0.3f;
+        float boardWidth = 2.8f;
+        float postHeight = 1.4f;
+        Vector3 boardCentre = new Vector3(0f, postHeight + boardHeight * 0.5f, 0f);
 
-        var mesh = go.AddComponent<TextMesh>();
-        mesh.text = text;
-        mesh.font = labelFont;
-        mesh.fontSize = 64;
-        mesh.characterSize = 0.2f;
-        mesh.anchor = TextAnchor.MiddleCenter;
-        mesh.alignment = TextAlignment.Center;
-        mesh.color = LabelColor;
-        go.GetComponent<MeshRenderer>().sharedMaterial = labelFont.material;
+        var sign = new GameObject("Sign_" + lines[0]);
+        sign.transform.SetParent(parent, false);
+        sign.transform.position = new Vector3(position.x, 0f, position.z);
+        Vector3 fromSpawn = sign.transform.position - SpawnPosition;
+        fromSpawn.y = 0f;
+        if (fromSpawn.sqrMagnitude > 0.01f)
+            sign.transform.rotation = Quaternion.LookRotation(fromSpawn, Vector3.up);
+
+        RimPiece(sign, "Post", new Vector3(0f, postHeight * 0.5f, 0f), new Vector3(0.15f, postHeight, 0.15f), new Color(0.3f, 0.25f, 0.2f));
+        RimPiece(sign, "Board", boardCentre, new Vector3(boardWidth, boardHeight, 0.08f), new Color(0.1f, 0.12f, 0.16f));
+        SignFace(sign, lines, boardCentre + new Vector3(0f, 0f, -0.045f), 0f, boardWidth, boardHeight);
+        SignFace(sign, lines, boardCentre + new Vector3(0f, 0f, 0.045f), 180f, boardWidth, boardHeight);
+
+        var proximity = sign.AddComponent<ProximityLabel>();
+        SetField(proximity, "facePlayer", p => p.boolValue = false);
+    }
+
+    private static void SignFace(GameObject sign, string[] lines, Vector3 localPosition, float yaw, float width, float height)
+    {
+        var face = new GameObject("Face", typeof(RectTransform));
+        face.transform.SetParent(sign.transform, false);
+        face.transform.localPosition = localPosition;
+        face.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+        face.transform.localScale = Vector3.one * 0.01f;
+        var canvas = face.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.WorldSpace;
+        face.AddComponent<CanvasGroup>();
+        face.GetComponent<RectTransform>().sizeDelta = new Vector2(width * 100f - 20f, height * 100f - 10f);
+
+        var textGo = new GameObject("Text", typeof(RectTransform));
+        textGo.transform.SetParent(face.transform, false);
+        var rect = textGo.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+
+        var text = textGo.AddComponent<Text>();
+        text.text = string.Join("\n", lines);
+        text.font = labelFont;
+        text.fontSize = 18;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = LabelColor;
+        text.horizontalOverflow = HorizontalWrapMode.Overflow;
+        text.verticalOverflow = VerticalWrapMode.Overflow;
+        text.raycastTarget = false;
+    }
+
+    // A tinted patch on the floor marking a zone's area.
+    private static void Patch(Transform zone, Vector2 centre, Vector2 size, Color color)
+    {
+        GameObject patch = Box("Patch", new Vector3(centre.x, 0.01f, centre.y), new Vector3(size.x, 0.02f, size.y), color, zone);
+        Object.DestroyImmediate(patch.GetComponent<Collider>());
+    }
+
+    private static string[] Wrap(string text, int maxChars)
+    {
+        var lines = new System.Collections.Generic.List<string>();
+        foreach (string paragraph in text.Split('\n'))
+        {
+            string line = string.Empty;
+            foreach (string word in paragraph.Split(' '))
+            {
+                if (line.Length > 0 && line.Length + 1 + word.Length > maxChars)
+                {
+                    lines.Add(line);
+                    line = word;
+                }
+                else
+                {
+                    line = line.Length == 0 ? word : line + " " + word;
+                }
+            }
+            lines.Add(line);
+        }
+        return lines.ToArray();
     }
 
     // A Fish School object with the fish placed as prefab-linked children in a ring, so they show in the editor and can be tuned.
-    private static void CreateSchool(string prefabName, int count, Vector3 position, Transform parent)
+    private static FishSchool CreateSchool(string prefabName, int count, Vector3 position, Transform parent)
     {
         var school = new GameObject("FishSchool_" + prefabName);
         school.transform.SetParent(parent, false);
         school.transform.position = position;
-        school.AddComponent<FishSchool>();
+        var pack = school.AddComponent<FishSchool>();
 
         for (int i = 0; i < count; i++)
         {
@@ -500,6 +691,88 @@ public static class TestArenaBuilder
             Vector3 offset = new Vector3(Mathf.Cos(angle), i % 2 == 0 ? 0.2f : -0.2f, Mathf.Sin(angle)) * 1.2f;
             Spawn(prefabName, position + offset, school.transform, 90f);
         }
+        return pack;
+    }
+
+    // Ship windows onto open water: the FishWindow prefabs cut their own holes in the north wall; a dark seabed and a few
+    // rocks outside give depth. Fish spawn deep below the sill just outside the hull, rise into view and swim in.
+    private static void BuildFishWindows(Transform zone, FishSchool school)
+    {
+        var spawner = new GameObject("FishSpawner_Windows");
+        spawner.transform.SetParent(zone, false);
+        spawner.transform.position = new Vector3(-19f, 2.5f, 24f);
+
+        Color seabed = new Color(0.05f, 0.08f, 0.1f);
+        float wallInner = 30f;
+        float wallOuter = 31f;
+
+        // Outside the hull.
+        Box("Outside_Seabed", new Vector3(-19f, -6f, wallOuter + 10f), new Vector3(40f, 0.2f, 20f), seabed, zone);
+        Box("Outside_Rock", new Vector3(-27f, -3.5f, wallOuter + 7f), new Vector3(4f, 5f, 3f), seabed, zone);
+        Box("Outside_Rock", new Vector3(-19f, -4.5f, wallOuter + 11f), new Vector3(6f, 3f, 4f), seabed, zone);
+        Box("Outside_Rock", new Vector3(-10f, -2f, wallOuter + 9f), new Vector3(3f, 8f, 3f), seabed, zone);
+
+        // One FishWindow prefab per window, as children of the spawner: it picks them up by itself, and Ctrl+D adds more.
+        // Each one cuts its own hole through the wall box behind it.
+        GameObject windowPrefab = EnsureFishWindowPrefab();
+        for (int i = 0; i < WindowXs.Length; i++)
+        {
+            var window = (GameObject)PrefabUtility.InstantiatePrefab(windowPrefab, zone.gameObject.scene);
+            window.transform.SetParent(spawner.transform, true);
+            window.transform.SetPositionAndRotation(new Vector3(WindowXs[i], WindowY, wallInner), Quaternion.Euler(0f, 180f, 0f));
+            window.name = "FishWindow_" + (i + 1);
+            window.GetComponent<FishWindow>().CutHole(false);
+        }
+
+        // The pack only comes in while the player is inside the fish room; the trigger fills the room.
+        var area = spawner.AddComponent<BoxCollider>();
+        area.isTrigger = true;
+        area.center = new Vector3(-18.5f, 5f, 19f) - spawner.transform.position;
+        area.size = new Vector3(22f, 10f, 22f);
+
+        var component = spawner.AddComponent<FishSpawner>();
+        var so = new SerializedObject(component);
+        so.FindProperty("fishPrefab").objectReferenceValue = FindPrefab("Fish_Wanderer");
+        so.FindProperty("count").intValue = 7;
+        so.FindProperty("joinSchool").objectReferenceValue = school;
+        so.FindProperty("startMode").enumValueIndex = (int)FishSpawner.StartMode.PlayerEntersTrigger;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // Root = the opening (blue arrow into the room) with Fish Window and its entry path; children = a rim around the hole.
+    // The hole itself is cut in the wall by the level; the prefab sits on the room-side face over it.
+    private static GameObject EnsureFishWindowPrefab()
+    {
+        var existing = AssetDatabase.LoadAssetAtPath<GameObject>(FishWindowPrefabPath);
+        if (existing != null)
+            return existing;
+
+        var root = new GameObject("FishWindow_Placeholder");
+        root.AddComponent<FishWindow>();
+
+        Color rim = new Color(0.22f, 0.2f, 0.18f);
+        float t = 0.25f;
+        float halfW = WindowWidth * 0.5f;
+        float halfH = WindowHeight * 0.5f;
+        RimPiece(root, "Sill", new Vector3(0f, -halfH - t * 0.5f, 0.1f), new Vector3(WindowWidth + t * 2f, t, 0.3f), rim);
+        RimPiece(root, "Lintel", new Vector3(0f, halfH + t * 0.5f, 0.1f), new Vector3(WindowWidth + t * 2f, t, 0.3f), rim);
+        RimPiece(root, "Jamb_L", new Vector3(-halfW - t * 0.5f, 0f, 0.1f), new Vector3(t, WindowHeight, 0.3f), rim);
+        RimPiece(root, "Jamb_R", new Vector3(halfW + t * 0.5f, 0f, 0.1f), new Vector3(t, WindowHeight, 0.3f), rim);
+
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, FishWindowPrefabPath);
+        Object.DestroyImmediate(root);
+        Debug.Log("Created " + FishWindowPrefabPath);
+        return prefab;
+    }
+
+    private static void RimPiece(GameObject parent, string name, Vector3 localPosition, Vector3 size, Color color)
+    {
+        GameObject piece = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        piece.name = name;
+        piece.transform.SetParent(parent.transform, false);
+        piece.transform.localPosition = localPosition;
+        piece.transform.localScale = size;
+        piece.AddComponent<RendererTint>().Tint = color;
     }
 
     private static GameObject Spawn(string prefabName, Vector3 position, Transform parent, float yaw = 0f)
