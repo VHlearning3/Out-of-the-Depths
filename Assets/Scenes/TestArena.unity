@@ -5665,7 +5665,6 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1357140280}
-  - {fileID: 1042414973}
   - {fileID: 460552284}
   - {fileID: 1625457088}
   m_Father: {fileID: 1511914694}
@@ -21216,11 +21215,11 @@ Transform:
   m_GameObject: {fileID: 1042414972}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: 1, z: -0, w: -0.00000004371139}
-  m_LocalPosition: {x: 0, y: 3, z: -29.895}
-  m_LocalScale: {x: 2.4, y: 1.8, z: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0.55}
+  m_LocalScale: {x: 0.90909, y: 0.88235, z: 10}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 380699652}
+  m_Father: {fileID: 1357140280}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!23 &1042414974
 MeshRenderer:
@@ -26029,6 +26028,8 @@ GameObject:
   - component: {fileID: 1357140283}
   - component: {fileID: 1357140282}
   - component: {fileID: 1357140281}
+  - component: {fileID: 901500001}
+  - component: {fileID: 901500002}
   m_Layer: 0
   m_Name: Frame
   m_TagString: Untagged
@@ -26048,7 +26049,8 @@ Transform:
   m_LocalPosition: {x: 0, y: 3, z: -29.95}
   m_LocalScale: {x: 2.64, y: 2.04, z: 0.1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1042414973}
   m_Father: {fileID: 380699652}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1357140281
@@ -40972,6 +40974,39 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2137220808}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!114 &901500001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1357140279}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c132e4568db2c1d8067f05bec1c7d8e9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  prompt: pet the dog
+  clips:
+  - {fileID: 8300000, guid: af10c2346b90afb6e45de39c9fa5b6c7, type: 3}
+  - {fileID: 8300000, guid: b021d3457ca1b0c7f56ef4ada0b6c7d8, type: 3}
+  volume: 0.8
+  pitchRange: {x: 0.95, y: 1.05}
+  cooldown: 0.6
+  hearingRange: 25
+  wiggle: 1
+--- !u!114 &901500002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1357140279}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cc75dbe52f8d0de45b0bca024e31e5b9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

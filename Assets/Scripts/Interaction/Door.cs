@@ -60,6 +60,12 @@ public class Door : MonoBehaviour, IInteractable
     [SerializeField] private Vector3 throughAxis = Vector3.forward;
 
     [Header("Sounds")]
+    [Tooltip("One complete opening sound (latch, hinge, travel, stop), played whole when the door opens. When set, Unlatch, Groan, Move Loop and Open Stop only play on closing. Empty = the layered set plays both ways.")]
+    [SerializeField] private AudioClip openSound;
+    [Tooltip("One complete closing sound (swing and thud), played whole when the door closes. When set, Unlatch, Groan, Move Loop and Close Stop stay silent on closing. Empty = the layered set plays.")]
+    [SerializeField] private AudioClip closeSound;
+    [Tooltip("Seconds into Close Sound where its thud is. Above 0 the door takes exactly that long to close, so the thud lands with it. 0 = the normal Duration.")]
+    [SerializeField] private float closeSoundLandsAt = 0f;
     [Tooltip("The latch / bolt as the door starts to move, opening or closing.")]
     [FormerlySerializedAs("openSound")]
     [SerializeField] private AudioClip unlatchSound;
@@ -78,11 +84,11 @@ public class Door : MonoBehaviour, IInteractable
     [SerializeField] private Vector2 groanPitchRange = new Vector2(0.7f, 0.9f);
     [SerializeField, Range(0f, 1f)] private float volume = 0.7f;
     [Tooltip("Pitch of every door sound. Below 1 = deeper and heavier.")]
-    [SerializeField, Range(0.5f, 1.5f)] private float pitch = 0.85f;
-    [Tooltip("Reverb on the door's sounds, so a slam rolls away down the corridor. Off = dry.")]
-    [SerializeField] private AudioReverbPreset reverb = AudioReverbPreset.Hangar;
+    [SerializeField, Range(0.5f, 1.5f)] private float pitch = 0.95f;
+    [Tooltip("Reverb on the door's sounds, so a slam rolls away down the corridor. Off = dry (best for natural recordings).")]
+    [SerializeField] private AudioReverbPreset reverb = AudioReverbPreset.Off;
     [Tooltip("Low-pass cutoff in Hz for every door sound, so it sounds muffled through the water. 22000 = no muffling.")]
-    [SerializeField] private float muffleCutoff = 2200f;
+    [SerializeField] private float muffleCutoff = 3200f;
     [Tooltip("Metres beyond which the door can't be heard.")]
     [SerializeField] private float hearingRange = 30f;
 
@@ -102,6 +108,8 @@ public class Door : MonoBehaviour, IInteractable
     private AudioSource oneShot;
     private AudioSource loop;
     private AudioSource groan;
+    private bool wholeOpen;    // this move is an opening covered by Open Sound, so the layers stay quiet
+    private bool wholeClose;   // same for a closing covered by Close Sound
 
     private void Awake()
     {
@@ -180,11 +188,24 @@ public class Door : MonoBehaviour, IInteractable
             return;
 
         IsOpen = open;
-        Play(unlatchSound);
-        if (groanSound != null && groan != null)
+        wholeOpen = open && openSound != null;
+        wholeClose = !open && closeSound != null;
+        if (wholeOpen)
         {
-            groan.pitch = pitch * Random.Range(groanPitchRange.x, groanPitchRange.y);
-            groan.PlayOneShot(groanSound, volume);
+            Play(openSound);
+        }
+        else if (wholeClose)
+        {
+            Play(closeSound);
+        }
+        else
+        {
+            Play(unlatchSound);
+            if (groanSound != null && groan != null)
+            {
+                groan.pitch = pitch * Random.Range(groanPitchRange.x, groanPitchRange.y);
+                groan.PlayOneShot(groanSound, volume);
+            }
         }
 
         if (motionRoutine != null)
@@ -195,10 +216,11 @@ public class Door : MonoBehaviour, IInteractable
     private IEnumerator Animate(float target)
     {
         float from = openness;
-        float time = Mathf.Abs(target - from) * duration;
+        float seconds = wholeClose && closeSoundLandsAt > 0f ? closeSoundLandsAt : duration;   // land with the recorded thud
+        float time = Mathf.Abs(target - from) * seconds;
         AnimationCurve curve = target > from ? openCurve : closeCurve;
 
-        if (moveLoop != null)
+        if (moveLoop != null && !wholeOpen && !wholeClose)
         {
             loop.clip = moveLoop;
             loop.volume = 0f;
@@ -221,8 +243,9 @@ public class Door : MonoBehaviour, IInteractable
 
         if (target <= 0f)
         {
-            // Lands shut: a thud, then a couple of ever-smaller rebounds, each ending in a quieter thud.
-            Play(closeStopSound);
+            // Lands shut: a thud (unless Close Sound has its own), then a couple of ever-smaller rebounds, each ending in a quieter thud.
+            if (!wholeClose)
+                Play(closeStopSound);
             for (int i = 0; i < bounces && bounce > 0f; i++)
             {
                 float height = bounce * Mathf.Pow(0.35f, i);
@@ -235,13 +258,15 @@ public class Door : MonoBehaviour, IInteractable
                 }
                 openness = 0f;
                 ApplyPose();
-                Play(closeStopSound, 0.6f * Mathf.Pow(0.35f, i));
+                if (!wholeClose)
+                    Play(closeStopSound, 0.6f * Mathf.Pow(0.35f, i));
             }
         }
         else
         {
-            // Hits the open stop: a clank, and it overshoots a touch and settles back.
-            Play(openStopSound);
+            // Hits the open stop: a clank (unless Open Sound already has one), and it overshoots a touch and settles back.
+            if (!wholeOpen)
+                Play(openStopSound);
             if (openSettle > 0f)
             {
                 const float span = 0.3f;

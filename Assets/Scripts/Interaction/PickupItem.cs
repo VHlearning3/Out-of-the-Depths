@@ -1,6 +1,8 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Serialization;
+using UnityEngine.InputSystem;
 
 // Press E to pick up: puts the item in the player's inventory, plays feedback and pops out of existence.
 // Root = this script + collider, mesh in a child called Visual (it bobs and spins), so the model can be swapped without touching logic.
@@ -39,10 +41,54 @@ public class PickupItem : MonoBehaviour, IInteractable
 
     [Header("Feedback")]
     [SerializeField] private AudioClip pickupSound;
-    [SerializeField, Range(0f, 1f)] private float pickupVolume = 0.6f;
+    [SerializeField, Range(0f, 1f)] private float pickupVolume = 0.3f;
     [SerializeField] private GameObject pickedUpVfx;
-    [Tooltip("The little grow-then-shrink pop when it is taken. 0 = vanishes instantly.")]
-    [SerializeField] private float collectDuration = 0.25f;
+    [Tooltip("The pickup animation, in three beats: the item snaps up in front of your eyes (Grab), hangs there a moment so you see what you got (Hold), then dives into your torso and is gone (Absorb). All three at 0 = it just vanishes.")]
+    [SerializeField] private float grabSeconds = 0.12f;
+    [SerializeField] private float holdSeconds = 0.5f;
+    [FormerlySerializedAs("collectDuration")]
+    [SerializeField] private float absorbSeconds = 0.3f;
+    [Tooltip("How far in front of the eyes it hangs during the hold, in metres.")]
+    [SerializeField] private float holdDistance = 1.5f;
+    [Tooltip("How big it shows during the hold, relative to its resting size.")]
+    [SerializeField] private float holdScale = 1.2f;
+    [Tooltip("Camera jolt as it is absorbed. 0 = none.")]
+    [SerializeField, Range(0f, 1f)] private float absorbShake = 0.25f;
+
+    [Header("Inspect")]
+    [Tooltip("While it hangs in front of you, hold the left mouse button to grab it and turn it with the mouse. The camera stays put and the hold waits until you let go.")]
+    [SerializeField] private bool inspectable = true;
+    [Tooltip("Degrees of turn per pixel of mouse movement.")]
+    [SerializeField] private float inspectSensitivity = 0.3f;
+    [Tooltip("How fast a spin you gave it dies away once you let go (per second).")]
+    [SerializeField] private float inspectDamping = 4f;
+    [Tooltip("The item stays up until you press E (Interact) to take it; Hold Seconds is then the minimum before E counts. Off = it is taken by itself after Hold Seconds.")]
+    [SerializeField] private bool waitForInteract = true;
+    [Tooltip("Where it hangs vertically: metres above the eye line (negative = below).")]
+    [SerializeField] private float holdHeight = 0.05f;
+    [Tooltip("Scroll wheel while inspecting: metres closer / further per notch...")]
+    [SerializeField] private float zoomStep = 0.15f;
+    [Tooltip("...between these distances from the eyes.")]
+    [SerializeField] private Vector2 zoomRange = new Vector2(0.45f, 2.5f);
+    [Tooltip("How fast it turns by itself while it hangs there, in degrees per second (you can still grab and turn it).")]
+    [SerializeField] private float holdTurnSpeed = 15f;
+    [Tooltip("How far it floats up and down while it hangs there, in metres, and how quickly (cycles per second).")]
+    [SerializeField] private float holdBobAmount = 0.006f;
+    [SerializeField] private float holdBobSpeed = 0.5f;
+    [Tooltip("How quickly the zoom glides to its new distance (per second). Higher = snappier.")]
+    [SerializeField] private float zoomSmoothing = 8f;
+    [Tooltip("You cannot swim while the item is up (looking around still works).")]
+    [SerializeField] private bool freezeWhileInspecting = true;
+    [Tooltip("Blur everything behind the item while it is up (a URP depth of field; the camera gets post-processing switched on meanwhile).")]
+    [SerializeField] private bool blurBackground = true;
+    [Tooltip("The camera cannot turn at all while the item is up.")]
+    [SerializeField] private bool lockLookWhileInspecting = true;
+    [Tooltip("The mouse cursor is shown and freed while the item is up, so you can see what you are dragging.")]
+    [SerializeField] private bool showCursorWhileInspecting = true;
+    [Tooltip("The centre-screen reticle hides while the item is up.")]
+    [SerializeField] private bool hideReticleWhileInspecting = true;
+    [Tooltip("Where it flies to, as an offset from the torso (the middle of the Character Controller) in the body local space. Zero = straight into the torso.")]
+    [SerializeField] private Vector3 collectOffset = Vector3.zero;
 
     [Header("Events")]
     public UnityEvent onPickedUp = new UnityEvent();
@@ -55,6 +101,9 @@ public class PickupItem : MonoBehaviour, IInteractable
     private Quaternion visualRestRotation;
     private float phase;
     private bool collected;
+    private GameObject collector;
+    private PlayerInventory pendingInventory;
+    private float holdNow;   // the current hold distance (the scroll wheel changes it)
 
     private void Awake()
     {
@@ -181,45 +230,236 @@ public class PickupItem : MonoBehaviour, IInteractable
             return;
         }
 
-        int stored = inventory.Add(item, amount);
-        if (stored == 0)
+        int space = inventory.SpaceFor(item, amount);
+        if (space == 0)
             return;
 
-        // Inventory took only part of a stack: the rest stays here for later.
-        amount -= stored;
-        if (amount > 0)
+        // Room for only part of a stack: hand that part over now, the rest stays here for later.
+        if (space < amount)
+        {
+            amount -= inventory.Add(item, space);
             return;
+        }
+
+        // The whole thing: it goes into the inventory only once the animation has absorbed it (Deliver), so a weapon
+        // never shows up in your hand before it has arrived.
+        pendingInventory = inventory;
 
         if (pickupSound != null)
-            AudioSource.PlayClipAtPoint(pickupSound, transform.position, pickupVolume);
+            SlicedOneShot.Play(pickupSound, transform.position, pickupVolume, 1f, 0f, 0.05f, 0.5f, 20f);
 
         if (pickedUpVfx != null)
             Instantiate(pickedUpVfx, transform.position, transform.rotation);
 
         collected = true;
-        onPickedUp.Invoke();
+        collector = interactor;
         StartCoroutine(Collect());
     }
 
-    // Quick grow, then shrink to nothing while rising a little, then gone.
+    // The pickup animation. Grab: the item snaps up to a point in front of the eyes, turning to one fixed showcase pose
+    // (the same side toward you every time, whatever spin it was at) and growing. Hold: it hangs there, turning slowly,
+    // so you see what you got; hold the left mouse button to grab it and turn it yourself (the camera stays put and the
+    // clock waits until you let go). Absorb: it dives straight into the torso, shrinking to nothing, with a small jolt.
+    // Every target point follows the player, so it all still lands if you move or turn.
     private IEnumerator Collect()
     {
         GetComponent<Collider>().enabled = false;
-        if (visual != null && collectDuration > 0f)
+        if (visual == null || grabSeconds + holdSeconds + absorbSeconds <= 0f)
         {
-            Vector3 startScale = visual.localScale;
-            Vector3 startPosition = visual.localPosition;
-            for (float t = 0f; t < collectDuration; t += Time.deltaTime)
-            {
-                float k = t / collectDuration;
-                float size = k < 0.3f ? Mathf.Lerp(1f, 1.25f, k / 0.3f) : Mathf.Lerp(1.25f, 0f, Ease.OutCubic((k - 0.3f) / 0.7f));
-                visual.localScale = startScale * size;
-                visual.localPosition = startPosition + Vector3.up * (0.5f * k);
-                yield return null;
-            }
-            visual.localScale = startScale;
-            visual.localPosition = startPosition;
+            if (Deliver())
+                gameObject.SetActive(false);
+            yield break;
         }
-        gameObject.SetActive(false);
+
+        Camera eyeCamera = collector != null ? collector.GetComponentInChildren<Camera>() : null;
+        if (eyeCamera == null)
+            eyeCamera = Camera.main;
+        Transform eye = eyeCamera != null ? eyeCamera.transform : null;
+        CharacterController body = collector != null ? collector.GetComponentInParent<CharacterController>() : null;
+        Transform bodyRoot = body != null ? body.transform : collector != null ? collector.transform : eye;
+        SwimController swimmer = collector != null ? collector.GetComponentInParent<SwimController>() : null;
+        PlayerInteractor interactor = collector != null ? collector.GetComponentInParent<PlayerInteractor>() : null;
+        SlashAttack slash = collector != null ? collector.GetComponentInParent<SlashAttack>() : null;
+
+        Vector3 startScale = visual.localScale;
+        Vector3 startPosition = visual.position;
+        Quaternion startRotation = visual.rotation;
+        Quaternion showcase = transform.rotation * visualRestRotation;   // the upright resting pose, in world space
+        Quaternion handled = Quaternion.identity;                        // whatever turn the player gives it
+        float turned = 0f;
+        holdNow = holdDistance;
+
+        // Grab: up to the eyes, into the showcase pose, growing.
+        for (float t = 0f; t < grabSeconds; t += Time.deltaTime)
+        {
+            float k = Ease.OutCubic(t / grabSeconds);
+            visual.position = Vector3.Lerp(startPosition, HoldPoint(eye, startPosition), k);
+            visual.rotation = Quaternion.Slerp(startRotation, Showcase(showcase, eye, 0f), k);
+            visual.localScale = startScale * Mathf.Lerp(1f, holdScale, k);
+            yield return null;
+        }
+
+        // Hold: hang in front of the eyes, turning slowly. Left mouse held = grab it and turn it; the scroll wheel zooms;
+        // E takes it (or the clock, with Wait For Interact off). Swimming stops, the background blurs, and the hotbar
+        // and the interactor stand back meanwhile.
+        bool canInspect = inspectable && eye != null;
+        bool lookWasLocked = swimmer != null && swimmer.LookLocked;
+        bool wasFrozen = swimmer != null && swimmer.Frozen;
+        bool couldAttack = slash != null && slash.CanAttack;
+        bool needsInteract = waitForInteract && interactor != null && interactor.InteractAction != null;
+        bool cursorWasVisible = Cursor.visible;
+        CursorLockMode cursorWasLocked = Cursor.lockState;
+        if (canInspect && showCursorWhileInspecting)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+        if (canInspect && hideReticleWhileInspecting)
+            HitMarker.SetReticleVisible(false);
+        if (swimmer != null && lockLookWhileInspecting)
+            swimmer.LookLocked = true;
+        if (canInspect)
+            InspectHintUI.Show();   // the mouse / wheel / E pictogram
+        if (canInspect && blurBackground)
+            InspectFocus.Show(eyeCamera, holdNow);
+        if (interactor != null)
+            interactor.Busy = true;
+        if (pendingInventory != null)
+            pendingInventory.InputBlocked = true;
+        if (swimmer != null && freezeWhileInspecting)
+            swimmer.Frozen = true;
+        if (canInspect && slash != null)
+            slash.SetCanAttack(false);   // a click grabs the item; it must not swing the dagger
+
+        Vector2 spin = Vector2.zero;   // degrees per second, from the mouse
+        float holdTarget = holdNow;
+        float held = 0f;
+        while (true)
+        {
+            Mouse mouse = Mouse.current;
+            bool dragging = canInspect && mouse != null && mouse.leftButton.isPressed;
+            if (dragging && Time.deltaTime > 0f)
+            {
+                spin = Vector2.ClampMagnitude(mouse.delta.ReadValue() * (inspectSensitivity / Time.deltaTime), 900f);
+            }
+            else
+            {
+                spin *= Mathf.Exp(-inspectDamping * Time.deltaTime);
+                held += Time.deltaTime;
+                turned += holdTurnSpeed * Time.deltaTime;
+            }
+            if (canInspect && mouse != null)
+            {
+                float wheel = mouse.scroll.ReadValue().y;
+                if (Mathf.Abs(wheel) > 0.01f)
+                    holdTarget = Mathf.Clamp(holdTarget - Mathf.Sign(wheel) * zoomStep, zoomRange.x, zoomRange.y);
+            }
+            holdNow = Mathf.Lerp(holdNow, holdTarget, 1f - Mathf.Exp(-zoomSmoothing * Time.deltaTime));
+            if (canInspect && blurBackground)
+                InspectFocus.Focus(holdNow);
+            if (eye != null && spin.sqrMagnitude > 0.01f)
+                handled = Quaternion.AngleAxis(spin.x * Time.deltaTime, eye.up) * Quaternion.AngleAxis(-spin.y * Time.deltaTime, eye.right) * handled;
+            if (swimmer != null && lockLookWhileInspecting == false)
+                swimmer.LookLocked = lookWasLocked || dragging;   // camera free, except while you are dragging the item
+
+            visual.position = HoldPoint(eye, startPosition) + Vector3.up * (holdBobAmount * Mathf.Sin(Time.time * holdBobSpeed * Mathf.PI * 2f));
+            visual.rotation = handled * Showcase(showcase, eye, turned);
+            visual.localScale = startScale * holdScale;
+
+            bool minimumHeld = held >= holdSeconds;
+            if (needsInteract ? minimumHeld && interactor.InteractAction.WasPressedThisFrame() : minimumHeld)
+                break;
+            yield return null;
+        }
+
+        if (swimmer != null)
+        {
+            swimmer.LookLocked = lookWasLocked;
+            swimmer.Frozen = wasFrozen;
+        }
+        if (canInspect)
+            InspectHintUI.Hide();
+        if (canInspect && showCursorWhileInspecting)
+        {
+            Cursor.lockState = cursorWasLocked;
+            Cursor.visible = cursorWasVisible;
+        }
+        if (canInspect && hideReticleWhileInspecting)
+            HitMarker.SetReticleVisible(true);
+        if (canInspect && blurBackground)
+            InspectFocus.Hide();
+        if (interactor != null)
+            interactor.Busy = false;
+        if (pendingInventory != null)
+            pendingInventory.InputBlocked = false;
+        if (canInspect && slash != null)
+            slash.SetCanAttack(couldAttack);
+
+        // Absorb: from where it hangs straight into the torso, easing in and out, shrinking to nothing. Both ends
+        // follow the player, so it stays put in the view even if you turn on the way.
+        Vector3 hangOffset = visual.position - HoldPoint(eye, startPosition);
+        for (float t = 0f; t < absorbSeconds; t += Time.deltaTime)
+        {
+            float k = t / absorbSeconds;
+            turned += 240f * Time.deltaTime / Mathf.Max(0.01f, absorbSeconds);
+            visual.position = Vector3.Lerp(HoldPoint(eye, startPosition) + hangOffset, Torso(body, bodyRoot), Ease.InOutCubic(k));
+            visual.rotation = handled * Showcase(showcase, eye, turned);
+            visual.localScale = startScale * (holdScale * (1f - Ease.InQuad(k)) + 0.02f);
+            yield return null;
+        }
+
+        if (swimmer != null && absorbShake > 0f)
+            swimmer.AddShake(absorbShake);
+        if (pickedUpVfx != null)
+            Instantiate(pickedUpVfx, Torso(body, bodyRoot), Quaternion.identity);
+
+        visual.localScale = startScale;
+        visual.position = startPosition;
+        visual.rotation = startRotation;
+        if (Deliver())
+            gameObject.SetActive(false);
+    }
+
+    // Hands the item over at the end of the animation. False if the inventory filled up while it was flying: what is
+    // left stays here, ready to be picked up again.
+    private bool Deliver()
+    {
+        int stored = pendingInventory != null ? pendingInventory.Add(item, amount) : 0;
+        amount -= stored;
+        if (amount <= 0)
+        {
+            onPickedUp.Invoke();
+            return true;
+        }
+        collected = false;
+        GetComponent<Collider>().enabled = true;
+        return false;
+    }
+
+    // A point in front of the eyes, at Hold Distance. With no camera, just above where the item was.
+    private Vector3 HoldPoint(Transform eye, Vector3 fallback)
+    {
+        return eye != null ? eye.position + eye.forward * holdNow + eye.up * holdHeight : fallback + Vector3.up * 0.4f;
+    }
+
+    // The middle of the body (the Character Controller centre), plus Collect Offset in body space.
+    private Vector3 Torso(CharacterController body, Transform bodyRoot)
+    {
+        Vector3 torso = body != null ? body.transform.TransformPoint(body.center) : bodyRoot != null ? bodyRoot.position + Vector3.up : transform.position;
+        return bodyRoot != null ? torso + bodyRoot.TransformDirection(collectOffset) : torso;
+    }
+
+    // The showcase pose turned to present the same side to the viewer every time, plus `turn` degrees about world up.
+    private static Quaternion Showcase(Quaternion rest, Transform eye, float turn)
+    {
+        float yaw = 0f;
+        if (eye != null)
+        {
+            Vector3 toEye = -eye.forward;   // from the hold point back to the viewer
+            toEye.y = 0f;
+            if (toEye.sqrMagnitude > 0.001f)
+                yaw = Mathf.Atan2(toEye.x, toEye.z) * Mathf.Rad2Deg;   // the rest pose front turned to face the viewer
+        }
+        return Quaternion.AngleAxis(yaw + turn, Vector3.up) * rest;
     }
 }

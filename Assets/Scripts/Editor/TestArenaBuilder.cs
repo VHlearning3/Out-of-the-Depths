@@ -170,7 +170,7 @@ public static class TestArenaBuilder
         Vector3 wall = new Vector3(0f, 3f, -30f);      // inner face of the south wall, north side
         const float width = 2.4f, height = 1.8f;       // the photo is 4:3
 
-        Box("Frame", wall + new Vector3(0f, 0f, 0.05f), new Vector3(width + 0.24f, height + 0.24f, 0.1f), new Color(0.32f, 0.22f, 0.12f), zone);
+        GameObject frame = Box("Frame", wall + new Vector3(0f, 0f, 0.05f), new Vector3(width + 0.24f, height + 0.24f, 0.1f), new Color(0.32f, 0.22f, 0.12f), zone);
 
         // A Quad is seen from its -Z side, so it is turned to look north, toward the spawn pad.
         GameObject photo = GameObject.CreatePrimitive(PrimitiveType.Quad);
@@ -182,6 +182,19 @@ public static class TestArenaBuilder
         Material material = EnsurePhotoMaterial();
         if (material != null)
             photo.GetComponent<Renderer>().sharedMaterial = material;
+
+        // Press E on the picture and the dog barks (Sound On Interact; the clips live in Sound/Props). The photo rides
+        // on the frame so the whole thing rattles on its nail.
+        photo.transform.SetParent(frame.transform, true);
+        frame.AddComponent<InteractableHighlight>();
+        var bark = frame.AddComponent<SoundOnInteract>();
+        var barkSo = new SerializedObject(bark);
+        barkSo.FindProperty("prompt").stringValue = "pet the dog";
+        SerializedProperty barkClips = barkSo.FindProperty("clips");
+        barkClips.arraySize = 2;
+        barkClips.GetArrayElementAtIndex(0).objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Props/Prop_DogBark_Kwahmah_CC0.mp3");
+        barkClips.GetArrayElementAtIndex(1).objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Props/Prop_DogBark_Sadiquecat_CC0.mp3");
+        barkSo.ApplyModifiedPropertiesWithoutUndo();
 
         var plaque = new GameObject("Plaque");
         plaque.transform.SetParent(zone, false);
@@ -460,12 +473,11 @@ public static class TestArenaBuilder
 
         var so = new SerializedObject(door);
         so.FindProperty("visual").objectReferenceValue = visual.transform;
-        so.FindProperty("unlatchSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_DungeonBolt_Bennynz_CC0.mp3");
-        so.FindProperty("moveLoop").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_MetalScrapeLoop_Toddcircle_CC0.mp3");
+        so.FindProperty("openSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_Open_Wood_CC0.mp3");
+        so.FindProperty("unlatchSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_Creak_Wood_CC0.mp3");
         so.FindProperty("openStopSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_MetalClunk_Grinnell_CC0.mp3");
-        so.FindProperty("closeStopSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_SlamReverb_Sheyvan_CC0.mp3");
+        so.FindProperty("closeStopSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_Shut_Wood_CC0.mp3");
         so.FindProperty("lockedSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_LockedRattle_CastIronCarousel_CC0.mp3");
-        so.FindProperty("groanSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Ambience/Ambience_MetallicGroan_Hinchinbrook_CC0.mp3");
         configure?.Invoke(so);
         so.ApplyModifiedPropertiesWithoutUndo();
 
@@ -1086,7 +1098,7 @@ public static class TestArenaBuilder
         ItemDefinition item = ItemTools.Load(itemAssetName);
         var pickup = root.GetComponentInChildren<PickupItem>();
         if (pickup != null)
-            SetField(pickup, "pickupSound", p => { if (p.objectReferenceValue == null) p.objectReferenceValue = Sfx("Item pick up sound effect.mp3"); });
+            SetField(pickup, "pickupSound", p => { if (p.objectReferenceValue == null) p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Items/Pickup_MagicKeyJingle_Tunetank.wav"); });
         if (pickup != null && item != null)
             SetField(pickup, "item", p => p.objectReferenceValue = item);
         root.name = "Pickup_" + itemAssetName.Replace("Item_", "");

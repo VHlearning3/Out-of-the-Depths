@@ -26,9 +26,13 @@ public class PlayerInteractor : MonoBehaviour
     public UnityEvent<GameObject> onTargetChanged = new UnityEvent<GameObject>();
 
     public IInteractable CurrentTarget { get; private set; }
+    // While something else owns E (a pickup being inspected), no targeting and no interacting.
+    public bool Busy { get; set; }
+    public InputAction InteractAction => interactAction;
 
     private InputAction interactAction;
     private GameObject currentTargetObject;
+    private string hint;
     private readonly Collider[] overlapResults = new Collider[16];
 
     private void Awake()
@@ -49,6 +53,13 @@ public class PlayerInteractor : MonoBehaviour
 
     private void Update()
     {
+        if (Busy)
+        {
+            if (currentTargetObject != null || CurrentTarget != null)
+                SetTarget(null, null);
+            return;
+        }
+
         FindTarget(out var target, out var targetObject);
         if (targetObject != currentTargetObject)
             SetTarget(target, targetObject);
@@ -56,6 +67,8 @@ public class PlayerInteractor : MonoBehaviour
 
     private void OnInteractPerformed(InputAction.CallbackContext context)
     {
+        if (Busy)
+            return;
         CurrentTarget?.Interact(gameObject);
     }
 
@@ -104,12 +117,31 @@ public class PlayerInteractor : MonoBehaviour
         currentTargetObject = targetObject;
         NotifyTargeted(currentTargetObject, true);
 
-        if (promptLabel != null)
-            promptLabel.text = target != null ? string.Format(promptFormat, target.Prompt) : string.Empty;
-        if (promptRoot != null)
-            promptRoot.SetActive(target != null);
+        RefreshPrompt();
 
         onTargetChanged.Invoke(targetObject);
+    }
+
+    // A line of help shown while nothing is targeted (a pickup being inspected: hold left mouse to turn it).
+    public void ShowHint(string text)
+    {
+        hint = text;
+        RefreshPrompt();
+    }
+
+    public void ClearHint()
+    {
+        hint = null;
+        RefreshPrompt();
+    }
+
+    private void RefreshPrompt()
+    {
+        string text = CurrentTarget != null ? string.Format(promptFormat, CurrentTarget.Prompt) : (hint ?? string.Empty);
+        if (promptLabel != null)
+            promptLabel.text = text;
+        if (promptRoot != null)
+            promptRoot.SetActive(text.Length > 0);
     }
 
     private static void NotifyTargeted(GameObject target, bool targeted)

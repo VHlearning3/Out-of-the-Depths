@@ -42,6 +42,7 @@ public class SlashAttack : MonoBehaviour
     public UnityEvent onSlashHit = new UnityEvent();
 
     public bool HasWeapon => !requireWeapon || (inventory != null && inventory.HasCategory(ItemDefinition.Category.Weapon));
+    public bool CanAttack => canAttack;
 
     private InputAction attackAction;
     private IHandAnimator hands;

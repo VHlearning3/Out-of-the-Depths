@@ -30,6 +30,8 @@ public class PlayerInventory : MonoBehaviour
     private readonly Dictionary<ItemDefinition, int> collectibles = new Dictionary<ItemDefinition, int>();
 
     public int SlotCount => slotCount;
+    // While something else owns the number keys and the wheel (a pickup being inspected), 1-5 and scrolling do nothing.
+    public bool InputBlocked { get; set; }
 
     public int TotalCollectibles
     {
@@ -68,6 +70,8 @@ public class PlayerInventory : MonoBehaviour
 
     private void Update()
     {
+        if (InputBlocked)
+            return;
         if (!selectWithInput)
             return;
 
@@ -140,6 +144,26 @@ public class PlayerInventory : MonoBehaviour
     }
 
     // Returns how many were actually stored; the rest didn't fit.
+    // How many of `amount` Add() would take right now, without taking them (a pickup checks this before it animates).
+    public int SpaceFor(ItemDefinition item, int amount = 1)
+    {
+        if (item == null || amount <= 0)
+            return 0;
+        if (IsCollectible(item))
+            return amount;
+
+        EnsureSlots();
+        int space = 0;
+        foreach (Slot slot in slots)
+        {
+            if (slot.item == item)
+                space += Mathf.Max(0, item.MaxStack - slot.count);
+            else if (slot.IsEmpty)
+                space += item.MaxStack;
+        }
+        return Mathf.Min(amount, space);
+    }
+
     public int Add(ItemDefinition item, int amount = 1)
     {
         if (item == null || amount <= 0)

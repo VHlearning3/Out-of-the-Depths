@@ -13,9 +13,11 @@ public class HitMarker : MonoBehaviour
     private Vector3 restScale;
     private Color restColor;
     private float timer = -1f;
+    private static HitMarker instance;
 
     private void Awake()
     {
+        instance = this;
         if (target == null)
             target = GetComponent<RectTransform>();
         if (graphic == null)
@@ -44,5 +46,14 @@ public class HitMarker : MonoBehaviour
 
         if (t >= 1f)
             timer = -1f;
+    }
+
+    // Hide / show the reticle (a pickup being inspected). The hit punch keeps working underneath.
+    public static void SetReticleVisible(bool visible)
+    {
+        if (instance == null)
+            instance = FindFirstObjectByType<HitMarker>(FindObjectsInactive.Include);
+        if (instance != null && instance.graphic != null)
+            instance.graphic.enabled = visible;
     }
 }
