@@ -14,6 +14,7 @@ public static class TestArenaBuilder
     private const string TrapdoorPrefabPath = PrefabRoot + "/Placeholders/Trapdoor_Placeholder.prefab";
     private const string FishWindowPrefabPath = PrefabRoot + "/Placeholders/FishWindow_Placeholder.prefab";
     private const string SfxFolder = "Assets/Sound/SFX Sound effects/";
+    private const string DoorSoundFolder = "Assets/Sound/Doors/";
     private const string PhotoTexturePath = "Assets/Art/Textures/DogPhoto.jpg";
     private const string PhotoMaterialPath = "Assets/Art/Materials/DogPhoto.mat";
 
@@ -33,7 +34,8 @@ public static class TestArenaBuilder
     private static readonly Color TileB = new Color(0.20f, 0.29f, 0.36f);
     private static readonly Color WallColor = new Color(0.12f, 0.15f, 0.20f);
     private static readonly Color PropColor = new Color(0.36f, 0.40f, 0.46f);
-    private static readonly Color LabelColor = new Color(0.8f, 0.95f, 1f);
+    private static readonly Color LabelColor = new Color(0.9f, 0.97f, 1f);
+    private static readonly Color SignAccent = new Color(0.35f, 0.85f, 0.95f);
 
     private static Transform arenaRoot;
     private static Font labelFont;
@@ -71,6 +73,7 @@ public static class TestArenaBuilder
         Step("Doors", BuildDoors);
         Step("Hatch", BuildHatch);
         Step("Chase corridor", BuildChaseCorridor);
+        Step("Item models", ItemModelTools.ApplyItemModelsInOpenScene);
         Step("Player", PlacePlayer);
         Step("Inventory HUD", ItemTools.EnsureInventoryHud);
         Step("Chase HUD", ChaseTools.EnsureDangerHud);
@@ -183,8 +186,8 @@ public static class TestArenaBuilder
         var plaque = new GameObject("Plaque");
         plaque.transform.SetParent(zone, false);
         plaque.transform.position = wall + new Vector3(0f, -(height * 0.5f + 0.45f), 0f);
-        RimPiece(plaque, "Board", new Vector3(0f, 0f, 0.04f), new Vector3(1.9f, 0.42f, 0.08f), new Color(0.6f, 0.48f, 0.2f));
-        SignFace(plaque, new[] { "HEAD OF QUALITY ASSURANCE", "(asleep on the job)" }, new Vector3(0f, 0f, 0.085f), 180f, 1.9f, 0.42f);
+        RimPiece(plaque, "Board", new Vector3(0f, 0f, 0.04f), new Vector3(1.9f, 0.5f, 0.08f), new Color(0.6f, 0.48f, 0.2f));
+        SignFace(plaque, "Head of Quality Assurance", new[] { "(asleep on the job)" }, new Vector3(0f, 0f, 0.085f), 180f, 1.9f, 0.5f, 0.24f, 0.16f, 0.05f);
 
         var spot = new GameObject("Spotlight");
         spot.transform.SetParent(zone, false);
@@ -321,13 +324,14 @@ public static class TestArenaBuilder
     private static void BuildPickups()
     {
         Transform zone = Group("Zone_Pickups");
-        Patch(zone, new Vector2(16f, -20f), new Vector2(18f, 8f), new Color(0.4f, 0.38f, 0.22f));
-        Box("Shelf", new Vector3(16f, 0.5f, -20f), new Vector3(16f, 1f, 1.5f), PropColor, zone);
+        Patch(zone, new Vector2(18f, -20f), new Vector2(22f, 8f), new Color(0.4f, 0.38f, 0.22f));
+        Box("Shelf", new Vector3(18f, 0.5f, -20f), new Vector3(20f, 1f, 1.5f), PropColor, zone);
         string[] items =
         {
             "Item_StoneFragment", "Item_StoneFragment", "Item_StoneFragment",
             "Item_BoneKeyFragment", "Item_BoneKeyFragment", "Item_BoneKeyFragment",
             "Item_Pearl",
+            "Item_FirstRoomKey", "Item_SymbolKey",
         };
         for (int i = 0; i < items.Length; i++)
             CreatePickup(new Vector3(10f + i * 2f, 1.25f, -20f), items[i], zone);
@@ -365,7 +369,7 @@ public static class TestArenaBuilder
         GameObject lockBox = Box("Lock_BoneKey", new Vector3(4.6f, 1.2f, 13.4f), new Vector3(0.5f, 0.5f, 0.3f), new Color(0.8f, 0.7f, 0.3f), zone);
         OpenOnFilled(Socket(lockBox, "Item_BoneKey", 1, true, "unlock with", null, null), doorBone);
 
-        Label("PUZZLES\npedestal: 3 stone fragments -> left door\nseaweed: 3 bone fragments -> bone key -> right door", new Vector3(0f, 6f, 12f), zone);
+        Label("PUZZLES - pedestal: 3 stone fragments -> left door\nseaweed: 3 bone fragments -> bone key -> right door", new Vector3(0f, 6f, 12f), zone);
     }
 
     private static void BuildDoors()
@@ -456,8 +460,12 @@ public static class TestArenaBuilder
 
         var so = new SerializedObject(door);
         so.FindProperty("visual").objectReferenceValue = visual.transform;
-        so.FindProperty("openSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(SfxFolder + "Door opening sound effect.mp3");
-        so.FindProperty("closeSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(SfxFolder + "Door closing sound effect.mp3");
+        so.FindProperty("unlatchSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_DungeonBolt_Bennynz_CC0.mp3");
+        so.FindProperty("moveLoop").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_MetalScrapeLoop_Toddcircle_CC0.mp3");
+        so.FindProperty("openStopSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_MetalClunk_Grinnell_CC0.mp3");
+        so.FindProperty("closeStopSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_SlamReverb_Sheyvan_CC0.mp3");
+        so.FindProperty("lockedSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_LockedRattle_CastIronCarousel_CC0.mp3");
+        so.FindProperty("groanSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Ambience/Ambience_MetallicGroan_Hinchinbrook_CC0.mp3");
         configure?.Invoke(so);
         so.ApplyModifiedPropertiesWithoutUndo();
 
@@ -582,6 +590,9 @@ public static class TestArenaBuilder
         var chase = chaseGo.AddComponent<ChaseSequence>();
         SetField(chase, "startSound", p => p.objectReferenceValue = Sfx("Deep Sea Monster sound effect.mp3"));
         SetField(chase, "endSound", p => p.objectReferenceValue = Sfx("Puzzle Completed Sound effect.mp3"));
+        SetField(chase, "tensionLoop", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Ambience/Ambience_HorrorRumble_Medoob_CC0.mp3"));
+        SetField(chase, "nearSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Player/Swim_UnderwaterMovement_Cabusta_CC0.mp3"));
+        SetField(chase, "hushSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Ambience/Ambience_MetallicGroan_Hinchinbrook_CC0.mp3"));
         GameObject pursuerPrefab = ChaseTools.EnsurePursuerPrefab();
         Vector3[] slots = { new Vector3(-12f, 3.2f, 32.6f), new Vector3(-11.3f, 3.2f, 33.2f), new Vector3(-10.6f, 3.2f, 33.8f) };
         for (int i = 0; i < slots.Length; i++)
@@ -780,63 +791,118 @@ public static class TestArenaBuilder
         return box;
     }
 
-    // A signpost: post + board, text on both faces as small world-space UI (depth-tested, so the back face never shows
-    // through), turned toward the spawn pad, fading in when the player is near.
+    // A signpost: post, framed board, and the text on both faces as crisp world-space UI - a big accent-coloured title
+    // ("PICKUPS") over the body text, with a drop shadow so it reads against anything. The board turns to face the
+    // player while they are near (ProximityLabel) so it reads from any side, and fades in as they approach.
+    // Text format: "TITLE - body text"; the body wraps by itself and the board grows to fit.
     private static void Label(string text, Vector3 position, Transform parent)
     {
-        string[] lines = Wrap(text.Replace(" - ", "\n"), 26);
-        float lineHeight = 0.22f;
-        float boardHeight = lines.Length * lineHeight + 0.3f;
-        float boardWidth = 2.8f;
-        float postHeight = 1.4f;
-        Vector3 boardCentre = new Vector3(0f, postHeight + boardHeight * 0.5f, 0f);
+        // "TITLE - body" or "TITLE\nbody": the title is whatever comes before the first " - ", or the first line if
+        // that comes sooner. Anything else would end up as a giant bold title spilling off the board.
+        int split = text.IndexOf(" - ", System.StringComparison.Ordinal);
+        int splitLength = 3;
+        int newline = text.IndexOf('\n');
+        if (newline >= 0 && (split < 0 || newline < split))
+        {
+            split = newline;
+            splitLength = 1;
+        }
+        string title = split >= 0 ? text.Substring(0, split) : text;
+        string body = split >= 0 ? text.Substring(split + splitLength) : string.Empty;
+        string[] bodyLines = string.IsNullOrEmpty(body) ? new string[0] : Wrap(body, 34);
 
-        var sign = new GameObject("Sign_" + lines[0]);
+        const float boardWidth = 3.4f;
+        const float titleHeight = 0.42f;
+        const float lineHeight = 0.24f;
+        const float padding = 0.2f;
+        float boardHeight = padding * 2f + titleHeight + bodyLines.Length * lineHeight;
+
+        // The sign floats at the height the caller gives (no post): the board is centred on the root, which bobs and
+        // turns toward the player (ProximityLabel).
+        var sign = new GameObject("Sign_" + title);
         sign.transform.SetParent(parent, false);
-        sign.transform.position = new Vector3(position.x, 0f, position.z);
+        sign.transform.position = new Vector3(position.x, Mathf.Max(position.y, boardHeight * 0.5f + 1.2f), position.z);
         Vector3 fromSpawn = sign.transform.position - SpawnPosition;
         fromSpawn.y = 0f;
         if (fromSpawn.sqrMagnitude > 0.01f)
             sign.transform.rotation = Quaternion.LookRotation(fromSpawn, Vector3.up);
 
-        RimPiece(sign, "Post", new Vector3(0f, postHeight * 0.5f, 0f), new Vector3(0.15f, postHeight, 0.15f), new Color(0.3f, 0.25f, 0.2f));
-        RimPiece(sign, "Board", boardCentre, new Vector3(boardWidth, boardHeight, 0.08f), new Color(0.1f, 0.12f, 0.16f));
-        SignFace(sign, lines, boardCentre + new Vector3(0f, 0f, -0.045f), 0f, boardWidth, boardHeight);
-        SignFace(sign, lines, boardCentre + new Vector3(0f, 0f, 0.045f), 180f, boardWidth, boardHeight);
+        // The frame is a slightly larger, thinner slab behind the board, so only its rim shows as a glowing border.
+        RimPiece(sign, "Frame", Vector3.zero, new Vector3(boardWidth + 0.12f, boardHeight + 0.12f, 0.06f), SignAccent);
+        var glow = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Materials/RespawnPlate.mat");
+        if (glow != null)
+            sign.transform.Find("Frame").GetComponent<Renderer>().sharedMaterial = glow;
+        RimPiece(sign, "Board", Vector3.zero, new Vector3(boardWidth, boardHeight, 0.1f), new Color(0.06f, 0.08f, 0.12f));
+        SignFace(sign, title, bodyLines, new Vector3(0f, 0f, -0.056f), 0f, boardWidth, boardHeight, titleHeight, lineHeight, padding);
+        SignFace(sign, title, bodyLines, new Vector3(0f, 0f, 0.056f), 180f, boardWidth, boardHeight, titleHeight, lineHeight, padding);
 
         var proximity = sign.AddComponent<ProximityLabel>();
-        SetField(proximity, "facePlayer", p => p.boolValue = false);
+        SetField(proximity, "showDistance", p => p.floatValue = 16f);
+        SetField(proximity, "fadeWidth", p => p.floatValue = 5f);
+        SetField(proximity, "facePlayer", p => p.boolValue = true);
     }
 
-    private static void SignFace(GameObject sign, string[] lines, Vector3 localPosition, float yaw, float width, float height)
+    // Text on one face of a board. Font sizes follow the row heights (in metres), so the same routine does big zone
+    // signs and small plaques.
+    private static void SignFace(GameObject sign, string title, string[] bodyLines, Vector3 localPosition, float yaw, float width, float height, float titleHeight, float lineHeight, float padding)
     {
+        // Canvas units to metres. Small, so the fonts are rendered big and stay crisp when you swim right up to the board.
+        const float scale = 0.004f;
+        int titleFont = Mathf.RoundToInt(titleHeight / scale * 0.8f);
+        int bodyFont = Mathf.RoundToInt(lineHeight / scale * 0.8f);
+
         var face = new GameObject("Face", typeof(RectTransform));
         face.transform.SetParent(sign.transform, false);
         face.transform.localPosition = localPosition;
         face.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
-        face.transform.localScale = Vector3.one * 0.01f;
+        face.transform.localScale = Vector3.one * scale;
         var canvas = face.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
         face.AddComponent<CanvasGroup>();
-        face.GetComponent<RectTransform>().sizeDelta = new Vector2(width * 100f - 20f, height * 100f - 10f);
+        face.GetComponent<RectTransform>().sizeDelta = new Vector2(width / scale, height / scale);
 
-        var textGo = new GameObject("Text", typeof(RectTransform));
-        textGo.transform.SetParent(face.transform, false);
-        var rect = textGo.GetComponent<RectTransform>();
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
+        float pad = padding / scale;
+        float titleRows = titleHeight / scale;
 
-        var text = textGo.AddComponent<Text>();
-        text.text = string.Join("\n", lines);
+        RectTransform titleRect = SignText(face.transform, "Title", title.ToUpperInvariant(), titleFont, FontStyle.Bold, SignAccent, TextAnchor.MiddleCenter);
+        titleRect.anchorMin = new Vector2(0f, 1f);
+        titleRect.anchorMax = new Vector2(1f, 1f);
+        titleRect.pivot = new Vector2(0.5f, 1f);
+        titleRect.anchoredPosition = new Vector2(0f, -pad);
+        titleRect.sizeDelta = new Vector2(-2f * pad, titleRows);
+
+        if (bodyLines.Length == 0)
+            return;
+
+        RectTransform bodyRect = SignText(face.transform, "Body", string.Join("\n", bodyLines), bodyFont, FontStyle.Normal, LabelColor, TextAnchor.UpperCenter);
+        bodyRect.anchorMin = Vector2.zero;
+        bodyRect.anchorMax = Vector2.one;
+        bodyRect.offsetMin = new Vector2(pad, pad);
+        bodyRect.offsetMax = new Vector2(-pad, -(pad + titleRows));
+    }
+
+    private static RectTransform SignText(Transform face, string name, string content, int fontSize, FontStyle style, Color color, TextAnchor anchor)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(face, false);
+
+        var text = go.AddComponent<Text>();
+        text.text = content;
         text.font = labelFont;
-        text.fontSize = 18;
-        text.alignment = TextAnchor.MiddleCenter;
-        text.color = LabelColor;
+        text.fontSize = fontSize;
+        text.fontStyle = style;
+        text.alignment = anchor;
+        text.color = color;
+        text.lineSpacing = 1.05f;
         text.horizontalOverflow = HorizontalWrapMode.Overflow;
         text.verticalOverflow = VerticalWrapMode.Overflow;
         text.raycastTarget = false;
+
+        var shadow = go.AddComponent<Shadow>();
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
+        shadow.effectDistance = new Vector2(3f, -3f);
+
+        return go.GetComponent<RectTransform>();
     }
 
     // A tinted patch on the floor marking a zone's area.
@@ -1019,6 +1085,8 @@ public static class TestArenaBuilder
 
         ItemDefinition item = ItemTools.Load(itemAssetName);
         var pickup = root.GetComponentInChildren<PickupItem>();
+        if (pickup != null)
+            SetField(pickup, "pickupSound", p => { if (p.objectReferenceValue == null) p.objectReferenceValue = Sfx("Item pick up sound effect.mp3"); });
         if (pickup != null && item != null)
             SetField(pickup, "item", p => p.objectReferenceValue = item);
         root.name = "Pickup_" + itemAssetName.Replace("Item_", "");

@@ -161,7 +161,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PickupItem
   item: {fileID: 11400000, guid: f80d1874e5424274b877610108b728b0, type: 2}
   amount: 1
-  pickupSound: {fileID: 0}
+  pickupSound: {fileID: 8300000, guid: 50c35e027671546458e1f9f9016f1e82, type: 3}
   pickupVolume: 0.6
   pickedUpVfx: {fileID: 0}
   onPickedUp:

@@ -75,6 +75,8 @@ public class InteractableHighlight : MonoBehaviour, IInteractTargetListener
         for (int i = 0; i < renderers.Length; i++)
         {
             Renderer r = renderers[i];
+            if (r == null)
+                continue;
             Material material = r.sharedMaterial;
             r.GetPropertyBlock(block);
 
@@ -92,6 +94,8 @@ public class InteractableHighlight : MonoBehaviour, IInteractTargetListener
         for (int i = 0; i < renderers.Length; i++)
         {
             Renderer r = renderers[i];
+            if (r == null)
+                continue;
             r.GetPropertyBlock(block);
 
             Color lit = Color.Lerp(baseColors[i], highlightColor, tintStrength * t) * (1f + brightness * t);
@@ -110,6 +114,8 @@ public class InteractableHighlight : MonoBehaviour, IInteractTargetListener
         for (int i = 0; i < renderers.Length; i++)
         {
             Renderer r = renderers[i];
+            if (r == null)
+                continue;
             r.GetPropertyBlock(block);
             block.Clear();
 

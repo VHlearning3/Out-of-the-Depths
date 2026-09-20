@@ -82,8 +82,12 @@ MonoBehaviour:
   closePrompt: close door
   closeBehindPlayer: 1
   throughAxis: {x: 0, y: 0, z: 1}
-  openSound: {fileID: 8300000, guid: 9e6685778f96be94c860cb4e243427ac, type: 3}
-  closeSound: {fileID: 8300000, guid: ab5c18bf3ec72e14f8d04452a7a61cca, type: 3}
+  unlatchSound: {fileID: 8300000, guid: 9e6fd268ae3a9fbfe4bc738b9fa5b6c7, type: 3}
+  moveLoop: {fileID: 8300000, guid: 5f2b8d13cae45a7b9f6d2e3c4b506172, type: 3}
+  openStopSound: {fileID: 8300000, guid: 7b4daf35ec067c9db18f405e6d728394, type: 3}
+  closeStopSound: {fileID: 8300000, guid: af70e379bf4bafcaf5cd849cafb6c7d8, type: 3}
+  lockedSound: {fileID: 8300000, guid: 8c5eb046fd178daec29a516f7e8394a5, type: 3}
+  groanSound: {fileID: 8300000, guid: 284d110593d01f1b79b09833ecf861b1, type: 3}
   volume: 0.7
   onOpened:
     m_PersistentCalls:

@@ -1,10 +1,15 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Serialization;
 
 // A door: Open()/Close() slide or swing the Visual child between its closed pose and an open one. Press E to use it
 // (unless locked) or drive it from events (Item Socket → On Filled → Open). Can shut and lock behind the player once
-// they've gone through (the GDD's first room). Swap the Visual mesh freely; this object is the hinge for swing doors.
+// they've gone through (the GDD's first room).
+// Heavy-hatch feel: an easing curve per direction, a small overshoot-and-settle when it hits the open stop and a
+// little bounce when it lands shut. Sound: an unlatch clunk as it starts, a grinding loop that follows its speed, a
+// thud at each end (again, quieter, on every bounce) and a rattle when it's locked - all 3D, muffled like underwater.
+// Swap the Visual mesh freely; this object is the hinge for swing doors.
 public class Door : MonoBehaviour, IInteractable
 {
     public enum Motion { Slide, Swing }
@@ -21,11 +26,26 @@ public class Door : MonoBehaviour, IInteractable
     [SerializeField] private Vector3 swingAxis = Vector3.up;
     [Tooltip("Swing: push open away from whoever opens it, so it never swings into the player's face. Off = always the same direction.")]
     [SerializeField] private bool swingAwayFromPlayer = true;
+    [Tooltip("Seconds for the full travel.")]
     [SerializeField] private float duration = 1f;
+    [Tooltip("Shape of the opening move (x = time 0..1, y = how far along 0..1). Default eases in and out, like something heavy being pushed.")]
+    [SerializeField] private AnimationCurve openCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+    [Tooltip("Shape of the closing move. Default starts slow and picks up speed, like a hatch dropping under its own weight.")]
+    [SerializeField] private AnimationCurve closeCurve = new AnimationCurve(new Keyframe(0f, 0f, 0f, 0f), new Keyframe(1f, 1f, 2.2f, 2.2f));
+
+    [Header("Landing")]
+    [Tooltip("How far the door rebounds when it lands shut, as a fraction of its travel. 0 = lands dead.")]
+    [SerializeField, Range(0f, 0.3f)] private float bounce = 0.06f;
+    [Tooltip("How many rebounds. Each is about a third the height and a bit quicker than the one before.")]
+    [SerializeField, Range(0, 4)] private int bounces = 2;
+    [Tooltip("Seconds the first rebound takes.")]
+    [SerializeField] private float bounceTime = 0.22f;
+    [Tooltip("How far it overshoots and settles back when it hits the open stop, as a fraction of its travel. 0 = stops dead.")]
+    [SerializeField, Range(0f, 0.2f)] private float openSettle = 0.025f;
 
     [Header("Behaviour")]
     [SerializeField] private bool startOpen = false;
-    [Tooltip("Locked doors ignore E. Events (Open, Unlock) still work.")]
+    [Tooltip("Locked doors ignore E (they rattle). Events (Open, Unlock) still work.")]
     [SerializeField] private bool locked = false;
     [Tooltip("The player can open and close it with E.")]
     [SerializeField] private bool interactable = true;
@@ -39,10 +59,32 @@ public class Door : MonoBehaviour, IInteractable
     [Tooltip("The local direction that counts as 'through' / the front of the door. Forward for a door, Down (0,-1,0) for a hatch.")]
     [SerializeField] private Vector3 throughAxis = Vector3.forward;
 
-    [Header("Feedback")]
-    [SerializeField] private AudioClip openSound;
-    [SerializeField] private AudioClip closeSound;
+    [Header("Sounds")]
+    [Tooltip("The latch / bolt as the door starts to move, opening or closing.")]
+    [FormerlySerializedAs("openSound")]
+    [SerializeField] private AudioClip unlatchSound;
+    [Tooltip("Grinding / scraping that loops while the door moves. Volume and pitch follow its speed.")]
+    [SerializeField] private AudioClip moveLoop;
+    [Tooltip("The clank when it reaches fully open.")]
+    [SerializeField] private AudioClip openStopSound;
+    [Tooltip("The thud when it lands shut. Plays again, quieter, on each bounce.")]
+    [FormerlySerializedAs("closeSound")]
+    [SerializeField] private AudioClip closeStopSound;
+    [Tooltip("The rattle when someone tries it while it's locked.")]
+    [SerializeField] private AudioClip lockedSound;
+    [Tooltip("A long creak / groan that starts with the move and rings on after the door has stopped. The creepy part.")]
+    [SerializeField] private AudioClip groanSound;
+    [Tooltip("Random pitch range for the groan, so no two doors sound alike.")]
+    [SerializeField] private Vector2 groanPitchRange = new Vector2(0.7f, 0.9f);
     [SerializeField, Range(0f, 1f)] private float volume = 0.7f;
+    [Tooltip("Pitch of every door sound. Below 1 = deeper and heavier.")]
+    [SerializeField, Range(0.5f, 1.5f)] private float pitch = 0.85f;
+    [Tooltip("Reverb on the door's sounds, so a slam rolls away down the corridor. Off = dry.")]
+    [SerializeField] private AudioReverbPreset reverb = AudioReverbPreset.Hangar;
+    [Tooltip("Low-pass cutoff in Hz for every door sound, so it sounds muffled through the water. 22000 = no muffling.")]
+    [SerializeField] private float muffleCutoff = 2200f;
+    [Tooltip("Metres beyond which the door can't be heard.")]
+    [SerializeField] private float hearingRange = 30f;
 
     [Header("Events")]
     public UnityEvent onOpened = new UnityEvent();
@@ -57,6 +99,9 @@ public class Door : MonoBehaviour, IInteractable
     private float openness;
     private float swingDirection = 1f;
     private Coroutine motionRoutine;
+    private AudioSource oneShot;
+    private AudioSource loop;
+    private AudioSource groan;
 
     private void Awake()
     {
@@ -69,15 +114,49 @@ public class Door : MonoBehaviour, IInteractable
             closedRotation = visual.localRotation;
         }
 
+        oneShot = MakeSource(false);
+        loop = MakeSource(true);
+        groan = MakeSource(false);
+        var muffle = gameObject.AddComponent<AudioLowPassFilter>();
+        muffle.cutoffFrequency = muffleCutoff;
+        if (reverb != AudioReverbPreset.Off)
+            gameObject.AddComponent<AudioReverbFilter>().reverbPreset = reverb;
+
         IsOpen = startOpen;
         openness = startOpen ? 1f : 0f;
         ApplyPose();
     }
 
+    private AudioSource MakeSource(bool looping)
+    {
+        var source = gameObject.AddComponent<AudioSource>();
+        source.playOnAwake = false;
+        source.loop = looping;
+        source.spatialBlend = 1f;
+        source.rolloffMode = AudioRolloffMode.Linear;
+        source.minDistance = 2f;
+        source.maxDistance = Mathf.Max(hearingRange, 3f);
+        source.dopplerLevel = 0f;
+        source.pitch = pitch;
+        return source;
+    }
+
+    private void Play(AudioClip clip, float scale = 1f)
+    {
+        if (clip != null && oneShot != null)
+            oneShot.PlayOneShot(clip, volume * scale);
+    }
+
     public void Interact(GameObject interactor)
     {
-        if (!interactable || locked)
+        if (!interactable)
             return;
+
+        if (locked)
+        {
+            Play(lockedSound);
+            return;
+        }
 
         // Opening: swing toward the side the player is NOT on. Closing keeps the same arc.
         if (!IsOpen && swingAwayFromPlayer && motion == Motion.Swing)
@@ -101,9 +180,12 @@ public class Door : MonoBehaviour, IInteractable
             return;
 
         IsOpen = open;
-        AudioClip clip = open ? openSound : closeSound;
-        if (clip != null)
-            AudioSource.PlayClipAtPoint(clip, transform.position, volume);
+        Play(unlatchSound);
+        if (groanSound != null && groan != null)
+        {
+            groan.pitch = pitch * Random.Range(groanPitchRange.x, groanPitchRange.y);
+            groan.PlayOneShot(groanSound, volume);
+        }
 
         if (motionRoutine != null)
             StopCoroutine(motionRoutine);
@@ -114,11 +196,63 @@ public class Door : MonoBehaviour, IInteractable
     {
         float from = openness;
         float time = Mathf.Abs(target - from) * duration;
+        AnimationCurve curve = target > from ? openCurve : closeCurve;
+
+        if (moveLoop != null)
+        {
+            loop.clip = moveLoop;
+            loop.volume = 0f;
+            loop.Play();
+        }
+
+        float previous = openness;
         for (float t = 0f; t < time; t += Time.deltaTime)
         {
-            openness = Mathf.Lerp(from, target, Ease.InOutCubic(t / time));
+            openness = Mathf.Lerp(from, target, Mathf.Clamp01(curve.Evaluate(t / time)));
             ApplyPose();
+            UpdateLoop(previous);
+            previous = openness;
             yield return null;
+        }
+
+        openness = target;
+        ApplyPose();
+        StopLoop();
+
+        if (target <= 0f)
+        {
+            // Lands shut: a thud, then a couple of ever-smaller rebounds, each ending in a quieter thud.
+            Play(closeStopSound);
+            for (int i = 0; i < bounces && bounce > 0f; i++)
+            {
+                float height = bounce * Mathf.Pow(0.35f, i);
+                float span = bounceTime * Mathf.Pow(0.7f, i);
+                for (float t = 0f; t < span; t += Time.deltaTime)
+                {
+                    openness = height * Mathf.Sin(Mathf.PI * t / span);
+                    ApplyPose();
+                    yield return null;
+                }
+                openness = 0f;
+                ApplyPose();
+                Play(closeStopSound, 0.6f * Mathf.Pow(0.35f, i));
+            }
+        }
+        else
+        {
+            // Hits the open stop: a clank, and it overshoots a touch and settles back.
+            Play(openStopSound);
+            if (openSettle > 0f)
+            {
+                const float span = 0.3f;
+                for (float t = 0f; t < span; t += Time.deltaTime)
+                {
+                    float k = t / span;
+                    openness = 1f + openSettle * Mathf.Sin(Mathf.PI * k) * (1f - k);
+                    ApplyPose();
+                    yield return null;
+                }
+            }
         }
 
         openness = target;
@@ -129,6 +263,26 @@ public class Door : MonoBehaviour, IInteractable
             onOpened.Invoke();
         else
             onClosed.Invoke();
+    }
+
+    // The grinding loop rises and falls with how fast the door is actually moving this frame.
+    private void UpdateLoop(float previous)
+    {
+        if (moveLoop == null || Time.deltaTime <= 0f)
+            return;
+
+        float speed = Mathf.Abs(openness - previous) / Time.deltaTime;      // travel per second
+        float nominal = duration > 0f ? 1f / duration : 1f;                 // the whole travel in Duration seconds
+        float fraction = Mathf.Clamp01(speed / (nominal * 1.5f));
+        float blend = 1f - Mathf.Exp(-12f * Time.deltaTime);
+        loop.volume = Mathf.Lerp(loop.volume, fraction * volume, blend);
+        loop.pitch = pitch * (0.85f + 0.3f * fraction);
+    }
+
+    private void StopLoop()
+    {
+        if (loop != null && loop.isPlaying)
+            loop.Stop();
     }
 
     private void ApplyPose()

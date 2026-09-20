@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 
 // Debug panel (IMGUI, so it needs no canvas or EventSystem). Press the toggle key (0) to open it. Everything in it works
 // on whatever is in the scene: player stats and cheats, give any item, spawn things, teleport to any sign or checkpoint,
@@ -68,10 +69,20 @@ public class AdminPanel : MonoBehaviour
         timeScale = Time.timeScale;
     }
 
+    private Vector3 lastPlayerPosition;
+    private float driftPerSecond;
+
     private void Update()
     {
         if (Keyboard.current != null && Keyboard.current[toggleKey].wasPressedThisFrame)
             SetOpen(!open);
+
+        // How fast the player object is actually moving, whoever is moving it.
+        if (swimmer != null && Time.deltaTime > 0f)
+        {
+            driftPerSecond = (swimmer.transform.position - lastPlayerPosition).magnitude / Time.deltaTime;
+            lastPlayerPosition = swimmer.transform.position;
+        }
     }
 
     private void SetOpen(bool value)
@@ -165,7 +176,42 @@ public class AdminPanel : MonoBehaviour
         if (GUILayout.Button("To checkpoint") && Checkpoint.Current != null) Teleport(Checkpoint.Current.transform.position + Vector3.up * 1.6f);
         GUILayout.EndHorizontal();
         if (swimmer != null)
-            GUILayout.Label($"Position {swimmer.transform.position:0.0}", noteStyle);
+        {
+            GUILayout.Label($"Position {swimmer.transform.position:0.00}   moving {driftPerSecond:0.000} m/s", noteStyle);
+            GUILayout.Label($"Last swim input raw {swimmer.LastRawMoveInput:0.00} / after deadzone {swimmer.LastMoveInput:0.00}   velocity {swimmer.CurrentVelocity:0.00}", noteStyle);
+            swimmer.Frozen = GUILayout.Toggle(swimmer.Frozen, " Freeze swim movement (debug)");
+            swimmer.ShowMovementDebug = GUILayout.Toggle(swimmer.ShowMovementDebug, " Show movement debug line at the bottom of the screen (stays on after closing this panel)");
+        }
+        DrawInputDevices();
+    }
+
+    // Every device the Input System currently sees and what its sticks report right now, read straight from the
+    // hardware (works while the panel has the swim controls switched off). A drifting stick shows up here.
+    private void DrawInputDevices()
+    {
+        var names = new System.Text.StringBuilder();
+        foreach (InputDevice device in InputSystem.devices)
+        {
+            if (names.Length > 0)
+                names.Append(", ");
+            names.Append(device.displayName);
+        }
+        GUILayout.Label("Input devices: " + (names.Length > 0 ? names.ToString() : "none"), noteStyle);
+
+        var live = new System.Text.StringBuilder();
+        if (Gamepad.current != null)
+            live.Append($"gamepad left stick {Gamepad.current.leftStick.ReadValue():0.00}  ");
+        if (Joystick.current != null)
+            live.Append($"joystick {Joystick.current.stick.ReadValue():0.00}  ");
+        if (Keyboard.current != null)
+        {
+            var held = new System.Text.StringBuilder();
+            foreach (KeyControl key in Keyboard.current.allKeys)
+                if (key.isPressed && key.keyCode != toggleKey)
+                    held.Append(key.displayName).Append(' ');
+            live.Append(held.Length > 0 ? "keys held: " + held : "no keys held");
+        }
+        GUILayout.Label(live.ToString(), noteStyle);
     }
 
     private void DrawGive()
@@ -255,9 +301,12 @@ public class AdminPanel : MonoBehaviour
                 if (sign == null)
                     continue;
                 string label = sign.name.StartsWith("Sign_") ? sign.name.Substring(5) : sign.name;
-                // Signs face the spawn pad: stand 2 m in front of the board, looking at it.
+                // Signs float above head height: stand on the floor 2.5 m in front of the board, looking at it.
                 if (GUILayout.Button(label))
-                    Teleport(sign.transform.position - sign.transform.forward * 2f + Vector3.up * 1.6f);
+                {
+                    Vector3 p = sign.transform.position - sign.transform.forward * 2.5f;
+                    Teleport(new Vector3(p.x, 1.6f, p.z));
+                }
             }
             GUILayout.EndHorizontal();
         }

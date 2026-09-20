@@ -1,7 +1,8 @@
 using UnityEngine;
 
 // One place to tune the underwater look. Applies fog and ambient light on load and
-// gives the sun a slow shimmer, like light coming through moving water.
+// gives the sun a slow shimmer, like light coming through moving water. FlickerFor() makes the light
+// stutter for a moment (the chase reveal).
 [ExecuteAlways]
 public class UnderwaterLighting : MonoBehaviour
 {
@@ -21,6 +22,20 @@ public class UnderwaterLighting : MonoBehaviour
     [SerializeField] private float shimmerAmount = 0.15f;
     [SerializeField] private float shimmerSpeed = 1.3f;
 
+    [Header("Flicker")]
+    [Tooltip("How dark the sun drops at the bottom of a flicker (0 = out, 1 = no dip). FlickerFor(seconds) starts one.")]
+    [SerializeField, Range(0f, 1f)] private float flickerDepth = 0.15f;
+
+    private float flickerUntil = -1f;
+    private float flickerValue = 1f;
+    private float nextFlickerStep;
+
+    // The light stutters for this many real seconds (so slow motion doesn't stretch it).
+    public void FlickerFor(float seconds)
+    {
+        flickerUntil = Time.unscaledTime + seconds;
+    }
+
     private void OnEnable()
     {
         Apply();
@@ -37,7 +52,19 @@ public class UnderwaterLighting : MonoBehaviour
             return;
 
         float shimmer = (Mathf.Sin(Time.time * shimmerSpeed) + Mathf.Sin(Time.time * shimmerSpeed * 2.7f) * 0.5f) / 1.5f;
-        sun.intensity = sunIntensity * (1f + shimmer * shimmerAmount);
+
+        float flicker = 1f;
+        if (Time.unscaledTime < flickerUntil)
+        {
+            if (Time.unscaledTime >= nextFlickerStep)
+            {
+                flickerValue = Random.value < 0.45f ? Random.Range(flickerDepth, 0.5f) : Random.Range(0.8f, 1f);
+                nextFlickerStep = Time.unscaledTime + Random.Range(0.03f, 0.12f);
+            }
+            flicker = flickerValue;
+        }
+
+        sun.intensity = sunIntensity * (1f + shimmer * shimmerAmount) * flicker;
     }
 
     public void Apply()

@@ -4,13 +4,30 @@ using UnityEngine.Events;
 
 // Press E to pick up: puts the item in the player's inventory, plays feedback and pops out of existence.
 // Root = this script + collider, mesh in a child called Visual (it bobs and spins), so the model can be swapped without touching logic.
+// If the item asset has a World Model, that model replaces the placeholder mesh automatically (in Play mode, or baked into
+// the prefab with Tools > Out of the Depths > Apply Item Models To Pickups).
+// Runs before the highlight/indicator scripts so they see the real model's renderers.
+[DefaultExecutionOrder(-100)]
 [RequireComponent(typeof(Collider))]
 public class PickupItem : MonoBehaviour, IInteractable
 {
+    public const string VisualName = "Visual";
+
     [Header("Item")]
     [Tooltip("Which item this is (Assets/Items). New ones: Assets > Create > Out of the Depths > Item.")]
     [SerializeField] private ItemDefinition item;
     [SerializeField, Min(1)] private int amount = 1;
+
+    [Header("Model")]
+    [Tooltip("Show the item's World Model (set on the item asset) instead of the placeholder mesh.")]
+    [SerializeField] private bool useItemModel = true;
+    [Tooltip("Longest side of the model in metres after fitting. 0 = keep the model's own size.")]
+    [SerializeField, Min(0f)] private float modelSize = 0.35f;
+    // The item whose model the current Visual already is (set by the bake tools). A prefab baked for one item still
+    // swaps correctly on an instance that overrides Item, and an already-baked pickup is never baked twice.
+    [SerializeField, HideInInspector] private ItemDefinition bakedFor;
+
+    public ItemDefinition BakedFor => bakedFor;
 
     [Header("Idle motion")]
     [Tooltip("The mesh that bobs and spins. Empty = first child.")]
@@ -41,6 +58,12 @@ public class PickupItem : MonoBehaviour, IInteractable
 
     private void Awake()
     {
+        if (useItemModel && item != null && item.WorldModel != null && bakedFor != item)
+        {
+            visual = ApplyItemModel(transform, item, visual != null ? visual : FirstChild(transform), modelSize);
+            bakedFor = item;
+        }
+
         if (visual == null && transform.childCount > 0)
             visual = transform.GetChild(0);
         if (visual != null)
@@ -51,14 +74,93 @@ public class PickupItem : MonoBehaviour, IInteractable
         phase = Random.value * 10f;
     }
 
+    private static Transform FirstChild(Transform root) => root.childCount > 0 ? root.GetChild(0) : null;
+
+    // Play mode: spawn the item's World Model under the root in place of the placeholder mesh.
+    private static Transform ApplyItemModel(Transform root, ItemDefinition item, Transform placeholder, float size)
+    {
+        var model = Instantiate(item.WorldModel, root);
+        return FitItemModel(root, item, model, placeholder, size);
+    }
+
+    // Makes `model` the pickup's visual: named Visual, rotated per the item, scaled so its longest side is `size` metres
+    // (times the item's own multiplier), centred on the root, and the old placeholder removed. Returns the new visual.
+    // Shared with the editor bake tool (Tools > Out of the Depths > Apply Item Models To Pickups) so both look identical.
+    public static Transform FitItemModel(Transform root, ItemDefinition item, GameObject model, Transform placeholder, float size, bool destroyPlaceholder = true)
+    {
+        model.name = VisualName;
+        model.transform.SetParent(root, false);
+        model.transform.localPosition = Vector3.zero;
+        model.transform.localRotation = Quaternion.Euler(item.WorldModelRotation);
+        model.transform.localScale = Vector3.one;
+
+        // The pickup's own collider is the one the player interacts with; any the model brought would just get in the way.
+        foreach (var collider in model.GetComponentsInChildren<Collider>(true))
+            SafeDestroy(collider);
+
+        Bounds bounds = RendererBounds(model.transform, out bool any);
+        if (any)
+        {
+            float longest = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
+            float scale = size > 0f && longest > 0.0001f ? size / longest : 1f;
+            model.transform.localScale = Vector3.one * (scale * item.WorldModelScale);
+
+            // Centre the model on the root so it bobs and spins about its middle, whatever pivot the artist exported.
+            Vector3 centreLocal = root.InverseTransformPoint(RendererBounds(model.transform, out _).center);
+            model.transform.localPosition -= centreLocal;
+        }
+
+        // A placeholder that belongs to a prefab instance in a scene can't be destroyed in the editor, only hidden.
+        if (placeholder != null && placeholder != model.transform)
+        {
+            // Destroy() is deferred to the end of the frame; the highlight/indicator scripts on this object collect
+            // renderers in their own Awake/Start before that, so pull the placeholder out of the hierarchy right now.
+            placeholder.gameObject.SetActive(false);
+            if (destroyPlaceholder)
+            {
+                if (Application.isPlaying)
+                    placeholder.SetParent(null, false);
+                SafeDestroy(placeholder.gameObject);
+            }
+        }
+
+        return model.transform;
+    }
+
+    private static void SafeDestroy(Object target)
+    {
+        if (Application.isPlaying)
+            Destroy(target);
+        else
+            DestroyImmediate(target);
+    }
+
+    private static Bounds RendererBounds(Transform root, out bool any)
+    {
+        var bounds = new Bounds(root.position, Vector3.zero);
+        any = false;
+        foreach (var r in root.GetComponentsInChildren<Renderer>(true))
+        {
+            if (r is ParticleSystemRenderer)
+                continue;
+            if (any)
+                bounds.Encapsulate(r.bounds);
+            else
+                bounds = r.bounds;
+            any = true;
+        }
+        return bounds;
+    }
+
     private void Update()
     {
         if (visual == null || collected)
             return;
 
         visual.localPosition = visualRestPosition + Vector3.up * (Mathf.Sin(Time.time * bobSpeed + phase) * bobAmount);
+        // Spin about the pickup's up axis (pre-multiply), so a model that rests tilted still turns upright like a showcase.
         if (spinSpeed != 0f)
-            visual.localRotation = visualRestRotation * Quaternion.Euler(0f, (Time.time * spinSpeed + phase * 36f) % 360f, 0f);
+            visual.localRotation = Quaternion.Euler(0f, (Time.time * spinSpeed + phase * 36f) % 360f, 0f) * visualRestRotation;
     }
 
     public void Interact(GameObject interactor)
