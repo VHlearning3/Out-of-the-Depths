@@ -3,10 +3,10 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
 
-// Debug panel (IMGUI, so it needs no canvas or EventSystem). Press the toggle key (0) to open it. Everything in it works
+// Debug page of the pause menu (Esc, or 0 to jump straight here). IMGUI, drawn inside PauseMenu. Everything in it works
 // on whatever is in the scene: player stats and cheats, give any item, spawn things, teleport to any sign or checkpoint,
 // drive the chase, doors and rubble, time scale, fish colours. The arena builder fills Items and Spawnables.
-public class AdminPanel : MonoBehaviour
+public class AdminPanel : MonoBehaviour, IPauseMenuPage
 {
     [System.Serializable]
     public class Spawnable
@@ -14,13 +14,6 @@ public class AdminPanel : MonoBehaviour
         public string label;
         public GameObject prefab;
     }
-
-    [Header("Panel")]
-    [SerializeField] private Key toggleKey = Key.Digit0;
-    [Tooltip("Turned off while the panel is open (movement, interaction), so the mouse is free.")]
-    [SerializeField] private Behaviour[] pauseWhileOpen;
-    [Tooltip("Extra size on top of the automatic scaling (the panel grows with the screen height).")]
-    [SerializeField] private float scale = 1f;
 
     [Header("Spawning")]
     [SerializeField] private Spawnable[] spawnables;
@@ -34,10 +27,8 @@ public class AdminPanel : MonoBehaviour
     [Header("Fish colour")]
     [SerializeField] private Color fishTint = Color.white;
 
-    private bool open;
-    private Rect windowRect = new Rect(20f, 20f, 420f, 100f);
-    private Vector2 scroll;
     private float timeScale = 1f;
+
 
     private HungerSystem hunger;
     private HealthSystem health;
@@ -67,6 +58,7 @@ public class AdminPanel : MonoBehaviour
         if (spawnOrigin == null && Camera.main != null)
             spawnOrigin = Camera.main.transform;
         timeScale = Time.timeScale;
+        RequestedTimeScale = timeScale;
     }
 
     private Vector3 lastPlayerPosition;
@@ -74,31 +66,12 @@ public class AdminPanel : MonoBehaviour
 
     private void Update()
     {
-        if (Keyboard.current != null && Keyboard.current[toggleKey].wasPressedThisFrame)
-            SetOpen(!open);
-
         // How fast the player object is actually moving, whoever is moving it.
         if (swimmer != null && Time.deltaTime > 0f)
         {
             driftPerSecond = (swimmer.transform.position - lastPlayerPosition).magnitude / Time.deltaTime;
             lastPlayerPosition = swimmer.transform.position;
         }
-    }
-
-    private void SetOpen(bool value)
-    {
-        open = value;
-        foreach (var b in pauseWhileOpen)
-        {
-            if (b != null)
-                b.enabled = !open;
-        }
-
-        Cursor.lockState = open ? CursorLockMode.None : CursorLockMode.Locked;
-        Cursor.visible = open;
-
-        if (open)
-            RefreshSceneLists();
     }
 
     private void RefreshSceneLists()
@@ -112,75 +85,72 @@ public class AdminPanel : MonoBehaviour
         chase = FindFirstObjectByType<ChaseSequence>();
     }
 
-    private void OnGUI()
-    {
-        if (!open)
-            return;
+    // ---- the pause menu page -----------------------------------------------------------------------------------
 
-        // Grow with the screen so it stays readable on big monitors.
-        float s = Mathf.Max(1f, Screen.height / 800f) * Mathf.Max(0.5f, scale);
-        GUI.matrix = Matrix4x4.Scale(new Vector3(s, s, 1f));
+    public string PageTitle => "Admin";
+    public int Order => 100;
+
+    // Time scale the World section asks for; the pause menu applies it when the game resumes.
+    public float RequestedTimeScale { get; private set; } = 1f;
+
+    public void OnPageShown()
+    {
+        RefreshSceneLists();
+    }
+
+    public void DrawPage()
+    {
         EnsureStyles();
-        windowRect = GUILayout.Window(GetInstanceID(), windowRect, DrawWindow, $"Admin  ({toggleKey} to close)");
-        GUI.matrix = Matrix4x4.identity;
-    }
-
-    private void EnsureStyles()
-    {
-        if (headerStyle != null)
-            return;
-        headerStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 13 };
-        noteStyle = new GUIStyle(GUI.skin.label) { fontSize = 10, wordWrap = true };
-        noteStyle.normal.textColor = new Color(0.8f, 0.8f, 0.8f);
-    }
-
-    private void DrawWindow(int id)
-    {
-        scroll = GUILayout.BeginScrollView(scroll, GUILayout.Width(400f), GUILayout.Height(Mathf.Min(620f, Screen.height / Mathf.Max(1f, Screen.height / 800f) - 80f)));
         DrawPlayer();
         DrawGive();
         DrawSpawn();
         DrawGoTo();
         DrawChase();
         DrawWorld();
-        GUILayout.EndScrollView();
+    }
 
-        if (GUILayout.Button("Close"))
-            SetOpen(false);
-        GUI.DragWindow(new Rect(0f, 0f, 10000f, 20f));
+    private void EnsureStyles()
+    {
+        if (headerStyle != null)
+            return;
+        headerStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 12 };
+        headerStyle.normal.textColor = new Color(0.35f, 0.85f, 0.95f);
+        noteStyle = new GUIStyle(GUI.skin.label) { fontSize = 11, wordWrap = true };
+        noteStyle.normal.textColor = new Color(0.7f, 0.76f, 0.82f);
     }
 
     // ---- sections -----------------------------------------------------------------------------------------------
 
     private void DrawPlayer()
     {
-        Header("Player");
+        MenuGUI.Heading("Player");
         if (health != null)
             Bar($"Health  {health.CurrentHealth:0} / {health.MaxHealth:0}", health.HealthPercent01, new Color(0.85f, 0.25f, 0.25f));
         if (hunger != null)
             Bar($"Hunger  {hunger.CurrentHunger:0} / {hunger.MaxHunger:0}", hunger.HungerPercent01, new Color(0.9f, 0.65f, 0.2f));
 
         if (damageManager != null)
-            damageManager.GodMode = GUILayout.Toggle(damageManager.GodMode, " God mode  (no damage from anything, starving included)");
+            damageManager.GodMode = MenuGUI.SwitchRow("God mode  (no damage from anything, starving included)", damageManager.GodMode);
         if (hunger != null)
-            hunger.DrainPaused = GUILayout.Toggle(hunger.DrainPaused, " No hunger drain");
+            hunger.DrainPaused = MenuGUI.SwitchRow("No hunger drain", hunger.DrainPaused);
 
         GUILayout.BeginHorizontal();
-        if (GUILayout.Button("Fill health") && health != null) health.Heal(health.MaxHealth);
-        if (GUILayout.Button("Hurt 25") && health != null) health.TakeDamage(25f);
-        if (GUILayout.Button("Kill") && health != null) health.TakeDamage(health.MaxHealth);
+        if (MenuGUI.Button("Fill health") && health != null) health.Heal(health.MaxHealth);
+        if (MenuGUI.Button("Hurt 25") && health != null) health.TakeDamage(25f);
+        if (MenuGUI.Button("Kill") && health != null) health.TakeDamage(health.MaxHealth);
         GUILayout.EndHorizontal();
         GUILayout.BeginHorizontal();
-        if (GUILayout.Button("Fill hunger") && hunger != null) hunger.Eat(hunger.MaxHunger);
-        if (GUILayout.Button("Starve") && hunger != null) { hunger.ResetHunger(); hunger.Starve(); }
-        if (GUILayout.Button("To checkpoint") && Checkpoint.Current != null) Teleport(Checkpoint.Current.transform.position + Vector3.up * 1.6f);
+        if (MenuGUI.Button("Fill hunger") && hunger != null) hunger.Eat(hunger.MaxHunger);
+        if (MenuGUI.Button("Starve") && hunger != null) { hunger.ResetHunger(); hunger.Starve(); }
+        if (MenuGUI.Button("To checkpoint") && Checkpoint.Current != null) Teleport(Checkpoint.Current.transform.position + Vector3.up * 1.6f);
         GUILayout.EndHorizontal();
         if (swimmer != null)
         {
             GUILayout.Label($"Position {swimmer.transform.position:0.00}   moving {driftPerSecond:0.000} m/s", noteStyle);
             GUILayout.Label($"Last swim input raw {swimmer.LastRawMoveInput:0.00} / after deadzone {swimmer.LastMoveInput:0.00}   velocity {swimmer.CurrentVelocity:0.00}", noteStyle);
-            swimmer.Frozen = GUILayout.Toggle(swimmer.Frozen, " Freeze swim movement (debug)");
-            swimmer.ShowMovementDebug = GUILayout.Toggle(swimmer.ShowMovementDebug, " Show movement debug line at the bottom of the screen (stays on after closing this panel)");
+            swimmer.Frozen = MenuGUI.SwitchRow("Freeze swim movement (debug)", swimmer.Frozen);
+            swimmer.ShowMovementDebug = MenuGUI.SwitchRow("Show movement debug line at the bottom of the screen (stays on after closing this panel)", swimmer.ShowMovementDebug);
+            PickupItem.QuickPickups = MenuGUI.SwitchRow("Quick pickups: no inspect, items fly straight in (testing)", PickupItem.QuickPickups);
         }
         DrawInputDevices();
     }
@@ -207,7 +177,7 @@ public class AdminPanel : MonoBehaviour
         {
             var held = new System.Text.StringBuilder();
             foreach (KeyControl key in Keyboard.current.allKeys)
-                if (key.isPressed && key.keyCode != toggleKey)
+                if (key.isPressed)
                     held.Append(key.displayName).Append(' ');
             live.Append(held.Length > 0 ? "keys held: " + held : "no keys held");
         }
@@ -216,7 +186,7 @@ public class AdminPanel : MonoBehaviour
 
     private void DrawGive()
     {
-        Header("Give");
+        MenuGUI.Heading("Give");
         if (inventory == null)
         {
             GUILayout.Label("(no Player Inventory in the scene)", noteStyle);
@@ -237,14 +207,14 @@ public class AdminPanel : MonoBehaviour
                 ItemDefinition item = items[j];
                 if (item == null)
                     continue;
-                if (GUILayout.Button(item.DisplayName))
+                if (MenuGUI.Button(item.DisplayName))
                     inventory.Add(item, 1);
-                if (item.MaxStack >= 3 && GUILayout.Button("x3", GUILayout.Width(34f)))
+                if (item.MaxStack >= 3 && MenuGUI.Button("x3", GUILayout.Width(60f)))
                     inventory.Add(item, 3);
             }
             GUILayout.EndHorizontal();
         }
-        if (GUILayout.Button("Clear inventory"))
+        if (MenuGUI.Button("Clear inventory"))
         {
             for (int i = 0; i < inventory.SlotCount; i++)
             {
@@ -257,7 +227,7 @@ public class AdminPanel : MonoBehaviour
 
     private void DrawSpawn()
     {
-        Header("Spawn in front of you");
+        MenuGUI.Heading("Spawn in front of you");
         if (spawnables == null || spawnables.Length == 0)
         {
             GUILayout.Label("(nothing in Spawnables)", noteStyle);
@@ -270,7 +240,7 @@ public class AdminPanel : MonoBehaviour
             for (int j = i; j < Mathf.Min(spawnables.Length, i + perRow); j++)
             {
                 Spawnable s = spawnables[j];
-                if (s.prefab != null && GUILayout.Button(string.IsNullOrEmpty(s.label) ? s.prefab.name : s.label))
+                if (s.prefab != null && MenuGUI.Button(string.IsNullOrEmpty(s.label) ? s.prefab.name : s.label))
                     Spawn(s.prefab);
             }
             GUILayout.EndHorizontal();
@@ -279,7 +249,7 @@ public class AdminPanel : MonoBehaviour
 
     private void DrawGoTo()
     {
-        Header("Go to");
+        MenuGUI.Heading("Go to");
         if (swimmer == null)
         {
             GUILayout.Label("(no player in the scene)", noteStyle);
@@ -302,7 +272,7 @@ public class AdminPanel : MonoBehaviour
                     continue;
                 string label = sign.name.StartsWith("Sign_") ? sign.name.Substring(5) : sign.name;
                 // Signs float above head height: stand on the floor 2.5 m in front of the board, looking at it.
-                if (GUILayout.Button(label))
+                if (MenuGUI.Button(label))
                 {
                     Vector3 p = sign.transform.position - sign.transform.forward * 2.5f;
                     Teleport(new Vector3(p.x, 1.6f, p.z));
@@ -316,7 +286,7 @@ public class AdminPanel : MonoBehaviour
             for (int j = i; j < Mathf.Min(checkpoints.Length, i + perRow); j++)
             {
                 Checkpoint plate = checkpoints[j];
-                if (plate != null && GUILayout.Button(plate.name.Replace("Checkpoint_", "Plate: ")))
+                if (plate != null && MenuGUI.Button(plate.name.Replace("Checkpoint_", "Plate: ")))
                     Teleport(plate.transform.position + Vector3.up * 1.6f);
             }
             GUILayout.EndHorizontal();
@@ -325,7 +295,7 @@ public class AdminPanel : MonoBehaviour
 
     private void DrawChase()
     {
-        Header("Chase");
+        MenuGUI.Heading("Chase");
         if (chase == null)
         {
             GUILayout.Label("(no Chase Sequence in the scene)", noteStyle);
@@ -334,37 +304,37 @@ public class AdminPanel : MonoBehaviour
         string state = chase.IsRunning ? "running" : chase.IsFinished ? "over (rubble down)" : "waiting";
         GUILayout.Label($"{chase.name}: {state}   danger {chase.Danger01:0.00}", noteStyle);
         GUILayout.BeginHorizontal();
-        if (GUILayout.Button("Start")) chase.Begin();
-        if (GUILayout.Button("End (pack leaves)")) chase.End();
-        if (GUILayout.Button("Reset")) chase.ResetChase();
+        if (MenuGUI.Button("Start")) chase.Begin();
+        if (MenuGUI.Button("End (pack leaves)")) chase.End();
+        if (MenuGUI.Button("Reset")) chase.ResetChase();
         GUILayout.EndHorizontal();
     }
 
     private void DrawWorld()
     {
-        Header("World");
+        MenuGUI.Heading("World");
         GUILayout.Label($"Time scale  {timeScale:0.00}x");
         GUILayout.BeginHorizontal();
         timeScale = GUILayout.HorizontalSlider(timeScale, 0f, 3f);
         foreach (float preset in new[] { 0.25f, 0.5f, 1f, 2f })
-            if (GUILayout.Button(preset.ToString("0.##"), GUILayout.Width(40f)))
+            if (MenuGUI.Button(preset.ToString("0.##"), GUILayout.Width(64f)))
                 timeScale = preset;
         GUILayout.EndHorizontal();
-        Time.timeScale = timeScale;
+        RequestedTimeScale = timeScale;   // applied by the pause menu when the game resumes
 
         GUILayout.BeginHorizontal();
-        if (GUILayout.Button($"Unlock + open all doors ({doors.Length})"))
+        if (MenuGUI.Button($"Unlock + open all doors ({doors.Length})"))
             foreach (Door door in doors)
                 if (door != null) { door.Unlock(); door.Open(); }
-        if (GUILayout.Button("Close all doors"))
+        if (MenuGUI.Button("Close all doors"))
             foreach (Door door in doors)
                 if (door != null) door.Close();
         GUILayout.EndHorizontal();
         GUILayout.BeginHorizontal();
-        if (GUILayout.Button($"Drop all rubble ({rubble.Length})"))
+        if (MenuGUI.Button($"Drop all rubble ({rubble.Length})"))
             foreach (RubbleFall pile in rubble)
                 if (pile != null) pile.Drop();
-        if (GUILayout.Button("Kill all fish"))
+        if (MenuGUI.Button("Kill all fish"))
             foreach (var d in FindObjectsByType<Damageable>(FindObjectsSortMode.None))
                 d.TakeDamage(d.MaxHealth);
         GUILayout.EndHorizontal();
@@ -374,28 +344,25 @@ public class AdminPanel : MonoBehaviour
         fishTint.g = LabeledSlider("G", fishTint.g);
         fishTint.b = LabeledSlider("B", fishTint.b);
         GUILayout.BeginHorizontal();
-        if (GUILayout.Button("Apply to all fish")) TintAllFish(fishTint);
-        if (GUILayout.Button("Reset")) { fishTint = Color.white; TintAllFish(fishTint); }
+        if (MenuGUI.Button("Apply to all fish")) TintAllFish(fishTint);
+        if (MenuGUI.Button("Reset")) { fishTint = Color.white; TintAllFish(fishTint); }
         GUILayout.EndHorizontal();
     }
 
     // ---- widgets ------------------------------------------------------------------------------------------------
 
-    private void Header(string text)
-    {
-        GUILayout.Space(8f);
-        GUILayout.Label(text, headerStyle);
-    }
 
+    // A rounded track with a coloured fill.
     private void Bar(string label, float fraction, Color color)
     {
         GUILayout.Label(label);
-        Rect rect = GUILayoutUtility.GetRect(10f, 10f, GUILayout.ExpandWidth(true));
-        GUI.Box(rect, GUIContent.none);
+        Rect rect = GUILayoutUtility.GetRect(12f, 12f, GUILayout.ExpandWidth(true));
+        GUI.Box(rect, GUIContent.none, GUI.skin.horizontalSlider);
         Color previous = GUI.color;
         GUI.color = color;
-        GUI.DrawTexture(new Rect(rect.x + 1f, rect.y + 1f, (rect.width - 2f) * Mathf.Clamp01(fraction), rect.height - 2f), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(rect.x + 2f, rect.y + 2f, (rect.width - 4f) * Mathf.Clamp01(fraction), rect.height - 4f), Texture2D.whiteTexture);
         GUI.color = previous;
+        GUILayout.Space(12f);
     }
 
     private float LabeledSlider(string label, float value)

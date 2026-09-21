@@ -16,4 +16,4 @@ MonoBehaviour:
   category: 2
   icon: {fileID: 0}
   maxStack: 1
-  description: 
+  description: A rusted dagger. Enough to fend off the small ones.

@@ -16,7 +16,7 @@ MonoBehaviour:
   category: 0
   icon: {fileID: 21300000, guid: 596c53dc853b57f42ab78005045830b6, type: 3}
   maxStack: 1
-  description: 
+  description: A tarnished gold key. It opens the door of the first room.
   worldModel: {fileID: 919132149155446097, guid: 3cf4498254f21fb46896c5c14ede3947, type: 3}
   worldModelScale: 1
   worldModelRotation: {x: 0, y: 0, z: -90}

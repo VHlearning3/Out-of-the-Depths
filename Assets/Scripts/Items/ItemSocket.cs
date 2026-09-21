@@ -3,8 +3,9 @@ using UnityEngine;
 using UnityEngine.Events;
 
 // A spot that takes items out of the inventory: a pedestal wanting 3 stone fragments, a lock wanting a key, the seaweed
-// that turns 3 bone fragments into a bone key. Press E with the items on you and they go in automatically (GDD):
-// each Placed Visual flies in from the player, spinning, and lands on its spot; onFilled fires once the last one has landed.
+// that turns 3 bone fragments into a bone key. You have to be holding the item (selected in the hotbar) and press E;
+// each Placed Visual then glides from your hand to its spot and settles; onFilled fires once the last one has landed.
+// The prompt tells the player what to do: hold the item, or what is still needed.
 [RequireComponent(typeof(Collider))]
 public class ItemSocket : MonoBehaviour, IInteractable
 {
@@ -13,6 +14,8 @@ public class ItemSocket : MonoBehaviour, IInteractable
     [SerializeField, Min(1)] private int requiredAmount = 1;
     [Tooltip("Take the items out of the inventory. Off = the player keeps them (a key you reuse).")]
     [SerializeField] private bool consumeItems = true;
+    [Tooltip("The item has to be the one in your hand (the selected hotbar slot). Off = anywhere in the inventory will do.")]
+    [SerializeField] private bool requireHeld = true;
     [Tooltip("Prompt reads '<verb> <item> (placed/needed)'.")]
     [SerializeField] private string verb = "place";
 
@@ -29,14 +32,14 @@ public class ItemSocket : MonoBehaviour, IInteractable
     [SerializeField, Range(0f, 1f)] private float volume = 0.7f;
 
     [Header("Placing animation")]
-    [Tooltip("How long a piece takes to fly from the player to its spot. 0 = appears instantly.")]
-    [SerializeField] private float placeDuration = 0.9f;
-    [Tooltip("Height of the arc it travels on.")]
-    [SerializeField] private float placeArcHeight = 1.2f;
-    [Tooltip("Full turns a piece makes on the way, slowing down as it lands.")]
-    [SerializeField] private float placeSpins = 2f;
+    [Tooltip("How long a piece takes to glide from your hand to its spot. 0 = appears instantly.")]
+    [SerializeField] private float placeDuration = 0.7f;
+    [Tooltip("Height of the gentle arc it travels on, in metres.")]
+    [SerializeField] private float placeArcHeight = 0.35f;
+    [Tooltip("Full turns a piece makes on the way, slowing as it lands. 0 = it just turns to its resting pose.")]
+    [SerializeField] private float placeSpins = 0f;
     [Tooltip("Pause between pieces when several go in at once.")]
-    [SerializeField] private float betweenPieces = 0.25f;
+    [SerializeField] private float betweenPieces = 0.2f;
 
     [Header("Events")]
     public UnityEvent<int> onProgress = new UnityEvent<int>();
@@ -44,12 +47,31 @@ public class ItemSocket : MonoBehaviour, IInteractable
 
     public int Placed { get; private set; }
     public bool IsFilled => Placed >= requiredAmount;
-    public string Prompt => placing ? "wait" : requiredItem == null ? verb : $"{verb} {requiredItem.DisplayName} ({Placed}/{requiredAmount})";
+
+    public string Prompt
+    {
+        get
+        {
+            if (placing)
+                return "wait";
+            if (requiredItem == null)
+                return verb;
+            string name = requiredItem.DisplayName;
+            string count = $"({Placed}/{requiredAmount})";
+            PlayerInventory inventory = PlayerInventoryInScene();
+            if (inventory == null || inventory.Count(requiredItem) == 0)
+                return $"needs {name} {count}";
+            if (requireHeld && inventory.SelectedItem != requiredItem)
+                return $"hold the {name} to {verb} it  (1-5 / wheel)";
+            return $"{verb} {name} {count}";
+        }
+    }
 
     private Vector3[] restPositions;
     private Quaternion[] restRotations;
     private Vector3[] restScales;
     private bool placing;
+    private PlayerInventory playerInventory;
 
     private void Awake()
     {
@@ -69,6 +91,13 @@ public class ItemSocket : MonoBehaviour, IInteractable
         }
     }
 
+    private PlayerInventory PlayerInventoryInScene()
+    {
+        if (playerInventory == null)
+            playerInventory = FindFirstObjectByType<PlayerInventory>();
+        return playerInventory;
+    }
+
     public void Interact(GameObject interactor)
     {
         if (IsFilled || placing || requiredItem == null)
@@ -76,6 +105,11 @@ public class ItemSocket : MonoBehaviour, IInteractable
 
         var inventory = interactor.GetComponentInParent<PlayerInventory>();
         if (inventory == null)
+            return;
+        playerInventory = inventory;
+
+        // You place what is in your hand: the prompt already says to select it if it is somewhere else.
+        if (requireHeld && inventory.SelectedItem != requiredItem)
             return;
 
         int place = Mathf.Min(requiredAmount - Placed, inventory.Count(requiredItem));
@@ -87,17 +121,36 @@ public class ItemSocket : MonoBehaviour, IInteractable
 
         int first = Placed;
         Placed += place;
-        Vector3 from = interactor.transform.position + Vector3.up * 1.2f;
-        StartCoroutine(PlacePieces(first, place, from, inventory));
+        StartCoroutine(PlacePieces(first, place, HandPoint(interactor), HandRotation(interactor), inventory));
     }
 
-    private IEnumerator PlacePieces(int first, int amount, Vector3 from, PlayerInventory inventory)
+    // Where the held item sits: just in front of and below the camera, a little to the right, like in a hand.
+    private static Vector3 HandPoint(GameObject interactor)
+    {
+        Camera camera = interactor.GetComponentInChildren<Camera>();
+        if (camera == null)
+            camera = Camera.main;
+        if (camera == null)
+            return interactor.transform.position + Vector3.up * 1.2f;
+        Transform eye = camera.transform;
+        return eye.position + eye.forward * 0.45f + eye.right * 0.15f - eye.up * 0.2f;
+    }
+
+    private static Quaternion HandRotation(GameObject interactor)
+    {
+        Camera camera = interactor.GetComponentInChildren<Camera>();
+        if (camera == null)
+            camera = Camera.main;
+        return camera != null ? Quaternion.LookRotation(camera.transform.forward, Vector3.up) : interactor.transform.rotation;
+    }
+
+    private IEnumerator PlacePieces(int first, int amount, Vector3 from, Quaternion fromRotation, PlayerInventory inventory)
     {
         placing = true;
         for (int i = first; i < first + amount; i++)
         {
             if (i < placedVisuals.Length && placedVisuals[i] != null)
-                yield return FlyIn(i, from);
+                yield return FlyIn(i, from, fromRotation);
 
             bool last = i + 1 >= requiredAmount;
             Play(last && completeSound != null ? completeSound : placeSound);
@@ -119,8 +172,9 @@ public class ItemSocket : MonoBehaviour, IInteractable
         onFilled.Invoke();
     }
 
-    // Arc from the player's hands to the rest pose, spinning down, with a small bounce on landing.
-    private IEnumerator FlyIn(int index, Vector3 from)
+    // From the hand to the rest pose: a gentle arc, easing in and out, turning smoothly into its resting rotation
+    // (plus any spins asked for), growing to full size on the way, and a small settle as it lands.
+    private IEnumerator FlyIn(int index, Vector3 from, Quaternion fromRotation)
     {
         Transform t = placedVisuals[index].transform;
         Vector3 to = restPositions[index];
@@ -130,15 +184,26 @@ public class ItemSocket : MonoBehaviour, IInteractable
 
         for (float time = 0f; placeDuration > 0f && time < placeDuration; time += Time.deltaTime)
         {
-            float k = time / placeDuration;
-            Vector3 position = Vector3.Lerp(from, to, Ease.InOutCubic(k)) + Vector3.up * (Mathf.Sin(k * Mathf.PI) * placeArcHeight);
-            float spin = placeSpins * 360f * (1f - Ease.OutCubic(k));
-            t.SetPositionAndRotation(position, rest * Quaternion.Euler(0f, spin, 0f));
-            t.localScale = scale * Mathf.Lerp(0.6f, 1f, Ease.OutBack(k));
+            float k = Ease.InOutCubic(time / placeDuration);
+            Vector3 position = Vector3.Lerp(from, to, k) + Vector3.up * (Mathf.Sin(k * Mathf.PI) * placeArcHeight);
+            Quaternion rotation = Quaternion.Slerp(fromRotation, rest, k);
+            if (placeSpins > 0f)
+                rotation = rotation * Quaternion.Euler(0f, placeSpins * 360f * (1f - k), 0f);
+            t.SetPositionAndRotation(position, rotation);
+            t.localScale = scale * Mathf.Lerp(0.8f, 1f, k);
             yield return null;
         }
 
         t.SetPositionAndRotation(to, rest);
+
+        // The settle: a quick, small swell and back, like the piece seating itself.
+        const float settle = 0.16f;
+        for (float time = 0f; time < settle; time += Time.deltaTime)
+        {
+            float k = time / settle;
+            t.localScale = scale * (1f + 0.07f * Mathf.Sin(k * Mathf.PI));
+            yield return null;
+        }
         t.localScale = scale;
     }
 

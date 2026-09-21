@@ -71,6 +71,10 @@ public class ChaseSequence : MonoBehaviour
     [SerializeField] private float zoomOutSeconds = 0.4f;
     [Tooltip("The player can't swim or look around during the cutscene.")]
     [SerializeField] private bool lockPlayer = true;
+    [Tooltip("Hide the 'Press E to ...' prompt: during the reveal cutscene only, for the whole chase (E still works), or never.")]
+    [SerializeField] private PromptHiding hideInteractPrompt = PromptHiding.DuringCutscene;
+
+    public enum PromptHiding { Never, DuringCutscene, WholeChase }
 
     [Header("After dying")]
     [Tooltip("Come again after a respawn without needing the trigger, if the player respawned within Restart Distance of this object.")]
@@ -142,6 +146,7 @@ public class ChaseSequence : MonoBehaviour
     private Camera fearCamera;
     private float restingFov = -1f;
     private OceanAmbience cutsceneAmbience;
+    private PlayerInteractor promptOwner;   // whose prompt we hid, so we can show it again
 
     private void Awake()
     {
@@ -175,6 +180,7 @@ public class ChaseSequence : MonoBehaviour
     {
         EndCutsceneNow();
         StopTension(true);
+        HidePrompt(false);
         if (fearCamera != null && restingFov > 0f)
             fearCamera.fieldOfView = restingFov;
     }
@@ -239,6 +245,8 @@ public class ChaseSequence : MonoBehaviour
         restingFov = fearCamera != null ? fearCamera.fieldOfView : -1f;
         nextGrowl = Time.time + 2f;
         StartTension();
+        if (hideInteractPrompt == PromptHiding.WholeChase)
+            HidePrompt(true);
         if (hushSeconds > 0f || cutsceneSeconds > 0f)
         {
             revealRoutine = StartCoroutine(RevealCutscene());   // the hush, then Burst(), then the slow-motion zoom
@@ -281,6 +289,7 @@ public class ChaseSequence : MonoBehaviour
                 fish.Dismiss();
         NearestPursuer = null;
         StopTension(false);
+        HidePrompt(false);
         Play(endSound);
         onEnded.Invoke();
     }
@@ -297,6 +306,7 @@ public class ChaseSequence : MonoBehaviour
         Danger01 = 0f;
         NearestPursuer = null;
         StopTension(true);
+        HidePrompt(false);
         if (Active == this)
             Active = null;
         foreach (ChasePufferfish fish in pursuers)
@@ -554,6 +564,8 @@ public class ChaseSequence : MonoBehaviour
         baseTimeScale = Time.timeScale;
         baseFixedDelta = Time.fixedDeltaTime;
         baseFov = cutsceneCamera != null ? cutsceneCamera.fieldOfView : 60f;
+        if (hideInteractPrompt != PromptHiding.Never)
+            HidePrompt(true);
         if (cutsceneSwimmer != null)
         {
             wasFrozen = cutsceneSwimmer.Frozen;
@@ -641,6 +653,24 @@ public class ChaseSequence : MonoBehaviour
         }
         if (cutsceneAmbience != null)
             cutsceneAmbience.Hush = 0f;
+        if (hideInteractPrompt == PromptHiding.DuringCutscene)
+            HidePrompt(false);
+    }
+
+    // The 'Press E to ...' prompt, hidden for the cutscene or the whole chase. Interaction itself keeps working.
+    private void HidePrompt(bool hidden)
+    {
+        if (hidden)
+        {
+            if (promptOwner == null && player != null)
+                promptOwner = player.GetComponentInParent<PlayerInteractor>();
+            if (promptOwner != null)
+                promptOwner.PromptHidden = true;
+            return;
+        }
+        if (promptOwner != null)
+            promptOwner.PromptHidden = false;
+        promptOwner = null;
     }
 
     // Cut the cutscene short (reset, disabled): everything back to normal at once.

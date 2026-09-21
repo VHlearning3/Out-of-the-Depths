@@ -28,7 +28,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.25, y: 0.25, z: 0.25}
+  m_LocalScale: {x: 0.34, y: 0.45, z: 0.02}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 675020462944700007}
@@ -66,7 +66,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 819b212d3233dcb4c992f306bc0a81a2, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -160,9 +160,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PickupItem
   item: {fileID: 11400000, guid: f80d1874e5424274b877610108b728b0, type: 2}
+  placeholderMaterials:
+  - {fileID: 2100000, guid: 69b07154138b9f4a85746808b1a5a2f2, type: 2}
+  - {fileID: 2100000, guid: dc93cc5cc29cc02027f996cd7cdfdbd6, type: 2}
+  - {fileID: 2100000, guid: 3de27dbc17318699cf6629824e5532d5, type: 2}
+  - {fileID: 2100000, guid: acb6a134692a2fdba790bdacdfd485e5, type: 2}
+  - {fileID: 2100000, guid: bc3627e0bc3143050ab9e8703b705372, type: 2}
+  - {fileID: 2100000, guid: e438da9a614ed020bf96553399764249, type: 2}
+  - {fileID: 2100000, guid: 085b3ec15dbb13909ed4a553d70df7dd, type: 2}
   amount: 1
   pickupSound: {fileID: 8300000, guid: f465289ab2f6f50c4ab149f2f5f0b1c2, type: 3}
   pickupVolume: 0.3
+  takeSound: {fileID: 8300000, guid: c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7, type: 3}
+  takeVolume: 0.5
   pickedUpVfx: {fileID: 0}
   onPickedUp:
     m_PersistentCalls:

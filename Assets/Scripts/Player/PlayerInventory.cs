@@ -70,7 +70,7 @@ public class PlayerInventory : MonoBehaviour
 
     private void Update()
     {
-        if (InputBlocked)
+        if (InputBlocked || PauseMenu.IsOpen)
             return;
         if (!selectWithInput)
             return;

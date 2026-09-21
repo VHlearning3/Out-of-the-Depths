@@ -14,6 +14,10 @@ using UnityEngine.InputSystem;
 public class PickupItem : MonoBehaviour, IInteractable
 {
     public const string VisualName = "Visual";
+    // Testing switch (admin panel): no inspect at all, every pickup flies straight in.
+    public static bool QuickPickups { get; set; }
+    private static readonly System.Collections.Generic.HashSet<ItemDefinition> seenThisSession = new System.Collections.Generic.HashSet<ItemDefinition>();
+
 
     [Header("Item")]
     [Tooltip("Which item this is (Assets/Items). New ones: Assets > Create > Out of the Depths > Item.")]
@@ -25,6 +29,8 @@ public class PickupItem : MonoBehaviour, IInteractable
     [SerializeField] private bool useItemModel = true;
     [Tooltip("Longest side of the model in metres after fitting. 0 = keep the model's own size.")]
     [SerializeField, Min(0f)] private float modelSize = 0.35f;
+    [Tooltip("For pickups without a World Model: one of these is picked at random for the placeholder plaque at start (the dog photos). Empty = keep the prefab material.")]
+    [SerializeField] private Material[] placeholderMaterials;
     // The item whose model the current Visual already is (set by the bake tools). A prefab baked for one item still
     // swaps correctly on an instance that overrides Item, and an already-baked pickup is never baked twice.
     [SerializeField, HideInInspector] private ItemDefinition bakedFor;
@@ -42,6 +48,9 @@ public class PickupItem : MonoBehaviour, IInteractable
     [Header("Feedback")]
     [SerializeField] private AudioClip pickupSound;
     [SerializeField, Range(0f, 1f)] private float pickupVolume = 0.3f;
+    [Tooltip("The chime when you press E and take the item for good (the jingle above plays when you first grab it).")]
+    [SerializeField] private AudioClip takeSound;
+    [SerializeField, Range(0f, 1f)] private float takeVolume = 0.5f;
     [SerializeField] private GameObject pickedUpVfx;
     [Tooltip("The pickup animation, in three beats: the item snaps up in front of your eyes (Grab), hangs there a moment so you see what you got (Hold), then dives into your torso and is gone (Absorb). All three at 0 = it just vanishes.")]
     [SerializeField] private float grabSeconds = 0.12f;
@@ -64,6 +73,10 @@ public class PickupItem : MonoBehaviour, IInteractable
     [SerializeField] private float inspectDamping = 4f;
     [Tooltip("The item stays up until you press E (Interact) to take it; Hold Seconds is then the minimum before E counts. Off = it is taken by itself after Hold Seconds.")]
     [SerializeField] private bool waitForInteract = true;
+    [Tooltip("Inspect only the first time an item is picked up in a session; later pickups of the same item just fly straight in.")]
+    [SerializeField] private bool inspectOnlyFirstTime = true;
+    [Tooltip("Keep E held this long after picking up and the item is taken without the inspect (tap E = inspect, hold E = grab and go). 0 = off.")]
+    [SerializeField] private float holdToSkipSeconds = 0.25f;
     [Tooltip("Where it hangs vertically: metres above the eye line (negative = below).")]
     [SerializeField] private float holdHeight = 0.05f;
     [Tooltip("Scroll wheel while inspecting: metres closer / further per notch...")]
@@ -87,6 +100,10 @@ public class PickupItem : MonoBehaviour, IInteractable
     [SerializeField] private bool showCursorWhileInspecting = true;
     [Tooltip("The centre-screen reticle hides while the item is up.")]
     [SerializeField] private bool hideReticleWhileInspecting = true;
+    [Tooltip("Light the held item with its own key and fill lights (Inspect Light), so it reads as a shape in the dark.")]
+    [SerializeField] private bool lightWhileInspecting = true;
+    [Tooltip("Keep the white outline on the item while it is held, so it separates from the background.")]
+    [SerializeField] private bool outlineWhileInspecting = true;
     [Tooltip("Where it flies to, as an offset from the torso (the middle of the Character Controller) in the body local space. Zero = straight into the torso.")]
     [SerializeField] private Vector3 collectOffset = Vector3.zero;
 
@@ -104,6 +121,16 @@ public class PickupItem : MonoBehaviour, IInteractable
     private GameObject collector;
     private PlayerInventory pendingInventory;
     private float holdNow;   // the current hold distance (the scroll wheel changes it)
+    private bool inspectActive;
+    private bool inspectAllowed;
+    private SwimController inspectSwimmer;
+    private PlayerInteractor inspectInteractor;
+    private SlashAttack inspectSlash;
+    private bool inspectLookWas;
+    private bool inspectFrozenWas;
+    private bool inspectAttackWas;
+    private bool inspectCursorVisibleWas;
+    private CursorLockMode inspectCursorLockWas;
 
     private void Awake()
     {
@@ -115,6 +142,14 @@ public class PickupItem : MonoBehaviour, IInteractable
 
         if (visual == null && transform.childCount > 0)
             visual = transform.GetChild(0);
+        // A random dog photo on the placeholder plaque, so a shelf of pickups is not seven copies of one picture.
+        if (visual != null && placeholderMaterials != null && placeholderMaterials.Length > 0 && (item == null || item.WorldModel == null))
+        {
+            Material chosen = placeholderMaterials[Random.Range(0, placeholderMaterials.Length)];
+            if (chosen != null)
+                foreach (Renderer r in visual.GetComponentsInChildren<Renderer>())
+                    r.sharedMaterial = chosen;
+        }
         if (visual != null)
         {
             visualRestPosition = visual.localPosition;
@@ -299,102 +334,71 @@ public class PickupItem : MonoBehaviour, IInteractable
             yield return null;
         }
 
+        if (ShouldInspect())
+        {
         // Hold: hang in front of the eyes, turning slowly. Left mouse held = grab it and turn it; the scroll wheel zooms;
-        // E takes it (or the clock, with Wait For Interact off). Swimming stops, the background blurs, and the hotbar
-        // and the interactor stand back meanwhile.
-        bool canInspect = inspectable && eye != null;
-        bool lookWasLocked = swimmer != null && swimmer.LookLocked;
-        bool wasFrozen = swimmer != null && swimmer.Frozen;
-        bool couldAttack = slash != null && slash.CanAttack;
+        // E takes it (or the clock, with Wait For Interact off). Swimming and looking stop, the cursor shows, the
+        // reticle hides, the background blurs, and the hotbar and the interactor stand back meanwhile. EndInspect puts
+        // every one of those back, and also runs if this object is disabled or something throws mid-hold.
+        BeginInspect(eye != null, eyeCamera, swimmer, interactor, slash);
         bool needsInteract = waitForInteract && interactor != null && interactor.InteractAction != null;
-        bool cursorWasVisible = Cursor.visible;
-        CursorLockMode cursorWasLocked = Cursor.lockState;
-        if (canInspect && showCursorWhileInspecting)
+        try
         {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-        }
-        if (canInspect && hideReticleWhileInspecting)
-            HitMarker.SetReticleVisible(false);
-        if (swimmer != null && lockLookWhileInspecting)
-            swimmer.LookLocked = true;
-        if (canInspect)
-            InspectHintUI.Show();   // the mouse / wheel / E pictogram
-        if (canInspect && blurBackground)
-            InspectFocus.Show(eyeCamera, holdNow);
-        if (interactor != null)
-            interactor.Busy = true;
-        if (pendingInventory != null)
-            pendingInventory.InputBlocked = true;
-        if (swimmer != null && freezeWhileInspecting)
-            swimmer.Frozen = true;
-        if (canInspect && slash != null)
-            slash.SetCanAttack(false);   // a click grabs the item; it must not swing the dagger
-
-        Vector2 spin = Vector2.zero;   // degrees per second, from the mouse
-        float holdTarget = holdNow;
-        float held = 0f;
-        while (true)
-        {
-            Mouse mouse = Mouse.current;
-            bool dragging = canInspect && mouse != null && mouse.leftButton.isPressed;
-            if (dragging && Time.deltaTime > 0f)
+            Vector2 spin = Vector2.zero;   // degrees per second, from the mouse
+            float holdTarget = holdNow;
+            float held = 0f;
+            float heldE = 0f;   // how long E has stayed down: hold it to skip the inspect
+            while (true)
             {
-                spin = Vector2.ClampMagnitude(mouse.delta.ReadValue() * (inspectSensitivity / Time.deltaTime), 900f);
-            }
-            else
-            {
-                spin *= Mathf.Exp(-inspectDamping * Time.deltaTime);
-                held += Time.deltaTime;
-                turned += holdTurnSpeed * Time.deltaTime;
-            }
-            if (canInspect && mouse != null)
-            {
-                float wheel = mouse.scroll.ReadValue().y;
-                if (Mathf.Abs(wheel) > 0.01f)
-                    holdTarget = Mathf.Clamp(holdTarget - Mathf.Sign(wheel) * zoomStep, zoomRange.x, zoomRange.y);
-            }
-            holdNow = Mathf.Lerp(holdNow, holdTarget, 1f - Mathf.Exp(-zoomSmoothing * Time.deltaTime));
-            if (canInspect && blurBackground)
-                InspectFocus.Focus(holdNow);
-            if (eye != null && spin.sqrMagnitude > 0.01f)
-                handled = Quaternion.AngleAxis(spin.x * Time.deltaTime, eye.up) * Quaternion.AngleAxis(-spin.y * Time.deltaTime, eye.right) * handled;
-            if (swimmer != null && lockLookWhileInspecting == false)
-                swimmer.LookLocked = lookWasLocked || dragging;   // camera free, except while you are dragging the item
+                Mouse mouse = Mouse.current;
+                bool dragging = inspectAllowed && mouse != null && mouse.leftButton.isPressed;
+                if (dragging && Time.deltaTime > 0f)
+                {
+                    spin = Vector2.ClampMagnitude(mouse.delta.ReadValue() * (inspectSensitivity / Time.deltaTime), 900f);
+                }
+                else
+                {
+                    spin *= Mathf.Exp(-inspectDamping * Time.deltaTime);
+                    held += Time.deltaTime;
+                    turned += holdTurnSpeed * Time.deltaTime;
+                }
+                if (inspectAllowed && mouse != null)
+                {
+                    float wheel = mouse.scroll.ReadValue().y;
+                    if (Mathf.Abs(wheel) > 0.01f)
+                        holdTarget = Mathf.Clamp(holdTarget - Mathf.Sign(wheel) * zoomStep, zoomRange.x, zoomRange.y);
+                }
+                holdNow = Mathf.Lerp(holdNow, holdTarget, 1f - Mathf.Exp(-zoomSmoothing * Time.deltaTime));
+                if (inspectAllowed && blurBackground)
+                    InspectFocus.Focus(holdNow);
+                if (eye != null && spin.sqrMagnitude > 0.01f)
+                    handled = Quaternion.AngleAxis(spin.x * Time.deltaTime, eye.up) * Quaternion.AngleAxis(-spin.y * Time.deltaTime, eye.right) * handled;
+                if (swimmer != null && lockLookWhileInspecting == false)
+                    swimmer.LookLocked = inspectLookWas || dragging;   // camera free, except while you are dragging the item
 
-            visual.position = HoldPoint(eye, startPosition) + Vector3.up * (holdBobAmount * Mathf.Sin(Time.time * holdBobSpeed * Mathf.PI * 2f));
-            visual.rotation = handled * Showcase(showcase, eye, turned);
-            visual.localScale = startScale * holdScale;
+                visual.position = HoldPoint(eye, startPosition) + Vector3.up * (holdBobAmount * Mathf.Sin(Time.time * holdBobSpeed * Mathf.PI * 2f));
+                visual.rotation = handled * Showcase(showcase, eye, turned);
+                visual.localScale = startScale * holdScale;
 
-            bool minimumHeld = held >= holdSeconds;
-            if (needsInteract ? minimumHeld && interactor.InteractAction.WasPressedThisFrame() : minimumHeld)
-                break;
-            yield return null;
+                InputAction eKey = interactor != null ? interactor.InteractAction : null;
+                heldE = eKey != null && eKey.IsPressed() ? heldE + Time.unscaledDeltaTime : 0f;
+                if (holdToSkipSeconds > 0f && heldE >= holdToSkipSeconds)
+                    break;
+                bool minimumHeld = held >= holdSeconds;
+                if (needsInteract ? minimumHeld && InteractPressed(interactor) : minimumHeld)
+                    break;
+                yield return null;
+            }
         }
-
-        if (swimmer != null)
+        finally
         {
-            swimmer.LookLocked = lookWasLocked;
-            swimmer.Frozen = wasFrozen;
+            EndInspect();
         }
-        if (canInspect)
-            InspectHintUI.Hide();
-        if (canInspect && showCursorWhileInspecting)
-        {
-            Cursor.lockState = cursorWasLocked;
-            Cursor.visible = cursorWasVisible;
         }
-        if (canInspect && hideReticleWhileInspecting)
-            HitMarker.SetReticleVisible(true);
-        if (canInspect && blurBackground)
-            InspectFocus.Hide();
-        if (interactor != null)
-            interactor.Busy = false;
-        if (pendingInventory != null)
-            pendingInventory.InputBlocked = false;
-        if (canInspect && slash != null)
-            slash.SetCanAttack(couldAttack);
 
+
+        if (takeSound != null)
+            SlicedOneShot.Play(takeSound, visual.position, takeVolume, 1f, 0f, 0.05f, 0.3f, 20f);
         // Absorb: from where it hangs straight into the torso, easing in and out, shrinking to nothing. Both ends
         // follow the player, so it stays put in the view even if you turn on the way.
         Vector3 hangOffset = visual.position - HoldPoint(eye, startPosition);
@@ -418,6 +422,123 @@ public class PickupItem : MonoBehaviour, IInteractable
         visual.rotation = startRotation;
         if (Deliver())
             gameObject.SetActive(false);
+    }
+
+    // Locks the player for the inspect and remembers what to put back.
+    private void BeginInspect(bool hasEye, Camera camera, SwimController swimmer, PlayerInteractor interactor, SlashAttack slash)
+    {
+        inspectActive = true;
+        inspectAllowed = inspectable && hasEye;
+        inspectSwimmer = swimmer;
+        inspectInteractor = interactor;
+        inspectSlash = slash;
+        inspectLookWas = swimmer != null && swimmer.LookLocked;
+        inspectFrozenWas = swimmer != null && swimmer.Frozen;
+        inspectAttackWas = slash != null && slash.CanAttack;
+        inspectCursorVisibleWas = Cursor.visible;
+        inspectCursorLockWas = Cursor.lockState;
+
+        if (interactor != null)
+            interactor.Busy = true;
+        if (pendingInventory != null)
+            pendingInventory.InputBlocked = true;
+        if (swimmer != null)
+        {
+            if (freezeWhileInspecting)
+                swimmer.Frozen = true;
+            if (lockLookWhileInspecting)
+                swimmer.LookLocked = true;
+        }
+        if (inspectAllowed)
+        {
+            InspectHintUI.Show(Caption(item), item != null ? item.Description : string.Empty);   // name + a line about it, over the mouse / wheel / E pictogram
+            if (blurBackground)
+                InspectFocus.Show(camera, holdNow);
+            if (showCursorWhileInspecting)
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+            if (hideReticleWhileInspecting)
+                HitMarker.SetReticleVisible(false);
+            if (slash != null)
+                slash.SetCanAttack(false);   // a click grabs the item; it must not swing the dagger
+            if (lightWhileInspecting)
+                InspectLight.Show(camera);
+            if (outlineWhileInspecting && interactor != null && interactor.OutlineMaterial != null)
+                OutlineHull.Show(gameObject, interactor.OutlineMaterial);
+        }
+    }
+
+    // Puts the player back exactly as they were. Safe to call twice.
+    private void EndInspect()
+    {
+        if (!inspectActive)
+            return;
+        inspectActive = false;
+        if (inspectSwimmer != null)
+        {
+            inspectSwimmer.LookLocked = inspectLookWas;
+            inspectSwimmer.Frozen = inspectFrozenWas;
+        }
+        if (inspectInteractor != null)
+            inspectInteractor.Busy = false;
+        if (pendingInventory != null)
+            pendingInventory.InputBlocked = false;
+        if (inspectAllowed)
+        {
+            InspectHintUI.Hide();
+            if (blurBackground)
+                InspectFocus.Hide();
+            if (showCursorWhileInspecting)
+            {
+                Cursor.lockState = inspectCursorLockWas;
+                Cursor.visible = inspectCursorVisibleWas;
+            }
+            if (hideReticleWhileInspecting)
+                HitMarker.SetReticleVisible(true);
+            if (inspectSlash != null)
+                inspectSlash.SetCanAttack(inspectAttackWas);
+            if (lightWhileInspecting)
+                InspectLight.Hide();
+            if (outlineWhileInspecting)
+                OutlineHull.Hide(gameObject);
+        }
+    }
+
+    // E, however it arrives: the Interact action (any of its states) or the key itself as a fallback.
+    private static bool InteractPressed(PlayerInteractor interactor)
+    {
+        InputAction action = interactor != null ? interactor.InteractAction : null;
+        if (action != null && (action.WasPressedThisFrame() || action.WasPerformedThisFrame() || action.triggered))
+            return true;
+        Keyboard keyboard = Keyboard.current;
+        return keyboard != null && keyboard.eKey.wasPressedThisFrame;
+    }
+
+    private void OnDisable()
+    {
+        EndInspect();
+    }
+
+    // The item name as a title: first letter up.
+    private static string Caption(ItemDefinition item)
+    {
+        if (item == null || string.IsNullOrEmpty(item.DisplayName))
+            return string.Empty;
+        string name = item.DisplayName;
+        return char.ToUpperInvariant(name[0]) + name.Substring(1);
+    }
+
+    // Skip the inspect for testing (admin panel), or for an item already looked at this session.
+    private bool ShouldInspect()
+    {
+        if (QuickPickups)
+            return false;
+        bool seenBefore = item != null && seenThisSession.Contains(item);
+        if (item != null)
+            seenThisSession.Add(item);
+        return !(inspectOnlyFirstTime && seenBefore);
     }
 
     // Hands the item over at the end of the animation. False if the inventory filled up while it was flying: what is

@@ -16,4 +16,4 @@ MonoBehaviour:
   category: 3
   icon: {fileID: 0}
   maxStack: 99
-  description: 
+  description: A spiral shell. Something rattles inside it.

@@ -23,6 +23,12 @@ public class InspectHintUI : MonoBehaviour
     [SerializeField] private int labelSize = 16;
     [SerializeField] private float fadeSeconds = 0.15f;
 
+    [Header("Caption (the item's name and description, above the icons)")]
+    [SerializeField] private int titleSize = 26;
+    [SerializeField] private int bodySize = 16;
+    [SerializeField] private Color captionColor = new Color(0.95f, 0.98f, 1f);
+    [SerializeField] private float captionWidth = 640f;
+
     [Header("Words")]
     [SerializeField] private string turnLabel = "turn";
     [SerializeField] private string zoomLabel = "zoom";
@@ -31,15 +37,25 @@ public class InspectHintUI : MonoBehaviour
 
     private static InspectHintUI instance;
     private CanvasGroup group;
+    private Text captionTitle;
+    private Text captionBody;
     private float shown;
     private bool built;
 
     // Show / hide the hint from anywhere (a pickup being inspected). Safe to call with no HUD in the scene.
     public static void Show()
     {
+        Show(string.Empty, string.Empty);
+    }
+
+    // With the item's name and a line about it above the icons. Empty strings show no caption.
+    public static void Show(string title, string body)
+    {
         InspectHintUI ui = Get();
-        if (ui != null)
-            ui.shown = 1f;
+        if (ui == null)
+            return;
+        ui.shown = 1f;
+        ui.SetCaption(title, body);
     }
 
     public static void Hide()
@@ -118,6 +134,35 @@ public class InspectHintUI : MonoBehaviour
         Entry(mouseLeft != null ? mouseLeft : MakeMouse(true, false), turnLabel, font, null);
         Entry(mouseWheel != null ? mouseWheel : MakeMouse(false, true), zoomLabel, font, null);
         Entry(keyCap != null ? keyCap : MakeKeyCap(), takeLabel, font, keyLabel);
+
+        // The caption sits above the icon row, outside the layout group.
+        float bodyHeight = bodySize * 2f + 10f;
+        captionBody = MakeText(transform, string.Empty, font, bodySize, FontStyle.Normal, captionColor);
+        captionBody.horizontalOverflow = HorizontalWrapMode.Wrap;
+        captionBody.alignment = TextAnchor.LowerCenter;
+        PlaceCaption(captionBody.rectTransform, 12f, captionWidth, bodyHeight);
+        captionTitle = MakeText(transform, string.Empty, font, titleSize, FontStyle.Bold, captionColor);
+        PlaceCaption(captionTitle.rectTransform, 12f + bodyHeight + 4f, captionWidth, titleSize + 10f);
+    }
+
+    // Anchored to the top edge of the icon row, growing upward.
+    private static void PlaceCaption(RectTransform rect, float above, float width, float height)
+    {
+        rect.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 0f);
+        rect.anchoredPosition = new Vector2(0f, above);
+        rect.sizeDelta = new Vector2(width, height);
+    }
+
+    private void SetCaption(string title, string body)
+    {
+        if (captionTitle == null || captionBody == null)
+            return;
+        captionTitle.text = title ?? string.Empty;
+        captionBody.text = body ?? string.Empty;
+        captionTitle.enabled = captionTitle.text.Length > 0;
+        captionBody.enabled = captionBody.text.Length > 0;
     }
 
     // One icon over one word (and, for the key cap, the key letter drawn on the icon).

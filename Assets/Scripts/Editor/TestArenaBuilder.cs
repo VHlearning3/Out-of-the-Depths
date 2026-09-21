@@ -374,9 +374,23 @@ public static class TestArenaBuilder
         }
         OpenOnFilled(Socket(pedestal, "Item_StoneFragment", 3, true, "place", null, pieces), doorStone);
 
-        // Seaweed: 3 bone key fragments + E = a bone key (the GDD's tie-them-together step).
-        GameObject seaweed = Box("Seaweed", new Vector3(-5f, 1.2f, 8f), new Vector3(0.6f, 2.4f, 0.6f), new Color(0.2f, 0.55f, 0.25f), zone);
-        Socket(seaweed, "Item_BoneKeyFragment", 3, true, "tie", "Item_BoneKey", null);
+        // Seaweed: 3 bone key fragments + E = a bone key (the GDD tie-them-together step). A clump of swaying fronds
+        // (Seaweed builds them here so they show in the Scene view); it swoops when the key is made.
+        var seaweed = new GameObject("Seaweed");
+        seaweed.transform.SetParent(zone, false);
+        seaweed.transform.position = new Vector3(-5f, 0f, 8f);
+        var seaweedCollider = seaweed.AddComponent<BoxCollider>();
+        seaweedCollider.center = new Vector3(0f, 1.7f, 0f);
+        seaweedCollider.size = new Vector3(0.9f, 3.4f, 0.9f);
+        seaweedCollider.isTrigger = true;   // the E prompt still finds it (overlap queries hit triggers); the player swims through and the leaves part
+        var weed = seaweed.AddComponent<Seaweed>();
+        SetField(weed, "bladeMaterial", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Materials/Seaweed.mat"));
+        GameObject seaweedModel = FindSeaweedModel();
+        if (seaweedModel != null)
+            SetField(weed, "customModel", p => p.objectReferenceValue = seaweedModel);
+        weed.Build();
+        ItemSocket seaweedSocket = Socket(seaweed, "Item_BoneKeyFragment", 3, true, "tie", "Item_BoneKey", null);
+        UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(seaweedSocket.onFilled, weed.Swoop);
 
         // Lock: the bone key opens the right door.
         GameObject lockBox = Box("Lock_BoneKey", new Vector3(4.6f, 1.2f, 13.4f), new Vector3(0.5f, 0.5f, 0.3f), new Color(0.8f, 0.7f, 0.3f), zone);
@@ -1088,7 +1102,10 @@ public static class TestArenaBuilder
             visual.name = "Visual";
             Object.DestroyImmediate(visual.GetComponent<Collider>());
             visual.transform.SetParent(root.transform, false);
-            visual.transform.localScale = Vector3.one * 0.25f;
+            visual.transform.localScale = new Vector3(0.34f, 0.45f, 0.02f);   // a dog-photo plaque, like the prefab
+            Material photo = EnsurePhotoMaterial();
+            if (photo != null)
+                visual.GetComponent<Renderer>().sharedMaterial = photo;
 
             ParticleSystem sparkle = FindSparkle();
             if (sparkle != null)
@@ -1103,6 +1120,51 @@ public static class TestArenaBuilder
             SetField(pickup, "item", p => p.objectReferenceValue = item);
         root.name = "Pickup_" + itemAssetName.Replace("Item_", "");
         return root;
+    }
+
+    // The seaweed model to use if someone has dropped one in (the first file by name in the folder below): a real
+    // model instead of the generated fronds. Its mesh is made readable so it can sway.
+    private const string SeaweedModelFolder = "Assets/Art/Models/environment/seaweed";
+
+    private const string SeaweedModelPref = "OutOfTheDepths.SeaweedUsesDroppedInModel";
+    private const string SeaweedModelMenu = "Tools/Out of the Depths/Seaweed Uses Dropped-In Model";
+
+    // Off (the default): Rebuild Test Arena builds the generated cartoon leaves. On: it uses the model dropped into the
+    // folder above instead. Remembered per machine (EditorPrefs).
+    [MenuItem(SeaweedModelMenu)]
+    private static void ToggleSeaweedModel()
+    {
+        bool on = !EditorPrefs.GetBool(SeaweedModelPref, false);
+        EditorPrefs.SetBool(SeaweedModelPref, on);
+        Menu.SetChecked(SeaweedModelMenu, on);
+        Debug.Log(on ? "Seaweed: Rebuild Test Arena will use the model in " + SeaweedModelFolder + "." : "Seaweed: Rebuild Test Arena will use the generated leaves.");
+    }
+
+    [MenuItem(SeaweedModelMenu, true)]
+    private static bool ToggleSeaweedModelValidate()
+    {
+        Menu.SetChecked(SeaweedModelMenu, EditorPrefs.GetBool(SeaweedModelPref, false));
+        return true;
+    }
+
+    private static GameObject FindSeaweedModel()
+    {
+        if (!EditorPrefs.GetBool(SeaweedModelPref, false))
+            return null;   // the switch in the Tools menu is off: generated leaves
+        if (!AssetDatabase.IsValidFolder(SeaweedModelFolder))
+            return null;
+        var paths = new System.Collections.Generic.List<string>();
+        foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { SeaweedModelFolder }))
+            paths.Add(AssetDatabase.GUIDToAssetPath(guid));
+        if (paths.Count == 0)
+            return null;
+        paths.Sort(System.StringComparer.OrdinalIgnoreCase);
+        if (AssetImporter.GetAtPath(paths[0]) is ModelImporter importer && !importer.isReadable)
+        {
+            importer.isReadable = true;
+            importer.SaveAndReimport();
+        }
+        return AssetDatabase.LoadAssetAtPath<GameObject>(paths[0]);
     }
 
     private static void SetField(Object target, string field, System.Action<SerializedProperty> set)

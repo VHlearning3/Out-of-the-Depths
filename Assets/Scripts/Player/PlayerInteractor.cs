@@ -22,6 +22,15 @@ public class PlayerInteractor : MonoBehaviour
     [Tooltip("Optional: shown only while there is a target, e.g. the keycap + label group.")]
     [SerializeField] private GameObject promptRoot;
 
+    [Header("Outline")]
+    [Tooltip("A white outline around whatever you are looking at (the inverted-hull shader in Resources/Shaders).")]
+    [SerializeField] private bool outlineTarget = true;
+    [SerializeField] private Color outlineColor = Color.white;
+    [Tooltip("Outline thickness in metres.")]
+    [SerializeField] private float outlineThickness = 0.006f;
+    [Tooltip("1 = the outline grows from the middle of each mesh (clean rims on boxes and simple props). 0 = along the surface normals (better for smooth, organic meshes).")]
+    [SerializeField, Range(0f, 1f)] private float outlineCentreBias = 1f;
+
     [Header("Events")]
     public UnityEvent<GameObject> onTargetChanged = new UnityEvent<GameObject>();
 
@@ -29,15 +38,32 @@ public class PlayerInteractor : MonoBehaviour
     // While something else owns E (a pickup being inspected), no targeting and no interacting.
     public bool Busy { get; set; }
     public InputAction InteractAction => interactAction;
+    // Hide the prompt without turning interaction off (a cutscene, the chase). E still works.
+    public bool PromptHidden
+    {
+        get => promptHidden;
+        set
+        {
+            if (promptHidden == value)
+                return;
+            promptHidden = value;
+            RefreshPrompt();
+        }
+    }
+    private bool promptHidden;
 
     private InputAction interactAction;
     private GameObject currentTargetObject;
     private string hint;
     private readonly Collider[] overlapResults = new Collider[16];
+    private Material outlineMaterial;
+    // The outline material, for anything else that wants the same rim (a pickup being inspected).
+    public Material OutlineMaterial => outlineMaterial;
 
     private void Awake()
     {
         interactAction = inputActions.FindActionMap("Player").FindAction("Interact");
+        SetupOutline();
     }
 
     private void OnEnable()
@@ -61,6 +87,8 @@ public class PlayerInteractor : MonoBehaviour
         }
 
         FindTarget(out var target, out var targetObject);
+        if (targetObject == currentTargetObject && CurrentTarget != null)
+            RefreshPrompt();   // the same target, but its prompt may have changed (a socket noticing what you now hold)
         if (targetObject != currentTargetObject)
             SetTarget(target, targetObject);
     }
@@ -113,9 +141,12 @@ public class PlayerInteractor : MonoBehaviour
     private void SetTarget(IInteractable target, GameObject targetObject)
     {
         NotifyTargeted(currentTargetObject, false);
+        OutlineHull.Hide(currentTargetObject);
         CurrentTarget = target;
         currentTargetObject = targetObject;
         NotifyTargeted(currentTargetObject, true);
+        if (outlineMaterial != null)
+            OutlineHull.Show(currentTargetObject, outlineMaterial);
 
         RefreshPrompt();
 
@@ -137,11 +168,40 @@ public class PlayerInteractor : MonoBehaviour
 
     private void RefreshPrompt()
     {
-        string text = CurrentTarget != null ? string.Format(promptFormat, CurrentTarget.Prompt) : (hint ?? string.Empty);
+        string text = promptHidden ? string.Empty : CurrentTarget != null ? string.Format(promptFormat, CurrentTarget.Prompt) : (hint ?? string.Empty);
         if (promptLabel != null)
             promptLabel.text = text;
         if (promptRoot != null)
             promptRoot.SetActive(text.Length > 0);
+    }
+
+    // The outline material, from the shader in Resources/Shaders. Tweak the fields above in Play mode and it follows.
+    private void SetupOutline()
+    {
+        if (!outlineTarget)
+        {
+            outlineMaterial = null;
+            return;
+        }
+        if (outlineMaterial == null)
+        {
+            Shader shader = Shader.Find("Out of the Depths/Outline Hull");
+            if (shader == null)
+            {
+                Debug.LogWarning($"{name}: outline shader not found (Assets/Resources/Shaders/OutlineHull.shader), no outline on interactables.", this);
+                return;
+            }
+            outlineMaterial = new Material(shader) { name = "Interactable Outline (runtime)" };
+        }
+        outlineMaterial.SetColor("_Color", outlineColor);
+        outlineMaterial.SetFloat("_Thickness", outlineThickness);
+        outlineMaterial.SetFloat("_CentreBias", outlineCentreBias);
+    }
+
+    private void OnValidate()
+    {
+        if (Application.isPlaying && outlineMaterial != null)
+            SetupOutline();
     }
 
     private static void NotifyTargeted(GameObject target, bool targeted)

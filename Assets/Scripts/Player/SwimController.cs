@@ -93,6 +93,15 @@ public class SwimController : MonoBehaviour
     private Vector3 lastDebugPosition;
     private float lastDebugSpeed;
 
+    // For the Settings and Keybindings pages of the pause menu.
+    public float MouseSensitivity
+    {
+        get => mouseSensitivity;
+        set => mouseSensitivity = Mathf.Max(0.001f, value);
+    }
+
+    public InputActionAsset InputActions => inputActions;
+
     // A shove from outside (a bite): joins the swim velocity and bleeds off through Drag / Acceleration like any motion.
     public void AddImpulse(Vector3 velocity)
     {
@@ -234,9 +243,20 @@ public class SwimController : MonoBehaviour
     private void OnGUI()
     {
         if (!showMovementDebug)
+        {
+            // Not debugging, but if you are pushing the keys and something is holding you, say so rather than stay silent.
+            bool pushing = LastRawMoveInput.sqrMagnitude > 0.01f;
+            string why = Frozen ? "frozen (the admin panel Freeze toggle, a cutscene or a pickup being inspected)"
+                : SpeedMultiplier <= 0f ? "speed multiplier is 0"
+                : Time.timeScale <= 0f ? "time scale is 0"
+                : !controller.enabled ? "the Character Controller is disabled"
+                : null;
+            if (pushing && why != null)
+                GUI.Label(new Rect(10f, Screen.height - 28f, Screen.width - 20f, 22f), "swimming is blocked: " + why);
             return;
+        }
 
-        string line = $"swim  raw {LastRawMoveInput:0.00} ({LastInputDevice})  used {LastMoveInput:0.00}  vel {currentVelocity:0.00}  Move() {(MovedThisFrame ? "yes" : "no")}  actual {lastDebugSpeed:0.000} m/s";
+        string line = $"swim  raw {LastRawMoveInput:0.00} ({LastInputDevice})  used {LastMoveInput:0.00}  vel {currentVelocity:0.00}  Move() {(MovedThisFrame ? "yes" : "no")}  actual {lastDebugSpeed:0.000} m/s   |  frozen {(Frozen ? "YES" : "no")}  look locked {(LookLocked ? "YES" : "no")}  speed x{SpeedMultiplier:0.00}  timeScale {Time.timeScale:0.00}  controller {(controller.enabled ? "on" : "OFF")}";
         GUI.Label(new Rect(10f, Screen.height - 28f, Screen.width - 20f, 22f), line);
     }
 

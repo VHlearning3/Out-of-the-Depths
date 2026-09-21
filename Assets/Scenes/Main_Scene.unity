@@ -1164,6 +1164,10 @@ GameObject:
   - component: {fileID: 901100003}
   - component: {fileID: 901300001}
   - component: {fileID: 901400001}
+  - component: {fileID: 901600001}
+  - component: {fileID: 901700002}
+  - component: {fileID: 901700003}
+  - component: {fileID: 901700004}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -5196,13 +5200,13 @@ MonoBehaviour:
   inventory: {fileID: 901100003}
   container: {fileID: 773719358}
   slotSprite: {fileID: 21300000, guid: 3a2268b365eba3ca235deef6391f0e38, type: 3}
-  slotSize: 64
-  spacing: 8
-  slotColor: {r: 0, g: 0, b: 0, a: 0.55}
-  selectedColor: {r: 0.25, g: 0.65, b: 0.75, a: 0.85}
-  textColor: {r: 1, g: 1, b: 1, a: 1}
-  fontSize: 14
-  selectedScale: 1.12
+  slotSize: 58
+  spacing: 6
+  slotColor: {r: 0.02, g: 0.05, b: 0.08, a: 0.72}
+  selectedColor: {r: 0.35, g: 0.85, b: 0.95, a: 1}
+  textColor: {r: 0.9, g: 0.95, b: 1, a: 1}
+  fontSize: 15
+  selectedScale: 1.1
 --- !u!1 &774781966
 GameObject:
   m_ObjectHideFlags: 0
@@ -6245,8 +6249,13 @@ MonoBehaviour:
   maxPitch: 85
   swimSpeed: 2.2
   sprintMultiplier: 1.6
+  verticalSpeed: 1.6
   acceleration: 1.6
   drag: 0.7
+  inputDeadzone: 0.15
+  allowControllerInput: 0
+  showMovementDebug: 0
+  stopSpeed: 0.03
   strafeRollAngle: 4
   turnRollAngle: 5
   rollSmoothTime: 0.3
@@ -6254,6 +6263,8 @@ MonoBehaviour:
   swayFrequency: 0.25
   bobAmplitude: 0.05
   bobFrequency: 0.35
+  shakeDecay: 2.5
+  lookPullRate: 5
 --- !u!114 &900100009
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6312,7 +6323,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHunger: 100
   startingHunger: 100
-  depletionRate: 0.3
+  depletionRate: 0.2
   warningThreshold01: 0.25
   warningSound: {fileID: 8300000, guid: c0ffee00a11ce5b0d1e5c0ffee5eab1e, type: 3}
   warningVolume: 0.2
@@ -6381,6 +6392,7 @@ MonoBehaviour:
   hungerSystem: {fileID: 900100010}
   starveDamagePerTick: 5
   starveTickInterval: 1
+  damageManager: {fileID: 0}
   regenPerSecond: 2
   regenHungerThreshold01: 0.5
   regenDelayAfterDamage: 3
@@ -8275,6 +8287,7 @@ MonoBehaviour:
   - {fileID: 900100008}
   - {fileID: 900700001}
   - {fileID: 900100011}
+  scale: 1
   spawnables:
   - label: Wandering fish
     prefab: {fileID: 900900001, guid: 46d610e2de093967a8df6fb28a4af53f, type: 3}
@@ -8288,6 +8301,7 @@ MonoBehaviour:
     prefab: {fileID: 901000060, guid: 06fd0d7848d9e6e7d94804a2ef1e1308, type: 3}
   spawnOrigin: {fileID: 900100002}
   spawnDistance: 3
+  items: []
   fishTint: {r: 1, g: 1, b: 1, a: 1}
 --- !u!114 &901100002
 MonoBehaviour:
@@ -8311,6 +8325,7 @@ MonoBehaviour:
   sunIntensity: 0.8
   shimmerAmount: 0.15
   shimmerSpeed: 1.3
+  flickerDepth: 0.15
 --- !u!114 &901100003
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8334,6 +8349,151 @@ MonoBehaviour:
   onCollectibleChanged:
     m_PersistentCalls:
       m_Calls: []
+--- !u!1 &901200001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 901200002}
+  - component: {fileID: 901200003}
+  m_Layer: 0
+  m_Name: Ambience
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &901200002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 901200001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &901200003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 901200001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bee64556b2f0c5b8b8b3e60afea2618d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  bedLoop: {fileID: 8300000, guid: 5bc412d571f488429718957bcad40a2d, type: 3}
+  bedVolume: 0.12
+  bedFadeIn: 4
+  stingers:
+  - {fileID: 8300000, guid: b30362b2ccb204e4f9f55386e3e60561, type: 3}
+  - {fileID: 8300000, guid: 38a95bcdf4934e4f7de67c25283e4f50, type: 3}
+  - {fileID: 8300000, guid: 49ba6cde05a45f508ef78d36394f5061, type: 3}
+  - {fileID: 8300000, guid: 5acb7def16b56a619f089e474a506172, type: 3}
+  - {fileID: 8300000, guid: 6bdc8ef027c67b72a019af585b617283, type: 3}
+  - {fileID: 8300000, guid: 15e0c598d13ac0333addb83462460c0d, type: 3}
+  - {fileID: 8300000, guid: c3a47d126f3edf4582e92cd5e2ec0a71, type: 3}
+  stingerVolume: 0.3
+  minInterval: 30
+  maxInterval: 80
+  firstDelay: 20
+  minDistance: 10
+  maxDistance: 30
+  pitchRange: {x: 0.8, y: 1.1}
+  lowPassCutoff: 1000
+  reverb: 9
+--- !u!114 &901300001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 163572558}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3594294ce2a25d8578f2556484ce1a44, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  movementLoop: {fileID: 8300000, guid: 65ecca8a7412461e276542b346442d9c, type: 3}
+  loopMaxVolume: 0.1
+  loopVolumeBySpeed:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  loopPitchRange: {x: 0.9, y: 1.1}
+  loopFadeIn: 0.5
+  loopFadeOut: 1.2
+  strokeClips:
+  - {fileID: 8300000, guid: b07887bd5158978226672897f5b07f07, type: 3}
+  - {fileID: 8300000, guid: 953cbe5e364f4d7759e6181d40ce9cf8, type: 3}
+  - {fileID: 8300000, guid: e0df0c6a1fbd4ef6cd7c145b847997a1, type: 3}
+  strokeVolume: 0.12
+  strokeInterval: 1.4
+  strokePitchRange: {x: 0.9, y: 1.1}
+  strokeMinSpeed: 0.2
+  strokeSliceSeconds: 1.2
+  strokeFade: 0.25
+--- !u!114 &901400001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 163572558}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4c538be049f31f40a239e1f4a0b1c2d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  chaseBase: 0.3
+  chaseMax: 1
+  damageSpike: 0.6
+  lowHealth: 0.45
+  riseSeconds: 1.5
+  calmSeconds: 10
+  breathingLoop: {fileID: 8300000, guid: d2a3169ce27ed1fd28f017cfd2e9fa0b, type: 3}
+  breathingVolume: 0.35
+  breathingPitch: {x: 0.95, y: 1.35}
+  breathingFrom: 0.12
+  heartbeat: {fileID: 8300000, guid: e3b427adf38fe20e39f128d0e3fa0b1c, type: 3}
+  heartbeatVolume: 0.4
+  heartRate: {x: 70, y: 150}
+  heartbeatFrom: 0.2
+  swayBoost: 1.5
+  tremble: 0.3
+  adrenaline: 0.1
+  ambienceDuck: 0.6
 --- !u!1 &940561656
 GameObject:
   m_ObjectHideFlags: 0
@@ -14337,70 +14497,7 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: ebf47eb784fee9a43a94c48101724dd7, type: 3}
---- !u!1 &901200001
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 901200002}
-  - component: {fileID: 901200003}
-  m_Layer: 0
-  m_Name: Ambience
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &901200002
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 901200001}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &901200003
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 901200001}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bee64556b2f0c5b8b8b3e60afea2618d, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  bedLoop: {fileID: 8300000, guid: 5bc412d571f488429718957bcad40a2d, type: 3}
-  bedVolume: 0.12
-  bedFadeIn: 4
-  stingers:
-  - {fileID: 8300000, guid: b30362b2ccb204e4f9f55386e3e60561, type: 3}
-  - {fileID: 8300000, guid: 38a95bcdf4934e4f7de67c25283e4f50, type: 3}
-  - {fileID: 8300000, guid: 49ba6cde05a45f508ef78d36394f5061, type: 3}
-  - {fileID: 8300000, guid: 5acb7def16b56a619f089e474a506172, type: 3}
-  - {fileID: 8300000, guid: 6bdc8ef027c67b72a019af585b617283, type: 3}
-  - {fileID: 8300000, guid: 15e0c598d13ac0333addb83462460c0d, type: 3}
-  - {fileID: 8300000, guid: c3a47d126f3edf4582e92cd5e2ec0a71, type: 3}
-  stingerVolume: 0.3
-  minInterval: 30
-  maxInterval: 80
-  firstDelay: 20
-  minDistance: 10
-  maxDistance: 30
-  pitchRange: {x: 0.8, y: 1.1}
-  lowPassCutoff: 1000
---- !u!114 &901300001
+--- !u!114 &901600001
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -14409,17 +14506,16 @@ MonoBehaviour:
   m_GameObject: {fileID: 163572558}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3594294ce2a25d8578f2556484ce1a44, type: 3}
+  m_Script: {fileID: 11500000, guid: c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  movementLoop: {fileID: 8300000, guid: 65ecca8a7412461e276542b346442d9c, type: 3}
-  loopMaxVolume: 0.1
-  strokeClips:
-  - {fileID: 8300000, guid: b07887bd5158978226672897f5b07f07, type: 3}
-  - {fileID: 8300000, guid: 953cbe5e364f4d7759e6181d40ce9cf8, type: 3}
-  - {fileID: 8300000, guid: e0df0c6a1fbd4ef6cd7c145b847997a1, type: 3}
-  strokeVolume: 0.12
---- !u!114 &901400001
+  hoverSound: {fileID: 8300000, guid: 803e0ec2c2e386572a4050f20dd49c64, type: 3}
+  hoverVolume: 0.35
+  pauseWhileOpen:
+  - {fileID: 900100008}
+  - {fileID: 900700001}
+  - {fileID: 900100011}
+--- !u!114 &901700002
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -14428,11 +14524,39 @@ MonoBehaviour:
   m_GameObject: {fileID: 163572558}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f4c538be049f31f40a239e1f4a0b1c2d, type: 3}
+  m_Script: {fileID: 11500000, guid: 82b2d8543f9f134a2dcb474f16c76e7e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  breathingLoop: {fileID: 8300000, guid: d2a3169ce27ed1fd28f017cfd2e9fa0b, type: 3}
-  heartbeat: {fileID: 8300000, guid: e3b427adf38fe20e39f128d0e3fa0b1c, type: 3}
+  pageTitle: Map
+--- !u!114 &901700003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 163572558}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 07c1d511624764498a187d5a0bb05f97, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  pageTitle: Settings
+--- !u!114 &901700004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 163572558}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7e7fb6a45cff1399617d4c2e8fb1e18d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  pageTitle: Keybindings
+  inputActions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  actionMap: Player
+  controlScheme: Keyboard&Mouse
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
