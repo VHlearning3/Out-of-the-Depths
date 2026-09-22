@@ -130,7 +130,7 @@ public class InspectHintUI : MonoBehaviour
         row.childForceExpandWidth = false;
         row.childForceExpandHeight = false;
 
-        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        Font font = GameFont.Font;
         Entry(mouseLeft != null ? mouseLeft : MakeMouse(true, false), turnLabel, font, null);
         Entry(mouseWheel != null ? mouseWheel : MakeMouse(false, true), zoomLabel, font, null);
         Entry(keyCap != null ? keyCap : MakeKeyCap(), takeLabel, font, keyLabel);

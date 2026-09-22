@@ -8,6 +8,9 @@ public class MapPage : MonoBehaviour, IPauseMenuPage
     [SerializeField] private string pageTitle = "Map";
     [Tooltip("The map image. A Render Texture from a top-down camera works too.")]
     [SerializeField] private Texture mapTexture;
+    [Tooltip("Shown instead while the player is below Basement Below Y (a second floor plan). Optional.")]
+    [SerializeField] private Texture basementTexture;
+    [SerializeField] private float basementBelowY = -0.5f;
     [Tooltip("World x and z at the bottom-left corner of the image, and at the top-right corner.")]
     [SerializeField] private Vector2 worldMin = new Vector2(-50f, -50f);
     [SerializeField] private Vector2 worldMax = new Vector2(50f, 50f);
@@ -35,6 +38,7 @@ public class MapPage : MonoBehaviour, IPauseMenuPage
 
     public void DrawPage()
     {
+        Texture mapTexture = ActiveMap();
         float aspect = mapTexture != null && mapTexture.height > 0 ? (float)mapTexture.width / mapTexture.height : placeholderAspect;
         Rect area = GUILayoutUtility.GetAspectRect(Mathf.Max(0.2f, aspect));
         GUI.Box(area, GUIContent.none);
@@ -81,6 +85,12 @@ public class MapPage : MonoBehaviour, IPauseMenuPage
         }
         GUILayout.Space(10f);
         GUILayout.Label("The map fills the page. Any script that implements IPauseMenuPage can replace this one.", MenuGUI.NoteStyle ?? GUI.skin.label);
+    }
+
+    // The deck the player is on: the basement plan while they are down there, else the main one.
+    private Texture ActiveMap()
+    {
+        return basementTexture != null && player != null && player.position.y < basementBelowY ? basementTexture : mapTexture;
     }
 
     // The part of the frame the image actually covers when scaled to fit.

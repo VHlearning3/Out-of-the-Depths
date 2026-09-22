@@ -39,6 +39,21 @@ public static class TestArenaBuilder
 
     private static Transform arenaRoot;
     private static Font labelFont;
+    private static Vector3 labelFocus = SpawnPosition;
+    private static string buildName = "TestArena";
+
+    // Lets another builder (the ship greybox) use these helpers: everything goes under root, signs face signFocus,
+    // and console messages carry its name.
+    internal static void BeginBuild(Transform root, Vector3 signFocus, string name)
+    {
+        arenaRoot = root;
+        labelFont = GameFont.Font;
+        labelFocus = signFocus;
+        buildName = name;
+        failedSteps = 0;
+    }
+
+    internal static int FailedSteps => failedSteps;
 
     [MenuItem("Tools/Out of the Depths/Rebuild Test Arena")]
     private static void Rebuild()
@@ -57,10 +72,10 @@ public static class TestArenaBuilder
         failedSteps = 0;
         RemoveOldArena(scene);
 
-        arenaRoot = new GameObject("Arena").transform;
-        labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        BeginBuild(new GameObject("Arena").transform, SpawnPosition, "TestArena");
 
         // Each step on its own, so one failure is reported in the Console and the rest of the arena still gets built.
+        Step("Checkpoint model", CheckpointModelTools.Apply);
         Step("Floor and walls", BuildFloorAndWalls);
         Step("Spawn", BuildSpawn);
         Step("Mascot", BuildMascot);
@@ -78,6 +93,9 @@ public static class TestArenaBuilder
         Step("Inventory HUD", ItemTools.EnsureInventoryHud);
         Step("Chase HUD", ChaseTools.EnsureDangerHud);
         Step("Admin panel", WireAdminPanel);
+        Step("Pause menu theme", PauseMenuTools.EnsureTheme);
+        Step("Pause menu pages", PauseMenuTools.EnsurePages);
+        Step("Game font", FontTools.ApplyToOpenSceneQuietly);
         Step("HUD layout", HudLayoutTools.Apply);
         Step("Warning thresholds", TuneWarningThresholds);
 
@@ -88,7 +106,7 @@ public static class TestArenaBuilder
 
     private static int failedSteps;
 
-    private static void Step(string name, System.Action action)
+    internal static void Step(string name, System.Action action)
     {
         try
         {
@@ -97,7 +115,7 @@ public static class TestArenaBuilder
         catch (System.Exception e)
         {
             failedSteps++;
-            Debug.LogError($"TestArena: step '{name}' failed: {e.Message}\n{e.StackTrace}");
+            Debug.LogError($"{buildName}: step '{name}' failed: {e.Message}\n{e.StackTrace}");
         }
     }
 
@@ -149,7 +167,7 @@ public static class TestArenaBuilder
         Transform zone = Group("Zone_Spawn");
         Patch(zone, new Vector2(0f, -22f), new Vector2(10f, 10f), new Color(0.2f, 0.36f, 0.4f));
         Label("WELCOME - N: fish and ship windows. NE: combat pen. E: hazard lane. SE: pickup shelf. S/E: doors. Centre: puzzles. SW: hatch and basement. W: movement course. N door: the chase. Walk up to a sign to read it. Turn around to meet the QA lead.", new Vector3(-4f, 0f, -25f), zone);
-        GameObject plate = Spawn("RespawnPlate", new Vector3(SpawnPosition.x, 0.05f, SpawnPosition.z), zone);
+        GameObject plate = Spawn("RespawnPlate", new Vector3(SpawnPosition.x + 2.5f, 0.05f, SpawnPosition.z), zone);   // beside the spawn, not under it: it is a pillar now
         if (plate != null)
         {
             plate.name = "Checkpoint_Spawn";
@@ -429,7 +447,7 @@ public static class TestArenaBuilder
         Label("HATCH - E opens the trapdoor, the basement is below", c + new Vector3(0f, 5f, 0f), zone);
     }
 
-    private static Door SpawnTrapdoor(string name, Vector3 hinge, Transform parent)
+    internal static Door SpawnTrapdoor(string name, Vector3 hinge, Transform parent)
     {
         GameObject prefab = EnsureTrapdoorPrefab();
         var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent.gameObject.scene);
@@ -440,7 +458,7 @@ public static class TestArenaBuilder
     }
 
     // Root = hinge + doorway trigger + Door + highlight; child Visual = a 2 x 3 panel with its collider. Swap the Visual for real art.
-    private static GameObject EnsureDoorPrefab()
+    internal static GameObject EnsureDoorPrefab()
     {
         return EnsureDoorLikePrefab(DoorPrefabPath, "Door_Placeholder",
             new Vector3(1f, 1.5f, 0f), new Vector3(2.4f, 3.2f, 1.6f),
@@ -501,7 +519,7 @@ public static class TestArenaBuilder
         return prefab;
     }
 
-    private static ItemSocket Socket(GameObject host, string itemAsset, int amount, bool consume, string verb, string rewardAsset, GameObject[] visuals)
+    internal static ItemSocket Socket(GameObject host, string itemAsset, int amount, bool consume, string verb, string rewardAsset, GameObject[] visuals)
     {
         var socket = host.AddComponent<ItemSocket>();
         host.AddComponent<InteractableHighlight>();
@@ -524,14 +542,14 @@ public static class TestArenaBuilder
         return socket;
     }
 
-    private static void OpenOnFilled(ItemSocket socket, Door door)
+    internal static void OpenOnFilled(ItemSocket socket, Door door)
     {
         UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(socket.onFilled, door.Open);
     }
 
     // The Door_Placeholder prefab (made on first use) at a hinge point, with a frame around the 2 x 3 opening.
     // yaw turns the whole thing: 0 = the door spans +X and you pass through along Z, 90 = it spans -Z and you pass along X.
-    private static Door SpawnDoor(string name, Vector3 hinge, bool locked, bool closeBehind, Transform parent, float yaw = 0f)
+    internal static Door SpawnDoor(string name, Vector3 hinge, bool locked, bool closeBehind, Transform parent, float yaw = 0f)
     {
         GameObject prefab = EnsureDoorPrefab();
         var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent.gameObject.scene);
@@ -558,14 +576,51 @@ public static class TestArenaBuilder
 
     // ---- chase (GDD map room 9: the hallway, the room after it, the corridor where the rubble comes down) -----------
 
-    private static AudioClip Sfx(string file) => AssetDatabase.LoadAssetAtPath<AudioClip>(SfxFolder + file);
+    internal static AudioClip Sfx(string file) => AssetDatabase.LoadAssetAtPath<AudioClip>(SfxFolder + file);
 
     // A box without a collider: murals and other set dressing nothing should bump into.
-    private static GameObject Decor(string name, Vector3 center, Vector3 size, Color color, Transform parent)
+    internal static GameObject Decor(string name, Vector3 center, Vector3 size, Color color, Transform parent)
     {
         GameObject box = Box(name, center, size, color, parent);
         Object.DestroyImmediate(box.GetComponent<Collider>());
         return box;
+    }
+
+    // A mural: a picture slot on a wall. Facing = which way it looks (into the room); size = width and height in
+    // metres. Plain until someone drops a picture on its Mural component (Picture). Every mural shares Mural.mat.
+    internal static GameObject MuralAt(Vector3 center, Vector2 size, Vector3 facing, Transform parent)
+    {
+        var mural = new GameObject("Mural");
+        mural.transform.SetParent(parent, false);
+        mural.transform.SetPositionAndRotation(center, Quaternion.LookRotation(-facing, Vector3.up));
+        GameObject picture = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        picture.name = "Picture";
+        Object.DestroyImmediate(picture.GetComponent<Collider>());
+        picture.transform.SetParent(mural.transform, false);
+        Material material = EnsureMuralMaterial();
+        if (material != null)
+            picture.GetComponent<Renderer>().sharedMaterial = material;
+        mural.AddComponent<Mural>().Setup(size, new Color(0.45f, 0.2f, 0.7f));
+        return mural;
+    }
+
+    // Mural.mat: URP Lit, plain white with emission switched on, so each mural can show its own picture (and glow a
+    // little) through a property block, without a material of its own.
+    private static Material EnsureMuralMaterial()
+    {
+        const string path = "Assets/Art/Materials/Mural.mat";
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material != null)
+            return material;
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        material = new Material(shader != null ? shader : Shader.Find("Standard"));
+        material.SetColor("_BaseColor", Color.white);
+        material.SetFloat("_Smoothness", 0.3f);
+        material.EnableKeyword("_EMISSION");
+        material.SetColor("_EmissionColor", Color.black);
+        material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        AssetDatabase.CreateAsset(material, path);
+        return material;
     }
 
     private static void BuildChaseCorridor()
@@ -573,7 +628,6 @@ public static class TestArenaBuilder
         Transform zone = Group("Zone_Chase");
         Color hull = new Color(0.14f, 0.16f, 0.2f);
         Color deck = new Color(0.18f, 0.2f, 0.24f);
-        Color mural = new Color(0.45f, 0.2f, 0.7f);
         Color stone = new Color(0.7f, 0.65f, 0.5f);
         Color rock = new Color(0.3f, 0.27f, 0.24f);
 
@@ -605,9 +659,9 @@ public static class TestArenaBuilder
         Box("Vent_Ceiling", new Vector3(-11.25f, 4.1f, 33.2f), new Vector3(2.5f, 0.2f, 2.8f), duct, zone);
         Box("Vent_S", new Vector3(-11.25f, 3.2f, 31.9f), new Vector3(2.5f, 2f, 0.2f), duct, zone);
         Box("Vent_N", new Vector3(-11.25f, 3.2f, 34.5f), new Vector3(2.5f, 2f, 0.2f), duct, zone);
-        Decor("Mural", new Vector3(-4f, 2.4f, 35.45f), new Vector3(5f, 1.6f, 0.06f), mural, zone);
-        Decor("Mural", new Vector3(8f, 2.4f, 35.45f), new Vector3(5f, 1.6f, 0.06f), mural, zone);
-        Decor("Mural", new Vector3(17f, 2.4f, 35.45f), new Vector3(4f, 1.6f, 0.06f), mural, zone);
+        MuralAt(new Vector3(-4f, 2.4f, 35.45f), new Vector2(5f, 1.6f), Vector3.back, zone);
+        MuralAt(new Vector3(8f, 2.4f, 35.45f), new Vector2(5f, 1.6f), Vector3.back, zone);
+        MuralAt(new Vector3(17f, 2.4f, 35.45f), new Vector2(4f, 1.6f), Vector3.back, zone);
 
         // The pack: three chase pufferfish asleep in the vent; the trigger just inside the door wakes them.
         var chaseGo = new GameObject("ChaseSequence");
@@ -745,7 +799,7 @@ public static class TestArenaBuilder
             });
     }
 
-    private static void TuneWarningThresholds()
+    internal static void TuneWarningThresholds()
     {
         foreach (var hunger in Object.FindObjectsByType<HungerSystem>(FindObjectsSortMode.None))
             SetField(hunger, "warningThreshold01", p => p.floatValue = 0.25f);
@@ -779,7 +833,7 @@ public static class TestArenaBuilder
     }
 
     // The admin panel's Give list: every item asset, so any of them can be handed out while testing.
-    private static void WireAdminPanel()
+    internal static void WireAdminPanel()
     {
         AddPickupToAdminPanel();
         var admin = Object.FindFirstObjectByType<AdminPanel>(FindObjectsInactive.Include);
@@ -799,14 +853,14 @@ public static class TestArenaBuilder
 
     // ---- helpers ------------------------------------------------------------------------------------------------
 
-    private static Transform Group(string name)
+    internal static Transform Group(string name)
     {
         var group = new GameObject(name).transform;
         group.SetParent(arenaRoot, false);
         return group;
     }
 
-    private static GameObject Box(string name, Vector3 center, Vector3 size, Color color, Transform parent)
+    internal static GameObject Box(string name, Vector3 center, Vector3 size, Color color, Transform parent)
     {
         GameObject box = GameObject.CreatePrimitive(PrimitiveType.Cube);
         box.name = name;
@@ -821,7 +875,7 @@ public static class TestArenaBuilder
     // ("PICKUPS") over the body text, with a drop shadow so it reads against anything. The board turns to face the
     // player while they are near (ProximityLabel) so it reads from any side, and fades in as they approach.
     // Text format: "TITLE - body text"; the body wraps by itself and the board grows to fit.
-    private static void Label(string text, Vector3 position, Transform parent)
+    internal static void Label(string text, Vector3 position, Transform parent)
     {
         // "TITLE - body" or "TITLE\nbody": the title is whatever comes before the first " - ", or the first line if
         // that comes sooner. Anything else would end up as a giant bold title spilling off the board.
@@ -848,7 +902,7 @@ public static class TestArenaBuilder
         var sign = new GameObject("Sign_" + title);
         sign.transform.SetParent(parent, false);
         sign.transform.position = new Vector3(position.x, Mathf.Max(position.y, boardHeight * 0.5f + 1.2f), position.z);
-        Vector3 fromSpawn = sign.transform.position - SpawnPosition;
+        Vector3 fromSpawn = sign.transform.position - labelFocus;
         fromSpawn.y = 0f;
         if (fromSpawn.sqrMagnitude > 0.01f)
             sign.transform.rotation = Quaternion.LookRotation(fromSpawn, Vector3.up);
@@ -932,7 +986,7 @@ public static class TestArenaBuilder
     }
 
     // A tinted patch on the floor marking a zone's area.
-    private static void Patch(Transform zone, Vector2 centre, Vector2 size, Color color)
+    internal static void Patch(Transform zone, Vector2 centre, Vector2 size, Color color)
     {
         GameObject patch = Box("Patch", new Vector3(centre.x, 0.01f, centre.y), new Vector3(size.x, 0.02f, size.y), color, zone);
         Object.DestroyImmediate(patch.GetComponent<Collider>());
@@ -962,7 +1016,7 @@ public static class TestArenaBuilder
     }
 
     // A Fish School object with the fish placed as prefab-linked children in a ring, so they show in the editor and can be tuned.
-    private static FishSchool CreateSchool(string prefabName, int count, Vector3 position, Transform parent)
+    internal static FishSchool CreateSchool(string prefabName, int count, Vector3 position, Transform parent)
     {
         var school = new GameObject("FishSchool_" + prefabName);
         school.transform.SetParent(parent, false);
@@ -1025,7 +1079,7 @@ public static class TestArenaBuilder
 
     // Root = the opening (blue arrow into the room) with Fish Window and its entry path; children = a rim around the hole.
     // The hole itself is cut in the wall by the level; the prefab sits on the room-side face over it.
-    private static GameObject EnsureFishWindowPrefab()
+    internal static GameObject EnsureFishWindowPrefab()
     {
         var existing = AssetDatabase.LoadAssetAtPath<GameObject>(FishWindowPrefabPath);
         if (existing != null)
@@ -1049,7 +1103,7 @@ public static class TestArenaBuilder
         return prefab;
     }
 
-    private static void RimPiece(GameObject parent, string name, Vector3 localPosition, Vector3 size, Color color)
+    internal static void RimPiece(GameObject parent, string name, Vector3 localPosition, Vector3 size, Color color)
     {
         GameObject piece = GameObject.CreatePrimitive(PrimitiveType.Cube);
         piece.name = name;
@@ -1059,12 +1113,12 @@ public static class TestArenaBuilder
         piece.AddComponent<RendererTint>().Tint = color;
     }
 
-    private static GameObject Spawn(string prefabName, Vector3 position, Transform parent, float yaw = 0f)
+    internal static GameObject Spawn(string prefabName, Vector3 position, Transform parent, float yaw = 0f)
     {
         GameObject prefab = FindPrefab(prefabName);
         if (prefab == null)
         {
-            Debug.LogWarning($"TestArena: no prefab named '{prefabName}' under {PrefabRoot}, skipped.");
+            Debug.LogWarning($"{buildName}: no prefab named '{prefabName}' under {PrefabRoot}, skipped.");
             return null;
         }
 
@@ -1074,11 +1128,11 @@ public static class TestArenaBuilder
         return instance;
     }
 
-    private static GameObject FindPrefab(string name) => InteractablePrefabTools.FindPrefab(name);
+    internal static GameObject FindPrefab(string name) => InteractablePrefabTools.FindPrefab(name);
     private static ParticleSystem FindSparkle() => InteractablePrefabTools.FindSparkle();
 
     // Uses Pickup_Placeholder.prefab when the team has made one, otherwise builds the same thing from primitives.
-    private static GameObject CreatePickup(Vector3 position, string itemAssetName, Transform parent)
+    internal static GameObject CreatePickup(Vector3 position, string itemAssetName, Transform parent)
     {
         GameObject root;
         GameObject prefab = FindPrefab("Pickup_Placeholder");
@@ -1147,7 +1201,7 @@ public static class TestArenaBuilder
         return true;
     }
 
-    private static GameObject FindSeaweedModel()
+    internal static GameObject FindSeaweedModel()
     {
         if (!EditorPrefs.GetBool(SeaweedModelPref, false))
             return null;   // the switch in the Tools menu is off: generated leaves
@@ -1167,13 +1221,13 @@ public static class TestArenaBuilder
         return AssetDatabase.LoadAssetAtPath<GameObject>(paths[0]);
     }
 
-    private static void SetField(Object target, string field, System.Action<SerializedProperty> set)
+    internal static void SetField(Object target, string field, System.Action<SerializedProperty> set)
     {
         var so = new SerializedObject(target);
         SerializedProperty prop = so.FindProperty(field);
         if (prop == null)
         {
-            Debug.LogWarning($"TestArena: '{target.GetType().Name}' has no field '{field}', skipped.");
+            Debug.LogWarning($"{buildName}: '{target.GetType().Name}' has no field '{field}', skipped.");
             return;
         }
         set(prop);

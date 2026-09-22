@@ -8,8 +8,11 @@ using UnityEngine.SceneManagement;
 // open page on the right, with Resume, Main menu and Quit under the pages. IMGUI, so it needs no canvas or
 // EventSystem: it builds its own skin (rounded 9-sliced textures, switches, key caps) and hands the extra styles to
 // MenuGUI, which the pages draw with, so everything matches and the quiet hover tick knows what the mouse is over.
-// The built-in pages are added to this object at runtime if the scene has none. Colours, sizes, spacing, timings and
-// sounds are Inspector fields. Lives on the Player.
+// The built-in pages are added to this object at runtime if the scene has none. Colours, sizes, fonts, labels, page
+// names, timings and sounds come from a PauseMenuTheme asset (Theme; the defaults when none). Lives on the Player.
+// Preview In Editor (or Tools > Out of the Depths > Preview Pause Menu) shows it open in the Game view without
+// playing, the pages look-only, so the theme and the pages can be worked on and watched.
+[ExecuteAlways]
 public class PauseMenu : MonoBehaviour
 {
     [Header("Keys")]
@@ -18,41 +21,10 @@ public class PauseMenu : MonoBehaviour
     [SerializeField] private Key adminKey = Key.Digit0;
 
     [Header("Look")]
-    [SerializeField] private string title = "PAUSED";
-    [SerializeField] private Color accent = new Color(0.35f, 0.85f, 0.95f);
-    [SerializeField] private Color panelColor = new Color(0.05f, 0.08f, 0.12f, 0.94f);
-    [SerializeField] private Color fieldColor = new Color(0.02f, 0.04f, 0.07f, 0.95f);
-    [Tooltip("Darkening over the game: the middle of the screen and the edges (a vignette).")]
-    [SerializeField] private Color backdropCentre = new Color(0f, 0.02f, 0.05f, 0.7f);
-    [SerializeField] private Color backdropEdge = new Color(0f, 0.01f, 0.03f, 0.92f);
-    [SerializeField] private Color buttonColor = new Color(0.13f, 0.19f, 0.27f);
-    [SerializeField] private Color buttonHover = new Color(0.2f, 0.32f, 0.42f);
-    [SerializeField] private Color textColor = new Color(0.93f, 0.96f, 1f);
-    [SerializeField] private Color mutedColor = new Color(0.6f, 0.68f, 0.76f);
-    [SerializeField] private Color dangerColor = new Color(0.85f, 0.3f, 0.3f);
-    [SerializeField] private float panelWidth = 1040f;
-    [SerializeField] private float panelHeight = 760f;
-    [SerializeField] private float sidebarWidth = 250f;
-    [Tooltip("Extra size on top of the automatic scaling (the menu grows with the screen height).")]
-    [SerializeField] private float scale = 1f;
-    [Tooltip("Room between things: every padding, gap and margin is multiplied by this.")]
-    [SerializeField, Range(0.6f, 1.8f)] private float spacing = 1f;
+    [Tooltip("Every colour, size, font, label, timing and sound of the menu, in one asset shared by all scenes (Tools > Out of the Depths > Create Pause Menu Theme). Empty = the built-in defaults.")]
+    [SerializeField] private PauseMenuTheme theme;
 
-    [Header("Motion")]
-    [Tooltip("Seconds for the menu to fade and ease in, and out again.")]
-    [SerializeField] private float fadeSeconds = 0.28f;
-    [Tooltip("How far the panel rises into place while fading in, in pixels, and how much smaller it starts.")]
-    [SerializeField] private float riseDistance = 24f;
-    [SerializeField, Range(0.8f, 1f)] private float startScale = 0.96f;
-    [Tooltip("Seconds for a page to fade and rise in when you switch pages.")]
-    [SerializeField] private float pageFadeSeconds = 0.2f;
-    [Tooltip("How quickly hover highlights, the switch knobs, the sidebar marker and wheel scrolling ease, per second.")]
-    [SerializeField] private float smoothing = 16f;
-
-    [Header("Sound")]
-    [Tooltip("A quiet tick when the mouse moves onto a button, entry, switch or key (Assets/Sound/UI).")]
-    [SerializeField] private AudioClip hoverSound;
-    [SerializeField, Range(0f, 1f)] private float hoverVolume = 0.35f;
+    private PauseMenuTheme T => theme != null ? theme : PauseMenuTheme.Default;
 
     [Header("Behaviour")]
     [Tooltip("Player scripts switched off while the menu is up (movement, interaction, attack).")]
@@ -61,6 +33,31 @@ public class PauseMenu : MonoBehaviour
     [SerializeField] private bool adminInReleaseBuilds = false;
     [Tooltip("The scene the Main menu button loads (it has to be in Build Settings). Empty = no button.")]
     [SerializeField] private string mainMenuScene = "MainMenu";
+
+    [Header("Editor preview")]
+    [Tooltip("Show the menu open in the Game view without playing, to work on the theme and the pages (Tools > Out of the Depths > Preview Pause Menu toggles it too). Clicking switches pages; the pages themselves are look-only, so nothing changes by accident.")]
+    [SerializeField] private bool previewInEditor = false;
+
+    public bool PreviewInEditor { get => previewInEditor; set => previewInEditor = value; }
+
+    // Every enabled menu, so the editor knows whether any is previewing and keeps the Game view refreshing.
+    private static readonly List<PauseMenu> live = new List<PauseMenu>();
+    public static bool AnyPreviewing
+    {
+        get
+        {
+            foreach (PauseMenu menu in live)
+                if (menu != null && menu.previewInEditor)
+                    return true;
+            return false;
+        }
+    }
+
+    private bool Previewing => !Application.isPlaying && previewInEditor;
+    private float lastPreviewTime;
+    private float previewPagesAt = -10f;
+    private IPauseMenuPage failedPage;
+    private string failedPageError;
 
     public static bool IsOpen { get; private set; }
 
@@ -99,6 +96,9 @@ public class PauseMenu : MonoBehaviour
 
     private GUISkin skin;
     private float builtSpacing = -1f;
+    private PauseMenuTheme builtTheme;
+    private int builtVersion = -1;
+    private Font builtFont;
     private GUIStyle titleStyle;
     private GUIStyle pageTitleStyle;
     private GUIStyle noteStyle;
@@ -112,6 +112,8 @@ public class PauseMenu : MonoBehaviour
 
     private void Awake()
     {
+        if (!Application.isPlaying)
+            return;   // the edit-mode preview adds nothing to the scene
         // The built-in pages, unless the scene already has them (then their Inspector settings are used).
         if (FindFirstObjectByType<MapPage>() == null)
             gameObject.AddComponent<MapPage>();
@@ -123,20 +125,15 @@ public class PauseMenu : MonoBehaviour
 
     private void Update()
     {
+        if (!Application.isPlaying)
+            return;   // the preview runs its eases from OnGUI
         float dt = Time.unscaledDeltaTime;
-        float step = fadeSeconds > 0f ? dt / fadeSeconds : 1f;
+        float step = T.fadeSeconds > 0f ? dt / T.fadeSeconds : 1f;
         visibility = Mathf.MoveTowards(visibility, IsOpen ? 1f : 0f, step);
-        float pageStep = pageFadeSeconds > 0f ? dt / pageFadeSeconds : 1f;
+        float pageStep = T.pageFadeSeconds > 0f ? dt / T.pageFadeSeconds : 1f;
         pageVisibility = Mathf.MoveTowards(pageVisibility, 1f, pageStep);
         if (visibility > 0f)
-        {
-            MenuGUI.Smoothing = smoothing;
-            MenuGUI.Tick(dt);
-            float k = 1f - Mathf.Exp(-smoothing * dt);
-            scrollNow = Mathf.Lerp(scrollNow, scrollTarget, k);
-            if (navBarKnown)
-                navBarY = Mathf.Lerp(navBarY, navBarTargetY, k);
-        }
+            Ease(dt);
 
         if (inputCaptured || Time.unscaledTime < inputGraceUntil)
             return;
@@ -157,8 +154,15 @@ public class PauseMenu : MonoBehaviour
         }
     }
 
+    private void OnEnable()
+    {
+        live.Add(this);
+        visibility = 0f;
+    }
+
     private void OnDisable()
     {
+        live.Remove(this);
         if (IsOpen)
             SetOpen(false);
         visibility = 0f;
@@ -186,6 +190,7 @@ public class PauseMenu : MonoBehaviour
         if (IsOpen == open)
             return;
         IsOpen = open;
+        PlayClip(open ? T.openSound : T.closeSound, T.menuVolume);
 
         foreach (Behaviour b in pauseWhileOpen)
             if (b != null)
@@ -236,9 +241,15 @@ public class PauseMenu : MonoBehaviour
                 continue;
             if (behaviour is AdminPanel && !adminAllowed)
                 continue;
+            if (T.IsHidden(page.PageTitle))
+                continue;
             pages.Add(page);
         }
-        pages.Sort((a, b) => a.Order != b.Order ? a.Order.CompareTo(b.Order) : string.Compare(a.PageTitle, b.PageTitle, System.StringComparison.Ordinal));
+        pages.Sort((a, b) =>
+        {
+            int oa = T.OrderFor(a.PageTitle, a.Order), ob = T.OrderFor(b.PageTitle, b.Order);
+            return oa != ob ? oa.CompareTo(ob) : string.Compare(a.PageTitle, b.PageTitle, System.StringComparison.Ordinal);
+        });
         pageIndex = Mathf.Max(0, pages.IndexOf(current));
     }
 
@@ -289,15 +300,90 @@ public class PauseMenu : MonoBehaviour
 #endif
     }
 
+    // Hover highlights, switch knobs, the sidebar marker and the scroll all glide toward where they are going.
+    private void Ease(float dt)
+    {
+        MenuGUI.Smoothing = T.smoothing;
+        MenuGUI.Tick(dt);
+        float k = 1f - Mathf.Exp(-T.smoothing * dt);
+        scrollNow = Mathf.Lerp(scrollNow, scrollTarget, k);
+        if (navBarKnown)
+            navBarY = Mathf.Lerp(navBarY, navBarTargetY, k);
+    }
+
+    // The edit-mode preview: the menu fully open, its eases run from here (nothing else ticks outside Play mode),
+    // the pages gathered once a second so a renamed, hidden or added page shows up.
+    private void PreviewFrame()
+    {
+        visibility = 1f;
+        float now = Time.realtimeSinceStartup;
+        if (Event.current.type == EventType.Layout && now - previewPagesAt > 1f)
+        {
+            previewPagesAt = now;
+            int before = pages.Count;
+            CollectPages();
+            if (pages.Count > 0 && (before == 0 || pageIndex >= pages.Count))
+            {
+                pageIndex = Mathf.Clamp(pageIndex, 0, pages.Count - 1);
+                pages[pageIndex].OnPageShown();
+            }
+        }
+        if (Event.current.type == EventType.Repaint)
+        {
+            float dt = Mathf.Clamp(now - lastPreviewTime, 0f, 0.1f);
+            lastPreviewTime = now;
+            float pageStep = T.pageFadeSeconds > 0f ? dt / T.pageFadeSeconds : 1f;
+            pageVisibility = Mathf.MoveTowards(pageVisibility, 1f, pageStep);
+            Ease(dt);
+        }
+    }
+
+    // In the preview a page is look-only: clicks never reach it, and a page that cannot draw outside Play mode says
+    // so instead of erroring every frame.
+    private void DrawPageSafely(IPauseMenuPage page)
+    {
+        if (!Previewing)
+        {
+            page.DrawPage();
+            return;
+        }
+        if (page == failedPage)
+        {
+            GUILayout.Label("This page only draws while playing: " + failedPageError, MenuGUI.NoteStyle);
+            return;
+        }
+        Event e = Event.current;
+        if (e.type == EventType.MouseDown || e.type == EventType.MouseUp || e.type == EventType.MouseDrag)
+            e.Use();
+        try
+        {
+            page.DrawPage();
+        }
+        catch (ExitGUIException)
+        {
+            throw;
+        }
+        catch (System.Exception error)
+        {
+            failedPage = page;
+            failedPageError = error.Message;
+            GUIUtility.ExitGUI();
+        }
+    }
+
     private void OnGUI()
     {
+        if (Previewing)
+            PreviewFrame();
+        else if (!Application.isPlaying)
+            return;
         if (visibility <= 0f)
             return;
 
-        float s = Mathf.Max(1f, Screen.height / 900f) * Mathf.Max(0.5f, scale);
+        float s = Mathf.Max(1f, Screen.height / 900f) * Mathf.Max(0.5f, T.scale);
         float width = Screen.width / s;
         float height = Screen.height / s;
-        float sp = spacing;
+        float sp = T.spacing;
         EnsureStyles();
         GUISkin previousSkin = GUI.skin;
         GUI.skin = skin;
@@ -308,23 +394,24 @@ public class PauseMenu : MonoBehaviour
         GUI.color = new Color(1f, 1f, 1f, ease);
         GUI.DrawTexture(new Rect(0f, 0f, width, height), backdropTex, ScaleMode.StretchToFill);
 
-        float panelH = Mathf.Min(height - 72f, panelHeight);
-        float panelW = Mathf.Min(panelWidth, width - 48f);
-        float rise = (1f - ease) * riseDistance;
+        float panelH = Mathf.Min(height - 72f, T.panelHeight);
+        float panelW = Mathf.Min(T.panelWidth, width - 48f);
+        float rise = (1f - ease) * T.riseDistance;
         var panel = new Rect((width - panelW) * 0.5f, (height - panelH) * 0.5f + rise, panelW, panelH);
-        float grow = Mathf.Lerp(startScale, 1f, ease);
+        float grow = Mathf.Lerp(T.startScale, 1f, ease);
         Vector3 centre = new Vector3(panel.center.x, panel.center.y, 0f);
         GUI.matrix = Matrix4x4.Scale(new Vector3(s, s, 1f)) * Matrix4x4.Translate(centre) * Matrix4x4.Scale(new Vector3(grow, grow, 1f)) * Matrix4x4.Translate(-centre);
         GUI.Box(new Rect(panel.x - 24f, panel.y - 14f, panel.width + 48f, panel.height + 48f), GUIContent.none, shadowStyle);
         GUI.Box(panel, GUIContent.none, panelStyle);
 
         // The sidebar on the left, the page on the right, a hairline between.
-        float side = Mathf.Min(sidebarWidth, panel.width * 0.4f);
-        var sidebar = new Rect(panel.x, panel.y, side, panel.height);
-        var content = new Rect(panel.x + side, panel.y, panel.width - side, panel.height);
+        float side = Mathf.Min(T.sidebarWidth, panel.width * 0.4f);
+        bool right = T.sidebarOnRight;
+        var sidebar = right ? new Rect(panel.x + panel.width - side, panel.y, side, panel.height) : new Rect(panel.x, panel.y, side, panel.height);
+        var content = right ? new Rect(panel.x, panel.y, panel.width - side, panel.height) : new Rect(panel.x + side, panel.y, panel.width - side, panel.height);
         Color previous = GUI.color;
         GUI.color = new Color(1f, 1f, 1f, 0.08f * ease);
-        GUI.DrawTexture(new Rect(content.x, panel.y + 30f, 1f, panel.height - 60f), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(right ? sidebar.x : content.x, panel.y + 30f, 1f, panel.height - 60f), Texture2D.whiteTexture);
         GUI.color = previous;
 
         DrawSidebar(sidebar, sp, ease);
@@ -350,12 +437,12 @@ public class PauseMenu : MonoBehaviour
     private void DrawSidebar(Rect rect, float sp, float ease)
     {
         GUILayout.BeginArea(new Rect(rect.x + 28f * sp, rect.y + 34f * sp, rect.width - 44f * sp, rect.height - 68f * sp));
-        GUILayout.Label(title, titleStyle);
+        GUILayout.Label(T.title, titleStyle);
         GUILayout.Space(22f * sp);
 
         for (int i = 0; i < pages.Count; i++)
         {
-            bool on = MenuGUI.NavEntry(pageIndex == i, pages[i].PageTitle, navStyle);
+            bool on = MenuGUI.NavEntry(pageIndex == i, T.LabelFor(pages[i].PageTitle), navStyle);
             if (pageIndex == i && Event.current.type == EventType.Repaint)
             {
                 // The accent marker slides to the open entry.
@@ -375,7 +462,7 @@ public class PauseMenu : MonoBehaviour
         if (navBarKnown && Event.current.type == EventType.Repaint)
         {
             Color previous = GUI.color;
-            GUI.color = new Color(accent.r, accent.g, accent.b, previous.a);
+            GUI.color = new Color(T.accent.r, T.accent.g, T.accent.b, previous.a);
             GUI.DrawTexture(new Rect(navBarX, navBarY + 12f, 3f, navBarHeight - 24f), Texture2D.whiteTexture);
             GUI.color = previous;
         }
@@ -383,21 +470,26 @@ public class PauseMenu : MonoBehaviour
         GUILayout.FlexibleSpace();
         if (confirmQuit)
         {
-            GUILayout.Label("Quit the game?", noteStyle);
+            GUILayout.Label(T.quitConfirm, noteStyle);
             GUILayout.Space(6f * sp);
-            if (MenuGUI.Button("Quit", dangerStyle))
-                Quit();
-            if (MenuGUI.Button("Cancel", quietStyle))
+            if (MenuGUI.Button(T.quitLabel, dangerStyle))
+            {
+                if (Previewing)
+                    confirmQuit = false;
+                else
+                    Quit();
+            }
+            if (MenuGUI.Button(T.cancelLabel, quietStyle))
                 confirmQuit = false;
         }
         else
         {
-            if (MenuGUI.Button("Resume", resumeStyle) && IsOpen)
+            if (MenuGUI.Button(T.resumeLabel, resumeStyle) && IsOpen)
                 SetOpen(false);
             GUILayout.Space(4f * sp);
-            if (HasMainMenu && MenuGUI.Button("Main menu", quietStyle))
+            if (HasMainMenu && MenuGUI.Button(T.mainMenuLabel, quietStyle) && !Previewing)
                 GoToMainMenu();
-            if (MenuGUI.Button("Quit", quietStyle))
+            if (MenuGUI.Button(T.quitLabel, quietStyle))
                 confirmQuit = true;
         }
         GUILayout.EndArea();
@@ -417,11 +509,11 @@ public class PauseMenu : MonoBehaviour
         }
 
         GUILayout.BeginHorizontal();
-        GUILayout.Label(pages.Count > 0 ? pages[pageIndex].PageTitle : "Paused", pageTitleStyle);
+        GUILayout.Label(pages.Count > 0 ? T.LabelFor(pages[pageIndex].PageTitle) : T.title, pageTitleStyle);
         GUILayout.FlexibleSpace();
         GUILayout.BeginVertical(GUILayout.ExpandHeight(true));
         GUILayout.FlexibleSpace();
-        GUILayout.Label($"{toggleKey} to resume", noteStyle);
+        GUILayout.Label(T.resumeHint.Replace("{key}", toggleKey.ToString()), noteStyle);
         GUILayout.FlexibleSpace();
         GUILayout.EndVertical();
         GUILayout.EndHorizontal();
@@ -436,9 +528,9 @@ public class PauseMenu : MonoBehaviour
         GUILayout.BeginVertical();
         GUILayout.Space((1f - pageEase) * 12f);
         if (pages.Count > 0)
-            pages[pageIndex].DrawPage();
+            DrawPageSafely(pages[pageIndex]);
         else
-            GUILayout.Label("Nothing here yet. Any script that implements IPauseMenuPage shows up as a page.", MenuGUI.NoteStyle);
+            GUILayout.Label(T.emptyPageText, MenuGUI.NoteStyle);
         GUILayout.Space(12f * sp);
         GUILayout.EndVertical();
         if (Event.current.type == EventType.Repaint)
@@ -461,7 +553,12 @@ public class PauseMenu : MonoBehaviour
     private void PlayHover()
     {
         lastHoverSoundAt = Time.unscaledTime;
-        if (hoverSound == null || hoverVolume <= 0f)
+        PlayClip(T.hoverSound, T.hoverVolume, true);
+    }
+
+    private void PlayClip(AudioClip clip, float volume, bool vary = false)
+    {
+        if (clip == null || volume <= 0f)
             return;
         if (audioSource == null)
         {
@@ -473,8 +570,8 @@ public class PauseMenu : MonoBehaviour
             audioSource.bypassListenerEffects = true;
             audioSource.bypassReverbZones = true;
         }
-        audioSource.pitch = Random.Range(0.96f, 1.04f);
-        audioSource.PlayOneShot(hoverSound, hoverVolume);
+        audioSource.pitch = vary ? Random.Range(0.96f, 1.04f) : 1f;
+        audioSource.PlayOneShot(clip, volume);
     }
 
     // A one-pixel accent line across the layout.
@@ -482,7 +579,7 @@ public class PauseMenu : MonoBehaviour
     {
         Rect rect = GUILayoutUtility.GetRect(1f, 1f, GUILayout.ExpandWidth(true));
         Color previous = GUI.color;
-        GUI.color = new Color(accent.r, accent.g, accent.b, alpha);
+        GUI.color = new Color(T.accent.r, T.accent.g, T.accent.b, alpha);
         GUI.DrawTexture(rect, Texture2D.whiteTexture);
         GUI.color = previous;
     }
@@ -491,50 +588,57 @@ public class PauseMenu : MonoBehaviour
     // surfaces, soft corners, generous room; the accent only on what is active.
     private void EnsureStyles()
     {
-        if (skin != null && Mathf.Approximately(builtSpacing, spacing))
+        Font wanted = T.font != null ? T.font : GameFont.Custom;   // the theme's font, else the game font
+        if (skin != null && builtTheme == theme && builtFont == wanted && builtVersion == PauseMenuTheme.Version && Mathf.Approximately(builtSpacing, T.spacing))
             return;
-        builtSpacing = spacing;
-        float sp = spacing;
+        builtFont = wanted;
+        builtSpacing = T.spacing;
+        builtTheme = theme;
+        builtVersion = PauseMenuTheme.Version;
+        float sp = T.spacing;
 
-        backdropTex = Vignette(backdropCentre, backdropEdge);
-        Color accentSoft = new Color(accent.r, accent.g, accent.b, 0.45f);
-        Color accentBright = Color.Lerp(accent, Color.white, 0.35f);
-        Color accentTintHot = new Color(accent.r, accent.g, accent.b, 0.24f);
+        backdropTex = Vignette(T.backdropCentre, T.backdropEdge);
+        Color accentSoft = new Color(T.accent.r, T.accent.g, T.accent.b, 0.45f);
+        Color accentBright = Color.Lerp(T.accent, Color.white, 0.35f);
+        Color accentTintHot = new Color(T.accent.r, T.accent.g, T.accent.b, 0.24f);
         Color faint = new Color(1f, 1f, 1f, 0.06f);
         Color faintHot = new Color(1f, 1f, 1f, 0.12f);
 
         // Hover is not baked into the styles: MenuGUI eases a highlight over whatever the mouse is on.
-        Texture2D button = Rounded(36, 10f, buttonColor, Color.clear, 0f);
-        Texture2D buttonDown = Rounded(36, 10f, accent, Color.clear, 0f);
-        Texture2D pillOff = Rounded(36, 10f, fieldColor, new Color(1f, 1f, 1f, 0.12f), 1f);
-        Texture2D pillOn = Rounded(36, 10f, accent, Color.clear, 0f);
-        Texture2D quiet = Rounded(36, 10f, faint, Color.clear, 0f);
-        Texture2D danger = Rounded(36, 10f, dangerColor, Color.clear, 0f);
-        Texture2D dangerHot = Rounded(36, 10f, Color.Lerp(dangerColor, Color.white, 0.2f), Color.clear, 0f);
-        Texture2D frame = Rounded(72, 16f, fieldColor, new Color(1f, 1f, 1f, 0.08f), 1f);
-        Texture2D key = Rounded(28, 8f, fieldColor, new Color(1f, 1f, 1f, 0.18f), 1f);
-        Texture2D keyListen = Rounded(28, 8f, accent, Color.clear, 0f);
-        Texture2D field = Rounded(24, 7f, fieldColor, new Color(1f, 1f, 1f, 0.12f), 1f);
-        Texture2D track = Track(20, 8f, fieldColor, new Color(1f, 1f, 1f, 0.12f));
-        Texture2D thumb = Rounded(20, 10f, accent, Color.clear, 0f);
+        Texture2D button = Rounded(36, T.buttonCorner, T.buttonColor, Color.clear, 0f);
+        Texture2D buttonDown = Rounded(36, T.buttonCorner, T.accent, Color.clear, 0f);
+        Texture2D pillOff = Rounded(36, T.buttonCorner, T.fieldColor, new Color(1f, 1f, 1f, 0.12f), 1f);
+        Texture2D pillOn = Rounded(36, T.buttonCorner, T.accent, Color.clear, 0f);
+        Texture2D quiet = Rounded(36, T.buttonCorner, faint, Color.clear, 0f);
+        Texture2D danger = Rounded(36, T.buttonCorner, T.dangerColor, Color.clear, 0f);
+        Texture2D dangerHot = Rounded(36, T.buttonCorner, Color.Lerp(T.dangerColor, Color.white, 0.2f), Color.clear, 0f);
+        Texture2D frame = Rounded(72, 16f, T.fieldColor, new Color(1f, 1f, 1f, 0.08f), 1f);
+        Texture2D key = Rounded(28, 8f, T.fieldColor, new Color(1f, 1f, 1f, 0.18f), 1f);
+        Texture2D keyListen = Rounded(28, 8f, T.accent, Color.clear, 0f);
+        Texture2D field = Rounded(24, 7f, T.fieldColor, new Color(1f, 1f, 1f, 0.12f), 1f);
+        Texture2D track = Track(20, 8f, T.fieldColor, new Color(1f, 1f, 1f, 0.12f));
+        Texture2D thumb = Rounded(20, 10f, T.accent, Color.clear, 0f);
         Texture2D thumbHot = Rounded(20, 10f, accentBright, Color.clear, 0f);
-        Texture2D highlight = Rounded(36, 10f, faintHot, accentSoft, 1.5f);
-        Texture2D onTint = Rounded(36, 10f, accentTintHot, Color.clear, 0f);
-        Texture2D switchOff = SwitchTrack(52, 28, fieldColor, new Color(1f, 1f, 1f, 0.16f));
-        Texture2D switchOn = SwitchTrack(52, 28, accent, Color.clear);
+        Texture2D highlight = Rounded(36, T.buttonCorner, faintHot, accentSoft, 1.5f);
+        Texture2D onTint = Rounded(36, T.buttonCorner, accentTintHot, Color.clear, 0f);
+        Texture2D switchOff = SwitchTrack(52, 28, T.fieldColor, new Color(1f, 1f, 1f, 0.16f));
+        Texture2D switchOn = SwitchTrack(52, 28, T.accent, Color.clear);
         Texture2D switchGlow = SwitchTrack(52, 28, Color.white, Color.clear);
         Texture2D knob = Circle(20);
-        Texture2D panelTex = Rounded(104, 26f, panelColor, new Color(1f, 1f, 1f, 0.08f), 1.5f);
+        Texture2D panelTex = Rounded(104, T.panelCorner, T.panelColor, new Color(1f, 1f, 1f, 0.08f), 1.5f);
         Texture2D shadowTex = Shadow(160, 28f, 24f, 0.6f);
 
         skin = Instantiate(GUI.skin);
         skin.name = "PauseMenu (runtime)";
+        skin.hideFlags = HideFlags.DontSave;
+        if (wanted != null)
+            skin.font = wanted;
 
-        Style(skin.label, 15, FontStyle.Normal, textColor);
+        Style(skin.label, T.bodyFontSize, FontStyle.Normal, T.textColor);
         skin.label.wordWrap = true;
         skin.label.padding = new RectOffset(2, 2, Px(5f * sp), Px(5f * sp));
 
-        Style(skin.button, 14, FontStyle.Normal, textColor);
+        Style(skin.button, T.buttonFontSize, FontStyle.Normal, T.textColor);
         SetBackgrounds(skin.button, button, button, buttonDown, button);
         skin.button.active.textColor = Color.black;
         skin.button.border = new RectOffset(14, 14, 14, 14);
@@ -543,7 +647,7 @@ public class PauseMenu : MonoBehaviour
         skin.button.fixedHeight = 40f;
         skin.button.alignment = TextAnchor.MiddleCenter;
 
-        Style(skin.toggle, 15, FontStyle.Normal, textColor);
+        Style(skin.toggle, T.bodyFontSize, FontStyle.Normal, T.textColor);
         SetBackgrounds(skin.toggle, pillOff, pillOff, pillOff, pillOff);
         skin.toggle.onNormal.background = pillOn;
         skin.toggle.onHover.background = pillOn;
@@ -561,7 +665,7 @@ public class PauseMenu : MonoBehaviour
 
         // The box is a frame now (the map sits in one).
         skin.box.normal.background = frame;
-        skin.box.normal.textColor = textColor;
+        skin.box.normal.textColor = T.textColor;
         skin.box.border = new RectOffset(22, 22, 22, 22);
         skin.box.padding = new RectOffset(8, 8, 8, 8);
         skin.box.margin = new RectOffset(0, 0, 0, 0);
@@ -586,33 +690,33 @@ public class PauseMenu : MonoBehaviour
         skin.verticalScrollbarUpButton = new GUIStyle();
         skin.verticalScrollbarDownButton = new GUIStyle();
 
-        Style(skin.textField, 14, FontStyle.Normal, textColor);
+        Style(skin.textField, T.buttonFontSize, FontStyle.Normal, T.textColor);
         SetBackgrounds(skin.textField, field, field, field, field);
         skin.textField.border = new RectOffset(8, 8, 8, 8);
         skin.textField.padding = new RectOffset(12, 12, 8, 8);
 
-        titleStyle = new GUIStyle(skin.label) { fontSize = 30, fontStyle = FontStyle.Bold, wordWrap = false };
+        titleStyle = new GUIStyle(skin.label) { fontSize = T.titleFontSize, fontStyle = FontStyle.Bold, wordWrap = false };
         titleStyle.normal.textColor = Color.white;
         titleStyle.padding = new RectOffset(Px(22f * sp), 4, 0, 0);
-        pageTitleStyle = new GUIStyle(skin.label) { fontSize = 24, fontStyle = FontStyle.Bold, wordWrap = false };
+        pageTitleStyle = new GUIStyle(skin.label) { fontSize = T.pageTitleFontSize, fontStyle = FontStyle.Bold, wordWrap = false };
         pageTitleStyle.normal.textColor = Color.white;
-        noteStyle = new GUIStyle(skin.label) { fontSize = 13, wordWrap = false };
-        noteStyle.normal.textColor = mutedColor;
+        noteStyle = new GUIStyle(skin.label) { fontSize = T.noteFontSize, wordWrap = false };
+        noteStyle.normal.textColor = T.mutedColor;
         var noteWrapStyle = new GUIStyle(noteStyle) { wordWrap = true };
 
-        navStyle = new GUIStyle(skin.label) { fontSize = 17, alignment = TextAnchor.MiddleLeft, fixedHeight = 46f, wordWrap = false };
+        navStyle = new GUIStyle(skin.label) { fontSize = T.navFontSize, alignment = TextAnchor.MiddleLeft, fixedHeight = 46f, wordWrap = false };
         navStyle.padding = new RectOffset(Px(22f * sp), 12, 0, 0);
         navStyle.margin = new RectOffset(0, 0, 2, 2);
         navStyle.border = new RectOffset(14, 14, 14, 14);
         // No backgrounds of its own: MenuGUI.NavEntry eases the open tint and the hover over it.
         navStyle.normal.background = null;
-        navStyle.normal.textColor = mutedColor;
+        navStyle.normal.textColor = T.mutedColor;
         navStyle.hover.background = null;
-        navStyle.hover.textColor = mutedColor;
+        navStyle.hover.textColor = T.mutedColor;
         navStyle.active.background = null;
-        navStyle.active.textColor = textColor;
+        navStyle.active.textColor = T.textColor;
         navStyle.focused.background = null;
-        navStyle.focused.textColor = mutedColor;
+        navStyle.focused.textColor = T.mutedColor;
         navStyle.onNormal.background = null;
         navStyle.onNormal.textColor = Color.white;
         navStyle.onHover.background = null;
@@ -622,8 +726,8 @@ public class PauseMenu : MonoBehaviour
         navStyle.onFocused.background = null;
         navStyle.onFocused.textColor = Color.white;
 
-        resumeStyle = new GUIStyle(skin.button) { fontSize = 16, fontStyle = FontStyle.Bold, fixedHeight = 46f };
-        SetBackgrounds(resumeStyle, pillOn, pillOn, Rounded(36, 10f, Color.white, Color.clear, 0f), pillOn);
+        resumeStyle = new GUIStyle(skin.button) { fontSize = T.buttonFontSize + 2, fontStyle = FontStyle.Bold, fixedHeight = 46f };
+        SetBackgrounds(resumeStyle, pillOn, pillOn, Rounded(36, T.buttonCorner, Color.white, Color.clear, 0f), pillOn);
         resumeStyle.normal.textColor = Color.black;
         resumeStyle.hover.textColor = Color.black;
         resumeStyle.active.textColor = Color.black;
@@ -631,12 +735,12 @@ public class PauseMenu : MonoBehaviour
         resumeStyle.margin = new RectOffset(0, 0, 0, Px(8f * sp));
         resumeStyle.padding = new RectOffset(0, 0, 0, 0);
 
-        quietStyle = new GUIStyle(skin.button) { fontSize = 15, fixedHeight = 42f };
+        quietStyle = new GUIStyle(skin.button) { fontSize = T.buttonFontSize + 1, fixedHeight = 42f };
         SetBackgrounds(quietStyle, quiet, quiet, pillOn, quiet);
-        quietStyle.normal.textColor = mutedColor;
-        quietStyle.hover.textColor = textColor;
+        quietStyle.normal.textColor = T.mutedColor;
+        quietStyle.hover.textColor = T.textColor;
         quietStyle.active.textColor = Color.black;
-        quietStyle.focused.textColor = mutedColor;
+        quietStyle.focused.textColor = T.mutedColor;
         quietStyle.margin = new RectOffset(0, 0, 3, 3);
         quietStyle.padding = new RectOffset(0, 0, 0, 0);
 
@@ -647,12 +751,12 @@ public class PauseMenu : MonoBehaviour
         dangerStyle.active.textColor = Color.white;
         dangerStyle.focused.textColor = Color.white;
 
-        var sectionStyle = new GUIStyle(skin.label) { fontSize = 12, fontStyle = FontStyle.Bold, wordWrap = false };
-        sectionStyle.normal.textColor = accent;
+        var sectionStyle = new GUIStyle(skin.label) { fontSize = T.sectionFontSize, fontStyle = FontStyle.Bold, wordWrap = false };
+        sectionStyle.normal.textColor = T.accent;
         sectionStyle.padding = new RectOffset(2, 2, 2, 2);
-        var rowLabelStyle = new GUIStyle(skin.label) { fontSize = 15, alignment = TextAnchor.MiddleLeft, fixedHeight = MenuGUI.RowHeight, wordWrap = false };
+        var rowLabelStyle = new GUIStyle(skin.label) { fontSize = T.bodyFontSize, alignment = TextAnchor.MiddleLeft, fixedHeight = MenuGUI.RowHeight, wordWrap = false };
         rowLabelStyle.padding = new RectOffset(2, 8, 0, 0);
-        var valueStyle = new GUIStyle(skin.label) { fontSize = 15, alignment = TextAnchor.MiddleCenter, fixedHeight = MenuGUI.RowHeight, wordWrap = false };
+        var valueStyle = new GUIStyle(skin.label) { fontSize = T.bodyFontSize, alignment = TextAnchor.MiddleCenter, fixedHeight = MenuGUI.RowHeight, wordWrap = false };
         valueStyle.padding = new RectOffset(0, 0, 0, 0);
 
         // The switch is drawn by MenuGUI (its knob slides); the style only reserves its size in a row.
@@ -660,7 +764,7 @@ public class PauseMenu : MonoBehaviour
         var switchStyle = new GUIStyle { fixedWidth = 52f, fixedHeight = 28f };
         switchStyle.margin = new RectOffset(0, 0, switchGap, switchGap);
 
-        var keyStyle = new GUIStyle(skin.button) { fontSize = 14, fontStyle = FontStyle.Bold, fixedHeight = 32f };
+        var keyStyle = new GUIStyle(skin.button) { fontSize = T.buttonFontSize, fontStyle = FontStyle.Bold, fixedHeight = 32f };
         SetBackgrounds(keyStyle, key, key, keyListen, key);
         keyStyle.border = new RectOffset(10, 10, 10, 10);
         keyStyle.padding = new RectOffset(14, 14, 0, 0);
@@ -672,7 +776,7 @@ public class PauseMenu : MonoBehaviour
         keyListeningStyle.active.textColor = Color.black;
         keyListeningStyle.focused.textColor = Color.black;
 
-        var smallButtonStyle = new GUIStyle(skin.button) { fontSize = 14, fixedHeight = 32f };
+        var smallButtonStyle = new GUIStyle(skin.button) { fontSize = T.buttonFontSize, fixedHeight = 32f };
         smallButtonStyle.padding = new RectOffset(Px(12f * sp), Px(12f * sp), 0, 0);
         smallButtonStyle.margin = new RectOffset(3, 3, 6, 6);
         var smallDangerStyle = new GUIStyle(smallButtonStyle);

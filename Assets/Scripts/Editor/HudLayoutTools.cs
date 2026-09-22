@@ -24,6 +24,8 @@ public static class HudLayoutTools
         var root = hud.GetComponent<RectTransform>();
         Sprite white = AssetDatabase.LoadAssetAtPath<Sprite>(WhiteSpritePath);
         Font font = FontFrom(hud);
+        if (GameFont.Custom != null)
+            GameFont.Apply(hud, font, false);   // the labels already there switch to it too
         var inventory = Object.FindFirstObjectByType<PlayerInventory>();
 
         LayoutHungerGauge(root, white);
@@ -259,9 +261,12 @@ public static class HudLayoutTools
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 
+    // The game font (Assets/Resources/Fonts), else whatever the HUD already uses, else the built-in one.
     private static Font FontFrom(GameObject hud)
     {
+        if (GameFont.Custom != null)
+            return GameFont.Custom;
         var any = hud.GetComponentInChildren<Text>(true);
-        return any != null && any.font != null ? any.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        return any != null && any.font != null ? any.font : GameFont.Font;
     }
 }

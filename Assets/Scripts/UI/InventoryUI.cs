@@ -70,7 +70,7 @@ public class InventoryUI : MonoBehaviour
             return;
         }
 
-        font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        font = GameFont.Font;
         Build();
         Refresh();
     }
