@@ -29,13 +29,18 @@ public class PickupItem : MonoBehaviour, IInteractable
     [SerializeField] private bool useItemModel = true;
     [Tooltip("Longest side of the model in metres after fitting. 0 = keep the model's own size.")]
     [SerializeField, Min(0f)] private float modelSize = 0.35f;
+    [Tooltip("Which look of the item this pickup shows: 0 = the item's World Model, 1, 2... = its World Model Variants (the three bone key pieces).")]
+    [SerializeField, Min(0)] private int modelVariant = 0;
     [Tooltip("For pickups without a World Model: one of these is picked at random for the placeholder plaque at start (the dog photos). Empty = keep the prefab material.")]
     [SerializeField] private Material[] placeholderMaterials;
     // The item whose model the current Visual already is (set by the bake tools). A prefab baked for one item still
     // swaps correctly on an instance that overrides Item, and an already-baked pickup is never baked twice.
     [SerializeField, HideInInspector] private ItemDefinition bakedFor;
+    [SerializeField, HideInInspector] private int bakedVariant;
 
     public ItemDefinition BakedFor => bakedFor;
+    public int BakedVariant => bakedVariant;
+    public int ModelVariant => modelVariant;
 
     [Header("Idle motion")]
     [Tooltip("The mesh that bobs and spins. Empty = first child.")]
@@ -134,10 +139,11 @@ public class PickupItem : MonoBehaviour, IInteractable
 
     private void Awake()
     {
-        if (useItemModel && item != null && item.WorldModel != null && bakedFor != item)
+        if (useItemModel && item != null && item.WorldModel != null && (bakedFor != item || bakedVariant != modelVariant))
         {
-            visual = ApplyItemModel(transform, item, visual != null ? visual : FirstChild(transform), modelSize);
+            visual = ApplyItemModel(transform, item, visual != null ? visual : FirstChild(transform), modelSize, modelVariant);
             bakedFor = item;
+            bakedVariant = modelVariant;
         }
 
         if (visual == null && transform.childCount > 0)
@@ -161,9 +167,9 @@ public class PickupItem : MonoBehaviour, IInteractable
     private static Transform FirstChild(Transform root) => root.childCount > 0 ? root.GetChild(0) : null;
 
     // Play mode: spawn the item's World Model under the root in place of the placeholder mesh.
-    private static Transform ApplyItemModel(Transform root, ItemDefinition item, Transform placeholder, float size)
+    private static Transform ApplyItemModel(Transform root, ItemDefinition item, Transform placeholder, float size, int variant)
     {
-        var model = Instantiate(item.WorldModel, root);
+        var model = Instantiate(item.WorldModelFor(variant), root);
         return FitItemModel(root, item, model, placeholder, size);
     }
 

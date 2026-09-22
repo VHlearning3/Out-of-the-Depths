@@ -67,6 +67,8 @@ Any pickup whose item has no World Model shows the placeholder: a small plaque w
 1. Delete or hide the placeholder `Visual`, drop your model in as a child of the root.
 2. Resize the root's collider to fit. `Pickup Item → Item` says which item it is (an asset from `Assets/Items`).
 
+**Bone key pieces.** `Item_BoneKeyFragment` has `bone_key_piece1` as its World Model and pieces 2 and 3 as **World Model Variants**; each pickup says which look it shows with `Pickup Item → Model Variant` (0 = World Model, 1 and 2 = the variants), and the builders give the three fragments one piece each. `Item_BoneKey` (the tied key) shows `bone_key_full`. Any item can have variants the same way.
+
 **Easier: give the item its model.** Select the item asset in `Assets/Items` and set **World Model** to your .fbx from `Art/Models` — every pickup of that item then shows it (auto-fitted to `Pickup Item → Model Size`, centred, and with `World Model Scale / Rotation` on the item for tweaks). It swaps in when you press Play; to see it in the editor too, run **Tools → Out of the Depths → Apply Item Models To Pickups** (bakes it into the prefabs). The gold key (`gold_key.fbx`) and rune key (`rune_key.fbx`) are wired to the first room key and the symbol key automatically, and each gets a hotbar icon rendered from the model; add a line to `KnownModels` in `Scripts/Editor/ItemModelTools.cs` for new ones, or just set the field by hand.
 
 Two components on the root make it readable, and both work on any interactable (dead fish, chests...) — just add them next to the interactable's script:

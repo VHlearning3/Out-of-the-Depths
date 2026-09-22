@@ -373,6 +373,7 @@ public static class ShipGreyboxBuilder
         Decor("ChestLid", new Vector3(16f, 1.06f, 44f), new Vector3(1.9f, 0.12f, 1.2f), Wood * 0.8f, room);
         GameObject stone = CreatePickup(new Vector3(15.5f, 1.4f, 44f), "Item_StoneFragment", room);
         GameObject bone = CreatePickup(new Vector3(16.5f, 1.4f, 44f), "Item_BoneKeyFragment", room);
+        PickupVariant(bone, 1);   // the second piece of the key (the basement has the first, the box room the third)
         stone.SetActive(false);
         bone.SetActive(false);
         ItemSocket lockSocket = Socket(chest, "Item_SymbolKey", 1, true, "unlock chest with", null, null);
@@ -413,7 +414,7 @@ public static class ShipGreyboxBuilder
         WallX("Closet_N", 12.5f, 15f, 19.75f, room, 16f, 16f + DoorGap);
         Door closet = DoorX("Door_Closet", 12.5f, 16f, true, false, room);
         Box("OpenChest", new Vector3(17.4f, 0.4f, 10f), new Vector3(1.4f, 0.8f, 0.9f), Wood, room);
-        CreatePickup(new Vector3(17.4f, 1.1f, 10f), "Item_BoneKeyFragment", room);
+        PickupVariant(CreatePickup(new Vector3(17.4f, 1.1f, 10f), "Item_BoneKeyFragment", room), 2);
 
         foreach (float z in new[] { 11f, 15f })
         {

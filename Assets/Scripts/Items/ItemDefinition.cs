@@ -23,6 +23,8 @@ public class ItemDefinition : ScriptableObject
     [SerializeField, Min(0.01f)] private float worldModelScale = 1f;
     [Tooltip("Extra rotation for the model in the pickup, in degrees, e.g. to lay a key flat.")]
     [SerializeField] private Vector3 worldModelRotation;
+    [Tooltip("Other looks of the same item, e.g. the second and third piece of the bone key. A pickup shows the one its Model Variant points at: 0 = World Model, 1 = the first here, 2 = the second... Empty = every pickup shows World Model.")]
+    [SerializeField] private GameObject[] worldModelVariants = new GameObject[0];
 
     public string DisplayName => displayName;
     public Category Kind => category;
@@ -32,4 +34,15 @@ public class ItemDefinition : ScriptableObject
     public GameObject WorldModel => worldModel;
     public float WorldModelScale => worldModelScale;
     public Vector3 WorldModelRotation => worldModelRotation;
+    public GameObject[] WorldModelVariants => worldModelVariants;
+
+    // The model for a pickup's Model Variant: 0 = World Model, 1, 2... = the variants (wrapping round), each falling
+    // back to World Model when empty.
+    public GameObject WorldModelFor(int variant)
+    {
+        if (variant <= 0 || worldModelVariants == null || worldModelVariants.Length == 0)
+            return worldModel;
+        GameObject other = worldModelVariants[(variant - 1) % worldModelVariants.Length];
+        return other != null ? other : worldModel;
+    }
 }

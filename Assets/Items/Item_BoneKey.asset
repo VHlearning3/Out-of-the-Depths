@@ -14,6 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ItemDefinition
   displayName: bone key
   category: 0
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 81cd8709773173a47bf89daa3c8601e3, type: 3}
   maxStack: 1
-  description: A key carved from bone, three fragments tied together with seaweed. It should fit the right-hand door.
+  description: A key carved from bone, three fragments tied together with seaweed.
+    It should fit the right-hand door.
+  worldModel: {fileID: 919132149155446097, guid: d4fd0d1bd8cf75941b00f8737eb9a78e, type: 3}
+  worldModelScale: 1
+  worldModelRotation: {x: 0, y: 0, z: 0}
+  worldModelVariants: []

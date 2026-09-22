@@ -364,8 +364,13 @@ public static class TestArenaBuilder
             "Item_Pearl",
             "Item_FirstRoomKey", "Item_SymbolKey",
         };
+        int bonePiece = 0;
         for (int i = 0; i < items.Length; i++)
-            CreatePickup(new Vector3(10f + i * 2f, 1.25f, -20f), items[i], zone);
+        {
+            GameObject pickup = CreatePickup(new Vector3(10f + i * 2f, 1.25f, -20f), items[i], zone);
+            if (items[i] == "Item_BoneKeyFragment")
+                PickupVariant(pickup, bonePiece++);   // the three pieces of the key, one each
+        }
         Label("PICKUPS - E to take, 1-5 / wheel selects a slot", new Vector3(16f, 3.5f, -19f), zone);
     }
 
@@ -1132,6 +1137,14 @@ public static class TestArenaBuilder
     private static ParticleSystem FindSparkle() => InteractablePrefabTools.FindSparkle();
 
     // Uses Pickup_Placeholder.prefab when the team has made one, otherwise builds the same thing from primitives.
+    // Which look of its item a pickup shows: 0 = the item's World Model, 1, 2... = its World Model Variants.
+    internal static void PickupVariant(GameObject pickup, int variant)
+    {
+        var item = pickup != null ? pickup.GetComponent<PickupItem>() : null;
+        if (item != null)
+            SetField(item, "modelVariant", p => p.intValue = variant);
+    }
+
     internal static GameObject CreatePickup(Vector3 position, string itemAssetName, Transform parent)
     {
         GameObject root;
