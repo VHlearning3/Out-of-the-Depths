@@ -397,23 +397,23 @@ public static class TestArenaBuilder
         GameObject pedestal = Box("Pedestal", new Vector3(0f, 0.6f, 6f), new Vector3(1.2f, 1.2f, 1.2f), PropColor, zone);
         PuzzleBuildTools.SolveOpens(PuzzleBuildTools.AddStation(pedestal, "Puzzle_StoneTablet", "Item_StoneFragment", 3, true, "piece the tablet together"), doorStone);
 
-        // Seaweed: 3 bone key fragments + E = a bone key (the GDD tie-them-together step). A clump of swaying fronds
-        // (Seaweed builds them here so they show in the Scene view); it swoops when the key is made.
+        // Seaweed: 3 bone key fragments + E = the tying minigame = a bone key (the GDD tie-them-together step). A low-poly
+        // clump (the Seaweed component grows it) that sways, parts around the player and swoops when the key is tied;
+        // the collider is a trigger, so you swim through it and the E prompt still finds it.
         var seaweed = new GameObject("Seaweed");
         seaweed.transform.SetParent(zone, false);
         seaweed.transform.position = new Vector3(-5f, 0f, 8f);
         var seaweedCollider = seaweed.AddComponent<BoxCollider>();
         seaweedCollider.center = new Vector3(0f, 1.7f, 0f);
-        seaweedCollider.size = new Vector3(0.9f, 3.4f, 0.9f);
-        seaweedCollider.isTrigger = true;   // the E prompt still finds it (overlap queries hit triggers); the player swims through and the leaves part
-        var weed = seaweed.AddComponent<Seaweed>();
-        SetField(weed, "bladeMaterial", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Materials/Seaweed.mat"));
-        GameObject seaweedModel = FindSeaweedModel();
-        if (seaweedModel != null)
-            SetField(weed, "customModel", p => p.objectReferenceValue = seaweedModel);
-        weed.Build();
-        ItemSocket seaweedSocket = Socket(seaweed, "Item_BoneKeyFragment", 3, true, "tie", "Item_BoneKey", null);
-        UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(seaweedSocket.onFilled, weed.Swoop);
+        seaweedCollider.size = new Vector3(1f, 3.4f, 1f);
+        seaweedCollider.isTrigger = true;
+        Seaweed weed = AddSeaweed(seaweed, Seaweed.Kind.Kelp, 7);
+        ItemSocket seaweedSocket = Socket(seaweed, "Item_BoneKeyFragment", 3, true, "tie", null, null);   // the knot minigame gives the key
+        AddKnotMinigame(seaweed, seaweedSocket, weed);
+        // A few more kinds round it, so the zone shows the variety: sea grass, broad leaves, ribbons.
+        SeaweedAt(new Vector3(-7.5f, 0f, 10.5f), Seaweed.Kind.SeaGrass, 11, zone);
+        SeaweedAt(new Vector3(-2.5f, 0f, 10.5f), Seaweed.Kind.BroadLeaf, 12, zone);
+        SeaweedAt(new Vector3(-7.5f, 0f, 5.5f), Seaweed.Kind.Ribbon, 13, zone);
 
         // Lock: the bone key opens the middle door.
         GameObject lockBox = Box("Lock_BoneKey", new Vector3(2.1f, 1.2f, 13.4f), new Vector3(0.5f, 0.5f, 0.3f), new Color(0.8f, 0.7f, 0.3f), zone);
@@ -627,6 +627,68 @@ public static class TestArenaBuilder
         return socket;
     }
 
+    // The bone key tying minigame on a seaweed: a Knot child with its own trigger collider (so the E prompt reaches it
+    // after the socket has switched itself off) carrying Bone Key Tying, armed and opened by the socket's On Filled;
+    // it hands over the bone key itself and swoops the seaweed when the key is tied. The socket gives no reward.
+    internal static BoneKeyTying AddKnotMinigame(GameObject seaweed, ItemSocket socket, Seaweed weed = null)
+    {
+        var knot = new GameObject("Knot");
+        knot.transform.SetParent(seaweed.transform, false);
+        var reach = knot.AddComponent<BoxCollider>();
+        var hostBox = seaweed.GetComponent<BoxCollider>();   // the same space as the seaweed itself, a little bigger
+        reach.center = hostBox != null ? hostBox.center : new Vector3(0f, 1.2f, 0f);
+        reach.size = hostBox != null ? hostBox.size * 1.1f : new Vector3(1f, 2.4f, 1f);
+        reach.isTrigger = true;
+        var tying = knot.AddComponent<BoneKeyTying>();
+        tying.enabled = false;
+        SetField(tying, "fragmentItem", p => p.objectReferenceValue = ItemTools.Load("Item_BoneKeyFragment"));
+        SetField(tying, "rewardItem", p => p.objectReferenceValue = ItemTools.Load("Item_BoneKey"));
+        SetField(tying, "keyPickup", p => p.objectReferenceValue = FindPrefab("Pickup_Placeholder"));   // the tied key is shown in the inspect view
+        // One picture per piece: the fragment's own icon for the first, icons rendered from the other two piece models
+        // (Item_BoneKeyFragment_Icon_2/3.png) for the rest; a missing render falls back to the fragment's icon.
+        ItemDefinition fragment = ItemTools.Load("Item_BoneKeyFragment");
+        var pieces = new Sprite[3];
+        pieces[0] = fragment != null ? fragment.Icon : null;
+        for (int i = 1; i < 3; i++)
+        {
+            GameObject pieceModel = ItemModelTools.FindModel("bone_key_piece" + (i + 1));
+            pieces[i] = pieceModel != null ? ItemModelTools.RenderIcon(pieceModel, "Item_BoneKeyFragment_" + (i + 1)) : null;
+        }
+        SetField(tying, "pieceIcons", p =>
+        {
+            p.arraySize = 3;
+            for (int i = 0; i < 3; i++)
+                p.GetArrayElementAtIndex(i).objectReferenceValue = pieces[i];
+        });
+        SetField(tying, "windSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Puzzles/Knot_Wrap_RopeTying_Kyles_CC0.mp3"));
+        SetField(tying, "slideSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Puzzles/Knot_Slide_RopeSliding_Cmilo_CC0.mp3"));
+        SetField(tying, "tiedSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Puzzles/Knot_Tied_RopeSnap_Zepurple_CC0.mp3"));
+        UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(socket.onFilled, tying.Begin);
+        if (weed != null)
+            UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(tying.onTied, weed.Swoop);
+        return tying;
+    }
+
+    // The low-poly seaweed clump on an object: the Seaweed component with the shared material, one of the kinds (kelp,
+    // sea grass, broad leaf, ribbon) with its own random layout, built here so it shows in the Scene view. It sways,
+    // parts around the player and can swoop.
+    internal static Seaweed AddSeaweed(GameObject host, Seaweed.Kind kind, int seed)
+    {
+        var weed = host.AddComponent<Seaweed>();
+        SetField(weed, "bladeMaterial", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Materials/Seaweed.mat"));
+        weed.SetKind(kind, seed);
+        return weed;
+    }
+
+    // A set-dressing clump of a given kind at a spot on the floor (no collider: nothing to bump into).
+    internal static Seaweed SeaweedAt(Vector3 position, Seaweed.Kind kind, int seed, Transform parent)
+    {
+        var clump = new GameObject("Seaweed_" + kind);
+        clump.transform.SetParent(parent, false);
+        clump.transform.position = position;
+        return AddSeaweed(clump, kind, seed);
+    }
+
     internal static void OpenOnFilled(ItemSocket socket, Door door)
     {
         UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(socket.onFilled, door.Open);
@@ -725,7 +787,9 @@ public static class TestArenaBuilder
         SetField(finalDoor, "openPrompt", p => p.stringValue = "open the rune door");
         // The rune lock beside it: the symbol puzzle on the board unlocks the door.
         GameObject runeLock = Box("RuneLock", new Vector3(5.4f, 2f, 30.2f), new Vector3(0.7f, 0.7f, 0.15f), new Color(0.8f, 0.7f, 0.3f), zone);
-        PuzzleBuildTools.SolveUnlocks(PuzzleBuildTools.AddStation(runeLock, "Puzzle_Runes", null, 0, false, "enter the runes"), finalDoor);
+        PuzzleStation runeStation = PuzzleBuildTools.AddStation(runeLock, "Puzzle_Runes", null, 0, false, "enter the runes");
+        PuzzleBuildTools.SolveUnlocks(runeStation, finalDoor);
+        PuzzleBuildTools.SolveOpens(runeStation, finalDoor);   // unlocked and swung open: solving the runes starts the way to the chase
         Label("CHASE - E on the plate first, then the rune lock beside the door (the three symbols, 1-2-3) unlocks it. Through the door the grate at the far end of the hallway behind you bursts and three chase pufferfish come out: the dagger does nothing to them, three bites and you're dead. Grab the two stone fragments (Space / Ctrl), slot them in the tablet by the far door, then take the trident at the end of the long corridor and the rubble seals it behind you.", new Vector3(6.5f, 0f, 27f), zone);
 
         // Floor and ceilings outside the arena wall: the hallway (room 9), the room after it and the long corridor.
@@ -1295,50 +1359,6 @@ public static class TestArenaBuilder
         return root;
     }
 
-    // The seaweed model to use if someone has dropped one in (the first file by name in the folder below): a real
-    // model instead of the generated fronds. Its mesh is made readable so it can sway.
-    private const string SeaweedModelFolder = "Assets/Art/Models/environment/seaweed";
-
-    private const string SeaweedModelPref = "OutOfTheDepths.SeaweedUsesDroppedInModel";
-    private const string SeaweedModelMenu = "Tools/Out of the Depths/Seaweed Uses Dropped-In Model";
-
-    // Off (the default): Rebuild Test Arena builds the generated cartoon leaves. On: it uses the model dropped into the
-    // folder above instead. Remembered per machine (EditorPrefs).
-    [MenuItem(SeaweedModelMenu)]
-    private static void ToggleSeaweedModel()
-    {
-        bool on = !EditorPrefs.GetBool(SeaweedModelPref, false);
-        EditorPrefs.SetBool(SeaweedModelPref, on);
-        Menu.SetChecked(SeaweedModelMenu, on);
-        Debug.Log(on ? "Seaweed: Rebuild Test Arena will use the model in " + SeaweedModelFolder + "." : "Seaweed: Rebuild Test Arena will use the generated leaves.");
-    }
-
-    [MenuItem(SeaweedModelMenu, true)]
-    private static bool ToggleSeaweedModelValidate()
-    {
-        Menu.SetChecked(SeaweedModelMenu, EditorPrefs.GetBool(SeaweedModelPref, false));
-        return true;
-    }
-
-    internal static GameObject FindSeaweedModel()
-    {
-        if (!EditorPrefs.GetBool(SeaweedModelPref, false))
-            return null;   // the switch in the Tools menu is off: generated leaves
-        if (!AssetDatabase.IsValidFolder(SeaweedModelFolder))
-            return null;
-        var paths = new System.Collections.Generic.List<string>();
-        foreach (string guid in AssetDatabase.FindAssets("t:Model", new[] { SeaweedModelFolder }))
-            paths.Add(AssetDatabase.GUIDToAssetPath(guid));
-        if (paths.Count == 0)
-            return null;
-        paths.Sort(System.StringComparer.OrdinalIgnoreCase);
-        if (AssetImporter.GetAtPath(paths[0]) is ModelImporter importer && !importer.isReadable)
-        {
-            importer.isReadable = true;
-            importer.SaveAndReimport();
-        }
-        return AssetDatabase.LoadAssetAtPath<GameObject>(paths[0]);
-    }
 
     internal static void SetField(Object target, string field, System.Action<SerializedProperty> set)
     {

@@ -351,8 +351,11 @@ public static class ShipGreyboxBuilder
         // No walls inside: one open hull, as the plan draws it, with the mural strip down the west wall from the hatch.
         MuralAt(new Vector3(HullW + 0.3f, -3.3f, 31f), new Vector2(26f, 1.6f), Vector3.right, room);
 
-        foreach (Vector3 spot in new[] { new Vector3(-22f, 0f, 36f), new Vector3(-14f, 0f, 40f), new Vector3(12f, 0f, 36f), new Vector3(20f, 0f, 30f), new Vector3(-8f, 0f, 22f), new Vector3(24f, 0f, 8f), new Vector3(-24f, 0f, 12f) })
-            SeaweedClump(spot + Vector3.up * BasementFloor, room);
+        // Seven clumps of four kinds, each with its own layout.
+        Seaweed.Kind[] kinds = { Seaweed.Kind.Kelp, Seaweed.Kind.SeaGrass, Seaweed.Kind.BroadLeaf, Seaweed.Kind.Ribbon };
+        Vector3[] spots = { new Vector3(-22f, 0f, 36f), new Vector3(-14f, 0f, 40f), new Vector3(12f, 0f, 36f), new Vector3(20f, 0f, 30f), new Vector3(-8f, 0f, 22f), new Vector3(24f, 0f, 8f), new Vector3(-24f, 0f, 12f) };
+        for (int i = 0; i < spots.Length; i++)
+            SeaweedClump(spots[i] + Vector3.up * BasementFloor, kinds[i % kinds.Length], 20 + i, room);
         Carcass(new Vector3(-12f, BasementFloor, 8f), 20f, room);
         Carcass(new Vector3(16f, BasementFloor, 20f), -50f, room);
         Carcass(new Vector3(0f, BasementFloor, 40f), 90f, room);
@@ -472,7 +475,10 @@ public static class ShipGreyboxBuilder
         SetField(finalDoor, "lockBehind", p => p.boolValue = false);
         SetField(finalDoor, "openPrompt", p => p.stringValue = "open the rune door");
         if (runeStation != null)
+        {
             PuzzleBuildTools.SolveUnlocks(runeStation, finalDoor);
+            PuzzleBuildTools.SolveOpens(runeStation, finalDoor);   // and swings it open, so solving the runes is what lets the chase begin
+        }
         // Hallway / room 9b divider with an open doorway.
         WallZ("Hall_Div", -4.75f, 50f, HullN, room, 51f, 54.5f);
 
@@ -885,21 +891,17 @@ public static class ShipGreyboxBuilder
         return door;
     }
 
-    // A clump of swaying seaweed, set dressing only.
-    private static void SeaweedClump(Vector3 position, Transform parent)
+    // A clump of low-poly seaweed, set dressing only: it sways and parts around the player.
+    private static void SeaweedClump(Vector3 position, Seaweed.Kind kind, int seed, Transform parent)
     {
         var seaweed = new GameObject("Seaweed");
         seaweed.transform.SetParent(parent, false);
         seaweed.transform.position = position;
-        var weed = seaweed.AddComponent<Seaweed>();
-        SetField(weed, "bladeMaterial", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Materials/Seaweed.mat"));
-        GameObject model = FindSeaweedModel();
-        if (model != null)
-            SetField(weed, "customModel", p => p.objectReferenceValue = model);
-        weed.Build();
+        AddSeaweed(seaweed, kind, seed);
     }
 
-    // The seaweed that ties three bone fragments into the bone key (as in the arena).
+    // The seaweed that ties three bone fragments into the bone key (as in the arena): the clump, the socket on a
+    // trigger you can swim through, and the tying minigame; it swoops when the key is tied.
     private static void SeaweedSocket(Vector3 position, Transform parent)
     {
         var seaweed = new GameObject("Seaweed_BoneKey");
@@ -907,16 +909,11 @@ public static class ShipGreyboxBuilder
         seaweed.transform.position = position;
         var collider = seaweed.AddComponent<BoxCollider>();
         collider.center = new Vector3(0f, 1.7f, 0f);
-        collider.size = new Vector3(0.9f, 3.4f, 0.9f);
+        collider.size = new Vector3(1f, 3.4f, 1f);
         collider.isTrigger = true;
-        var weed = seaweed.AddComponent<Seaweed>();
-        SetField(weed, "bladeMaterial", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Materials/Seaweed.mat"));
-        GameObject model = FindSeaweedModel();
-        if (model != null)
-            SetField(weed, "customModel", p => p.objectReferenceValue = model);
-        weed.Build();
-        ItemSocket socket = Socket(seaweed, "Item_BoneKeyFragment", 3, true, "tie", "Item_BoneKey", null);
-        UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(socket.onFilled, weed.Swoop);
+        Seaweed weed = AddSeaweed(seaweed, Seaweed.Kind.Kelp, 7);
+        ItemSocket socket = Socket(seaweed, "Item_BoneKeyFragment", 3, true, "tie", null, null);   // the knot minigame gives the key
+        AddKnotMinigame(seaweed, socket, weed);
     }
 
     // A bone carcass on the floor: a spine with ribs, turned by yaw.

@@ -119,6 +119,25 @@ public class PickupItem : MonoBehaviour, IInteractable
     public int Amount => amount;
     public string Prompt => item != null ? "pick up " + item.DisplayName : "pick up";
 
+    // For a pickup made at runtime (the bone key the tying minigame hands over): another item, its model swapped in
+    // for whatever the prefab showed. Call before Interact.
+    public void SetItem(ItemDefinition newItem, int newAmount = 1)
+    {
+        item = newItem;
+        amount = Mathf.Max(1, newAmount);
+        if (useItemModel && item != null && item.WorldModel != null)
+        {
+            visual = ApplyItemModel(transform, item, visual != null ? visual : FirstChild(transform), modelSize, modelVariant);
+            bakedFor = item;
+            bakedVariant = modelVariant;
+        }
+        if (visual != null)
+        {
+            visualRestPosition = visual.localPosition;
+            visualRestRotation = visual.localRotation;
+        }
+    }
+
     private Vector3 visualRestPosition;
     private Quaternion visualRestRotation;
     private float phase;

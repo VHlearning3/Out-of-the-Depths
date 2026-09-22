@@ -81,8 +81,7 @@ public class PauseMenu : MonoBehaviour
     private float navBarX;
     private float navBarHeight;
     private bool navBarKnown;
-    private CursorLockMode cursorLockBefore;
-    private bool cursorVisibleBefore;
+    private PlayerInteractor interactorRef;   // to know whether the inspect view or a board holds the cursor
     private float visibility;      // 0..1, eased: the menu draws while it is above 0
     private float pageVisibility;  // 0..1, the current page fading in
     private float openedAt;
@@ -204,8 +203,8 @@ public class PauseMenu : MonoBehaviour
             timeScaleBefore = Time.timeScale;
             Time.timeScale = 0f;
             AudioListener.pause = true;
-            cursorLockBefore = Cursor.lockState;
-            cursorVisibleBefore = Cursor.visible;
+            if (interactorRef == null)
+                interactorRef = FindFirstObjectByType<PlayerInteractor>();
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             CollectPages();
@@ -223,22 +222,30 @@ public class PauseMenu : MonoBehaviour
         {
             Time.timeScale = ResumeTimeScale();
             AudioListener.pause = false;
-            Cursor.lockState = cursorLockBefore;
-            Cursor.visible = cursorVisibleBefore;
+            ApplyGameCursor();
             if (isActiveAndEnabled)
                 StartCoroutine(KeepCursor());
         }
+    }
+
+    // The cursor the game wants once the menu is gone: locked and hidden, unless the inspect view or a puzzle board
+    // is still up underneath and needs it free. Decided from what is open, not from what the cursor happened to be
+    // when the menu opened, so a cursor left free by mistake never gets handed back.
+    private void ApplyGameCursor()
+    {
+        bool free = PuzzleBoard.IsOpen || (interactorRef != null && interactorRef.Busy);
+        Cursor.lockState = free ? CursorLockMode.None : CursorLockMode.Locked;
+        Cursor.visible = free;
     }
 
     // The editor lets go of the cursor lock when Escape is pressed, after this has set it back: keep setting it for a
     // moment, so the cursor does not stay on screen after the menu closes.
     private IEnumerator KeepCursor()
     {
-        float until = Time.unscaledTime + 0.3f;
+        float until = Time.unscaledTime + 0.4f;
         while (Time.unscaledTime < until && !IsOpen)
         {
-            Cursor.lockState = cursorLockBefore;
-            Cursor.visible = cursorVisibleBefore;
+            ApplyGameCursor();
             yield return null;
         }
     }
@@ -248,11 +255,8 @@ public class PauseMenu : MonoBehaviour
     {
         IPauseMenuPage current = pages.Count > 0 && pageIndex < pages.Count ? pages[pageIndex] : null;
         pages.Clear();
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        bool adminAllowed = true;
-#else
-        bool adminAllowed = adminInReleaseBuilds;
-#endif
+        // The Admin page: always in the editor and development builds, in release builds only when asked for.
+        bool adminAllowed = Application.isEditor || Debug.isDebugBuild || adminInReleaseBuilds;
         foreach (MonoBehaviour behaviour in FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None))
         {
             if (!(behaviour is IPauseMenuPage page))

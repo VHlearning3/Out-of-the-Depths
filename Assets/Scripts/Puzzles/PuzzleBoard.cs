@@ -33,8 +33,10 @@ public class PuzzleBoard : MonoBehaviour
     private readonly List<PuzzleSlot> slots = new List<PuzzleSlot>();
     private PuzzleTile[] placed = new PuzzleTile[0];
     private SwimController swimmer;
-    private CursorLockMode cursorLockWas;
-    private bool cursorVisibleWas;
+    private PlayerInteractor interactor;
+    private PlayerInventory inventory;
+    private SlashAttack slash;
+    private bool attackWas;
 
     public bool Interactive => open && !solved;
     public RectTransform DragLayer => root;
@@ -96,14 +98,26 @@ public class PuzzleBoard : MonoBehaviour
         root.gameObject.SetActive(true);
         open = true;
 
+        // The player stands still and cannot look round, interact, swap items or swing the dagger at the tiles.
         swimmer = FindFirstObjectByType<SwimController>();
+        interactor = FindFirstObjectByType<PlayerInteractor>();
+        inventory = FindFirstObjectByType<PlayerInventory>();
+        slash = FindFirstObjectByType<SlashAttack>();
         if (swimmer != null)
         {
             swimmer.Frozen = true;
             swimmer.LookLocked = true;
         }
-        cursorLockWas = Cursor.lockState;
-        cursorVisibleWas = Cursor.visible;
+        if (interactor != null)
+            interactor.Busy = true;
+        if (inventory != null)
+            inventory.InputBlocked = true;
+        if (slash != null)
+        {
+            attackWas = slash.CanAttack;
+            slash.SetCanAttack(false);
+        }
+        HitMarker.SetReticleVisible(false);
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
         PauseMenu.CaptureInput(true);
@@ -120,18 +134,35 @@ public class PuzzleBoard : MonoBehaviour
             swimmer.Frozen = false;
             swimmer.LookLocked = false;
         }
+        if (interactor != null)
+            interactor.Busy = false;
+        if (inventory != null)
+            inventory.InputBlocked = false;
+        if (slash != null)
+            slash.SetCanAttack(attackWas);
+        HitMarker.SetReticleVisible(true);
         PauseMenu.CaptureInput(false);
+        SetGameCursor();
         StartCoroutine(RestoreCursor());
+    }
+
+    // Back to the game's cursor, locked and hidden, unless the pause menu has it. Not to whatever was captured on
+    // opening: that could be a leftover free cursor from an earlier board, which is how it stayed on screen after a
+    // solve.
+    private static void SetGameCursor()
+    {
+        bool free = PauseMenu.IsOpen;
+        Cursor.lockState = free ? CursorLockMode.None : CursorLockMode.Locked;
+        Cursor.visible = free;
     }
 
     // The editor lets go of the cursor lock on Escape after this has set it back: keep setting it for a moment.
     private IEnumerator RestoreCursor()
     {
-        float until = Time.unscaledTime + 0.3f;
+        float until = Time.unscaledTime + 0.4f;
         while (Time.unscaledTime < until && !open)
         {
-            Cursor.lockState = cursorLockWas;
-            Cursor.visible = cursorVisibleWas;
+            SetGameCursor();
             yield return null;
         }
     }

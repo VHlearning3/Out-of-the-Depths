@@ -17,6 +17,14 @@ using UnityEngine;
 [ExecuteAlways]
 public class Seaweed : MonoBehaviour
 {
+    // The kinds: presets that fill in the leaf fields below (Custom = the fields as they are).
+    public enum Kind { Custom, Kelp, SeaGrass, BroadLeaf, Ribbon }
+
+    [Header("Kind")]
+    [Tooltip("A preset for the leaves: tall kelp, a bed of short sea grass, a few broad leaves, or twisting ribbons. Pick one and the leaf fields below fill in; edit them freely after.")]
+    [SerializeField] private Kind kind = Kind.Custom;
+    [SerializeField, HideInInspector] private Kind appliedKind = Kind.Custom;
+
     [Header("Model")]
     [Tooltip("Your own seaweed: a prefab or an imported model. It replaces the generated fronds and bends the same way. Empty = generated fronds.")]
     [SerializeField] private GameObject customModel;
@@ -26,13 +34,17 @@ public class Seaweed : MonoBehaviour
     [SerializeField] private bool paintModel = true;
     [Tooltip("Material for the fronds (Assets/Art/Materials/Seaweed). The gradient is painted over a copy of it, the asset is untouched. Empty = a runtime copy of URP Lit.")]
     [SerializeField] private Material bladeMaterial;
+    [Tooltip("The small rock the plant grows out of. Off for models that have their own base.")]
+    [SerializeField] private bool showRoots = true;
 
-    [Header("Cartoon leaves")]
+    [Header("Low-poly leaves")]
+    [Tooltip("Flat facets: every triangle its own face, no smoothing. Off = smooth cartoon leaves.")]
+    [SerializeField] private bool lowPoly = true;
     [SerializeField, Range(1, 64)] private int fronds = 18;
-    [Tooltip("Rings up each leaf: more = smoother curves and a rounder tip.")]
-    [SerializeField, Range(3, 48)] private int segments = 28;
-    [Tooltip("Sides around each leaf: it is a closed strip with real (rounded) edges, not a single-sided plane.")]
-    [SerializeField, Range(4, 16)] private int sides = 10;
+    [Tooltip("Rings up each leaf: more = smoother curves and a rounder tip (few for the low-poly look).")]
+    [SerializeField, Range(3, 48)] private int segments = 10;
+    [Tooltip("Sides around each leaf: it is a closed strip with real edges, not a single-sided plane.")]
+    [SerializeField, Range(4, 16)] private int sides = 6;
     [Tooltip("Height of the tallest leaf, in metres. Others vary down to about a third.")]
     [SerializeField] private float height = 3.4f;
     [Tooltip("Radius of the clump the leaves stand in.")]
@@ -52,32 +64,32 @@ public class Seaweed : MonoBehaviour
     [Tooltip("The round end of the tip, as a fraction of the height.")]
     [SerializeField, Range(0.02f, 0.4f)] private float tipRound = 0.16f;
     [Tooltip("How far the leaf snakes from side to side, as a fraction of its height, and how many S-waves fit up it.")]
-    [SerializeField, Range(0f, 0.3f)] private float wiggle = 0.06f;
-    [SerializeField, Range(0.5f, 4f)] private float waves = 1.8f;
+    [SerializeField, Range(0f, 0.3f)] private float wiggle = 0.05f;
+    [SerializeField, Range(0.5f, 4f)] private float waves = 1.3f;
     [Tooltip("How much of that wave goes front to back instead (the leaf waving in the current), as a fraction of Wiggle.")]
     [SerializeField, Range(0f, 1.5f)] private float waveOut = 0.6f;
     [Tooltip("Gentle swelling and narrowing of the width along the leaf, and a finer scallop on its outline.")]
     [SerializeField, Range(0f, 0.4f)] private float bulge = 0.1f;
-    [SerializeField, Range(0f, 0.4f)] private float edgeWave = 0.06f;
+    [SerializeField, Range(0f, 0.4f)] private float edgeWave = 0f;
     [Tooltip("How much the edges flutter up and down out of the leaf (the midrib stays put), as a fraction of the width, and how many waves of it.")]
-    [SerializeField, Range(0f, 0.6f)] private float ruffle = 0.08f;
+    [SerializeField, Range(0f, 0.6f)] private float ruffle = 0f;
     [SerializeField, Range(0.5f, 8f)] private float ruffleWaves = 2.5f;
     [Tooltip("Degrees the leaf twists along its length.")]
-    [SerializeField] private float twist = 8f;
+    [SerializeField] private float twist = 6f;
     [Tooltip("How far the tip leans over at rest, in metres.")]
     [SerializeField] private float curl = 0.25f;
     [SerializeField] private int seed = 7;
 
     [Header("Paint")]
     [Tooltip("Colour at the base and at the tip; each blade runs from one to the other.")]
-    [SerializeField] private Color color = new Color(0.035f, 0.3f, 0.22f);
-    [SerializeField] private Color tipColor = new Color(0.3f, 0.64f, 0.26f);
+    [SerializeField] private Color color = new Color(0.05f, 0.36f, 0.28f);
+    [SerializeField] private Color tipColor = new Color(0.35f, 0.72f, 0.3f);
     [Tooltip("How much lighter the rib down the middle of each face is.")]
     [SerializeField, Range(0f, 0.6f)] private float veinLight = 0.25f;
     [Tooltip("How much darker the rounded edges are. Keep it low or a leaf starts to look like a tube.")]
     [SerializeField, Range(0f, 0.6f)] private float edgeDark = 0.08f;
     [Tooltip("Toy-like shine.")]
-    [SerializeField, Range(0f, 1f)] private float shine = 0.25f;
+    [SerializeField, Range(0f, 1f)] private float shine = 0.15f;
     [Tooltip("A little self-light so the colours stay bright in the dark water. 0 = none.")]
     [SerializeField, Range(0f, 1f)] private float glow = 0.03f;
     [Tooltip("How much the fronds differ from each other in brightness and hue.")]
@@ -106,6 +118,8 @@ public class Seaweed : MonoBehaviour
     [Tooltip("How much stronger a swoop is than the ordinary sway, and how long it takes.")]
     [SerializeField] private float gustStrength = 1.8f;
     [SerializeField] private float gustSeconds = 4.5f;
+    [Tooltip("Farther than this from the camera, in metres, the plant stands still (the bending is per vertex, so a field of them adds up).")]
+    [SerializeField] private float swayDistance = 30f;
 
     [Header("Reacts to the player")]
     [Tooltip("The player (found automatically: the Swim Controller). The leaves part around their body and are dragged along by their wake, then swing back.")]
@@ -166,7 +180,13 @@ public class Seaweed : MonoBehaviour
 
     private void OnEnable()
     {
-        if (NeedsBuild())
+        if (kind != Kind.Custom && appliedKind != kind)
+        {
+            ApplyPreset(kind);
+            appliedKind = kind;
+            Build();
+        }
+        else if (NeedsBuild())
             Build();
         else
             Collect();
@@ -200,6 +220,11 @@ public class Seaweed : MonoBehaviour
         {
             if (this == null || !isActiveAndEnabled || Application.isPlaying)
                 return;
+            if (kind != Kind.Custom && appliedKind != kind)
+            {
+                ApplyPreset(kind);
+                appliedKind = kind;
+            }
             Build();
         };
     }
@@ -228,6 +253,67 @@ public class Seaweed : MonoBehaviour
         StartGust(gustStrength * 1.5f);
     }
 
+    // For plants made by code: a model, how tall to stand it, whether to paint it and give it a rock, and the material
+    // to paint with; then built.
+    public void Configure(GameObject model, float tall, bool painted, bool roots, Material material)
+    {
+        customModel = model;
+        height = tall;
+        paintModel = painted;
+        showRoots = roots;
+        if (material != null)
+            bladeMaterial = material;
+        Build();
+    }
+
+    // Make it one of the kinds (the builders do this), with its own random layout, then build it.
+    public void SetKind(Kind newKind, int newSeed)
+    {
+        kind = newKind;
+        seed = newSeed;
+        if (kind != Kind.Custom)
+            ApplyPreset(kind);
+        appliedKind = kind;
+        Build();
+    }
+
+    // The presets: everything that gives a kind its silhouette and colour. Sway and the player reaction stay as set,
+    // apart from how far the tips travel.
+    private void ApplyPreset(Kind preset)
+    {
+        switch (preset)
+        {
+            case Kind.Kelp:
+                fronds = 8; height = 3.6f; spread = 0.35f; fan = 12f;
+                bladeWidth = 0.28f; bladeThickness = 0.03f; stemLength = 0.2f; taperAt = 0.6f; tipWidth = 0.3f; tipRound = 0.14f;
+                wiggle = 0.07f; waves = 1.6f; waveOut = 0.6f; bulge = 0.08f; twist = 6f; curl = 0.3f;
+                color = new Color(0.04f, 0.3f, 0.22f); tipColor = new Color(0.32f, 0.6f, 0.22f);
+                swayMetres = 0.45f;
+                break;
+            case Kind.SeaGrass:
+                fronds = 40; height = 1.3f; spread = 0.6f; fan = 26f;
+                bladeWidth = 0.1f; bladeThickness = 0.02f; stemLength = 0.1f; taperAt = 0.4f; tipWidth = 0.2f; tipRound = 0.1f;
+                wiggle = 0.04f; waves = 1f; waveOut = 0.4f; bulge = 0.04f; twist = 10f; curl = 0.2f;
+                color = new Color(0.1f, 0.42f, 0.2f); tipColor = new Color(0.5f, 0.78f, 0.28f);
+                swayMetres = 0.15f;
+                break;
+            case Kind.BroadLeaf:
+                fronds = 6; height = 2.2f; spread = 0.4f; fan = 18f;
+                bladeWidth = 0.7f; bladeThickness = 0.04f; stemLength = 0.22f; taperAt = 0.45f; tipWidth = 0.5f; tipRound = 0.25f;
+                wiggle = 0.03f; waves = 1.2f; waveOut = 0.9f; bulge = 0.1f; twist = 4f; curl = 0.35f;
+                color = new Color(0.03f, 0.28f, 0.3f); tipColor = new Color(0.2f, 0.62f, 0.5f);
+                swayMetres = 0.3f;
+                break;
+            case Kind.Ribbon:
+                fronds = 14; height = 2.6f; spread = 0.45f; fan = 16f;
+                bladeWidth = 0.22f; bladeThickness = 0.03f; stemLength = 0.15f; taperAt = 0.5f; tipWidth = 0.35f; tipRound = 0.14f;
+                wiggle = 0.09f; waves = 2.2f; waveOut = 0.5f; bulge = 0.12f; twist = 40f; curl = 0.25f;
+                color = new Color(0.08f, 0.36f, 0.26f); tipColor = new Color(0.55f, 0.8f, 0.3f);
+                swayMetres = 0.35f;
+                break;
+        }
+    }
+
     // Places the fronds (or the custom model). Safe to call again: the old ones are cleared first.
     public void Build()
     {
@@ -241,13 +327,16 @@ public class Seaweed : MonoBehaviour
         builtPainted = paintModel;
 
         // A small dark rock, mostly sunk into the floor, for the leaves to grow out of.
-        GameObject roots = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        roots.name = "Roots";
-        SafeDestroy(roots.GetComponent<Collider>());
-        roots.transform.SetParent(transform, false);
-        roots.transform.localPosition = new Vector3(0f, -spread * 0.2f, 0f);
-        roots.transform.localScale = new Vector3(spread * 1.1f, spread * 0.9f, spread * 1.1f);
-        roots.AddComponent<RendererTint>().Tint = rootColor;
+        if (showRoots)
+        {
+            GameObject roots = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            roots.name = "Roots";
+            SafeDestroy(roots.GetComponent<Collider>());
+            roots.transform.SetParent(transform, false);
+            roots.transform.localPosition = new Vector3(0f, -spread * 0.2f, 0f);
+            roots.transform.localScale = new Vector3(spread * 1.1f, spread * 0.9f, spread * 1.1f);
+            roots.AddComponent<RendererTint>().Tint = rootColor;
+        }
 
         if (customModel != null)
         {
@@ -280,7 +369,7 @@ public class Seaweed : MonoBehaviour
                 var shape = frond.AddComponent<SeaweedFrond>();
                 float tallness = (1f - radius01) * 0.55f + (float)rng.NextDouble() * 0.45f;
                 shape.height = height * Mathf.Lerp(0.35f, 1f, tallness);
-                shape.widthScale = Mathf.Lerp(0.85f, 1.15f, (float)rng.NextDouble());
+                shape.widthScale = Mathf.Lerp(0.7f, 1.4f, (float)rng.NextDouble());   // thin kelp to broad leaves
                 shape.curl = curl * Mathf.Lerp(0.5f, 1.4f, (float)rng.NextDouble());
                 shape.phase = (float)rng.NextDouble();
                 shape.shade = Mathf.Lerp(-1f, 1f, (float)rng.NextDouble());
@@ -543,6 +632,20 @@ public class Seaweed : MonoBehaviour
                 }
             }
         }
+        if (lowPoly)
+        {
+            // Every triangle gets its own three vertices, so the normals are per face and the leaf is faceted.
+            var flatVerts = new Vector3[tris.Length];
+            var flatUvs = new Vector2[tris.Length];
+            for (int i = 0; i < tris.Length; i++)
+            {
+                flatVerts[i] = verts[tris[i]];
+                flatUvs[i] = uvs[tris[i]];
+                tris[i] = i;
+            }
+            verts = flatVerts;
+            uvs = flatUvs;
+        }
         var mesh = new Mesh { name = "Seaweed frond", hideFlags = HideFlags.DontSave };
         mesh.vertices = verts;
         mesh.uv = uvs;
@@ -585,6 +688,9 @@ public class Seaweed : MonoBehaviour
     private void Update()
     {
         if (!Application.isPlaying || blades.Count == 0)
+            return;
+        Camera eye = Camera.main;
+        if (eye != null && swayDistance > 0f && (eye.transform.position - transform.position).sqrMagnitude > swayDistance * swayDistance)
             return;
 
         float now = Time.time;
