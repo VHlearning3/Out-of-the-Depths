@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -121,6 +122,8 @@ public class PauseMenu : MonoBehaviour
             gameObject.AddComponent<SettingsPage>();
         if (FindFirstObjectByType<KeybindingsPage>() == null)
             gameObject.AddComponent<KeybindingsPage>();
+        if (FindFirstObjectByType<CreditsPage>() == null)
+            gameObject.AddComponent<CreditsPage>();
     }
 
     private void Update()
@@ -222,6 +225,21 @@ public class PauseMenu : MonoBehaviour
             AudioListener.pause = false;
             Cursor.lockState = cursorLockBefore;
             Cursor.visible = cursorVisibleBefore;
+            if (isActiveAndEnabled)
+                StartCoroutine(KeepCursor());
+        }
+    }
+
+    // The editor lets go of the cursor lock when Escape is pressed, after this has set it back: keep setting it for a
+    // moment, so the cursor does not stay on screen after the menu closes.
+    private IEnumerator KeepCursor()
+    {
+        float until = Time.unscaledTime + 0.3f;
+        while (Time.unscaledTime < until && !IsOpen)
+        {
+            Cursor.lockState = cursorLockBefore;
+            Cursor.visible = cursorVisibleBefore;
+            yield return null;
         }
     }
 

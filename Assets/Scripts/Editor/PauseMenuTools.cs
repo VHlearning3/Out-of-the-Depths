@@ -67,6 +67,11 @@ public static class PauseMenuTools
             Undo.AddComponent<KeybindingsPage>(host);
             added++;
         }
+        if (Object.FindFirstObjectByType<CreditsPage>(FindObjectsInactive.Include) == null)
+        {
+            Undo.AddComponent<CreditsPage>(host);
+            added++;
+        }
 
         bool filled = false;
         foreach (var settings in Object.FindObjectsByType<SettingsPage>(FindObjectsInactive.Include, FindObjectsSortMode.None))

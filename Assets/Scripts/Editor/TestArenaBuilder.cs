@@ -12,6 +12,9 @@ public static class TestArenaBuilder
     private const string PrefabRoot = InteractablePrefabTools.PrefabRoot;
     private const string DoorPrefabPath = PrefabRoot + "/Placeholders/Door_Placeholder.prefab";
     private const string TrapdoorPrefabPath = PrefabRoot + "/Placeholders/Trapdoor_Placeholder.prefab";
+    private const string DoubleDoorPrefabPath = PrefabRoot + "/Placeholders/DoubleDoor_Placeholder.prefab";
+    internal const float DoubleDoorGap = 5.6f;    // two 2.4 m leaves + two 0.4 m frame posts
+    internal const float DoubleDoorTop = 4.4f;    // 4 m leaves + the 0.4 m top of the frame
     private const string FishWindowPrefabPath = PrefabRoot + "/Placeholders/FishWindow_Placeholder.prefab";
     private const string SfxFolder = "Assets/Sound/SFX Sound effects/";
     private const string DoorSoundFolder = "Assets/Sound/Doors/";
@@ -71,6 +74,7 @@ public static class TestArenaBuilder
         Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
         failedSteps = 0;
         RemoveOldArena(scene);
+        RemoveStrayPlaceholders(scene);
 
         BeginBuild(new GameObject("Arena").transform, SpawnPosition, "TestArena");
 
@@ -98,6 +102,7 @@ public static class TestArenaBuilder
         Step("Game font", FontTools.ApplyToOpenSceneQuietly);
         Step("HUD layout", HudLayoutTools.Apply);
         Step("Warning thresholds", TuneWarningThresholds);
+        Step("Underwater look", UnderwaterTools.ApplyToOpenScene);
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -380,22 +385,17 @@ public static class TestArenaBuilder
         Patch(zone, new Vector2(0f, 9f), new Vector2(14f, 12f), new Color(0.33f, 0.25f, 0.42f));
         Color stone = new Color(0.7f, 0.65f, 0.5f);
 
-        // A wall with two locked doors: the pedestal opens the left one, the bone key the right one.
-        Box("PuzzleWall_L", new Vector3(-5.5f, 2f, 14f), new Vector3(3f, 4f, 0.5f), PropColor, zone);
-        Box("PuzzleWall_M", new Vector3(0f, 2f, 14f), new Vector3(4f, 4f, 0.5f), PropColor, zone);
-        Box("PuzzleWall_R", new Vector3(5.5f, 2f, 14f), new Vector3(3f, 4f, 0.5f), PropColor, zone);
-        Door doorStone = SpawnDoor("Door_Stone", new Vector3(-4f, 0f, 14f), true, false, zone);
-        Door doorBone = SpawnDoor("Door_BoneKey", new Vector3(2f, 0f, 14f), true, false, zone);
+        // A wall with three locked doors: the stone tablet opens the left one, the bone key the middle one, the
+        // rune lock the right one. 1.4 m of wall between 2.8 m doorways, x -7..7.
+        foreach (float x in new[] { -6.3f, -2.1f, 2.1f, 6.3f })
+            Box("PuzzleWall", new Vector3(x, 2f, 14f), new Vector3(1.4f, 4f, 0.5f), PropColor, zone);
+        Door doorStone = SpawnDoor("Door_Stone", new Vector3(-5.2f, 0f, 14f), true, false, zone);
+        Door doorBone = SpawnDoor("Door_BoneKey", new Vector3(-1f, 0f, 14f), true, false, zone);
+        Door doorRunes = SpawnDoor("Door_Runes", new Vector3(3.2f, 0f, 14f), true, false, zone);
 
-        // Pedestal: E with stone fragments on you places them automatically (GDD); 3 of them open the left door.
+        // Pedestal: with the 3 stone fragments on you, E opens the puzzle board; piecing the tablet together opens the left door.
         GameObject pedestal = Box("Pedestal", new Vector3(0f, 0.6f, 6f), new Vector3(1.2f, 1.2f, 1.2f), PropColor, zone);
-        var pieces = new GameObject[3];
-        for (int i = 0; i < pieces.Length; i++)
-        {
-            pieces[i] = Box("Placed_Stone_" + (i + 1), new Vector3(-0.35f + i * 0.35f, 1.35f, 6f), new Vector3(0.25f, 0.3f, 0.25f), stone, zone);
-            pieces[i].SetActive(false);
-        }
-        OpenOnFilled(Socket(pedestal, "Item_StoneFragment", 3, true, "place", null, pieces), doorStone);
+        PuzzleBuildTools.SolveOpens(PuzzleBuildTools.AddStation(pedestal, "Puzzle_StoneTablet", "Item_StoneFragment", 3, true, "piece the tablet together"), doorStone);
 
         // Seaweed: 3 bone key fragments + E = a bone key (the GDD tie-them-together step). A clump of swaying fronds
         // (Seaweed builds them here so they show in the Scene view); it swoops when the key is made.
@@ -415,11 +415,15 @@ public static class TestArenaBuilder
         ItemSocket seaweedSocket = Socket(seaweed, "Item_BoneKeyFragment", 3, true, "tie", "Item_BoneKey", null);
         UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(seaweedSocket.onFilled, weed.Swoop);
 
-        // Lock: the bone key opens the right door.
-        GameObject lockBox = Box("Lock_BoneKey", new Vector3(4.6f, 1.2f, 13.4f), new Vector3(0.5f, 0.5f, 0.3f), new Color(0.8f, 0.7f, 0.3f), zone);
+        // Lock: the bone key opens the middle door.
+        GameObject lockBox = Box("Lock_BoneKey", new Vector3(2.1f, 1.2f, 13.4f), new Vector3(0.5f, 0.5f, 0.3f), new Color(0.8f, 0.7f, 0.3f), zone);
         OpenOnFilled(Socket(lockBox, "Item_BoneKey", 1, true, "unlock with", null, null), doorBone);
 
-        Label("PUZZLES - pedestal: 3 stone fragments -> left door\nseaweed: 3 bone fragments -> bone key -> right door", new Vector3(0f, 6f, 12f), zone);
+        // Rune lock: the symbol puzzle on the board opens the right door.
+        GameObject runeLock = Box("RuneLock", new Vector3(6.3f, 1.6f, 13.4f), new Vector3(0.7f, 0.7f, 0.3f), new Color(0.8f, 0.7f, 0.3f), zone);
+        PuzzleBuildTools.SolveOpens(PuzzleBuildTools.AddStation(runeLock, "Puzzle_Runes", null, 0, false, "enter the runes"), doorRunes);
+
+        Label("PUZZLES - pedestal: the 3 stone fragments, then piece the tablet together on the board -> left door\nseaweed: 3 bone fragments -> bone key -> middle door\nrune lock: the three symbols in order (triangle, square, spiral) -> right door", new Vector3(0f, 6f, 12f), zone);
     }
 
     private static void BuildDoors()
@@ -486,6 +490,83 @@ public static class TestArenaBuilder
             });
     }
 
+    // The big double door (the symbol room's). Root = the doorway: the DoubleDoor script, a trigger over the opening
+    // and the highlight. Leaf_Left / Leaf_Right are the hinges at the outer edges, each with a Visual panel (2.4 x 4)
+    // to swap for real art; Lock on the right leaf is the plate the key goes into (the builders put the socket on it).
+    private static GameObject EnsureDoubleDoorPrefab()
+    {
+        var existing = AssetDatabase.LoadAssetAtPath<GameObject>(DoubleDoorPrefabPath);
+        if (existing != null)
+            return existing;
+
+        var root = new GameObject("DoubleDoor_Placeholder");
+        var trigger = root.AddComponent<BoxCollider>();
+        trigger.isTrigger = true;
+        trigger.center = new Vector3(0f, 2.2f, 0f);
+        trigger.size = new Vector3(5.2f, 4.4f, 1.6f);
+        var door = root.AddComponent<DoubleDoor>();
+        root.AddComponent<InteractableHighlight>();
+
+        Transform left = DoubleDoorLeaf(root.transform, "Leaf_Left", -2.4f, 1.2f);
+        Transform right = DoubleDoorLeaf(root.transform, "Leaf_Right", 2.4f, -1.2f);
+
+        GameObject lockPlate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        lockPlate.name = "Lock";
+        lockPlate.transform.SetParent(right, false);
+        lockPlate.transform.localPosition = new Vector3(-2.1f, 1.4f, 0.13f);
+        lockPlate.transform.localScale = new Vector3(0.5f, 0.6f, 0.12f);
+        lockPlate.AddComponent<RendererTint>().Tint = new Color(0.8f, 0.7f, 0.3f);
+
+        var so = new SerializedObject(door);
+        so.FindProperty("leftLeaf").objectReferenceValue = left;
+        so.FindProperty("rightLeaf").objectReferenceValue = right;
+        so.FindProperty("lockPlate").objectReferenceValue = lockPlate;
+        so.FindProperty("openSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_DungeonBolt_Bennynz_CC0.mp3");
+        so.FindProperty("closeSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_HeavySlam_Kyles_CC0.mp3");
+        so.FindProperty("lockedSound").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(DoorSoundFolder + "Door_LockedRattle_CastIronCarousel_CC0.mp3");
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        GameObject prefab = SavePrefab(root, DoubleDoorPrefabPath);
+        return prefab;
+    }
+
+    private static Transform DoubleDoorLeaf(Transform root, string name, float hingeX, float panelX)
+    {
+        var hinge = new GameObject(name).transform;
+        hinge.SetParent(root, false);
+        hinge.localPosition = new Vector3(hingeX, 0f, 0f);
+        GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        visual.name = "Visual";
+        visual.transform.SetParent(hinge, false);
+        visual.transform.localPosition = new Vector3(panelX, 2f, 0f);
+        visual.transform.localScale = new Vector3(2.4f, 4f, 0.15f);
+        visual.AddComponent<RendererTint>().Tint = new Color(0.4f, 0.26f, 0.16f);
+        return hinge;
+    }
+
+    // The double door at the bottom centre of its opening, with its frame; yaw 0 = the leaves span X and you pass
+    // through along Z. The wall wants a gap DoubleDoorGap wide with its lintel from DoubleDoorTop up.
+    internal static DoubleDoor SpawnDoubleDoor(string name, Vector3 centre, float yaw, bool locked, Transform parent)
+    {
+        GameObject prefab = EnsureDoubleDoorPrefab();
+        var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent.gameObject.scene);
+        instance.transform.SetParent(parent, true);
+        Quaternion rotation = Quaternion.Euler(0f, yaw, 0f);
+        instance.transform.SetPositionAndRotation(centre, rotation);
+        instance.name = name;
+        var door = instance.GetComponent<DoubleDoor>();
+        SetField(door, "locked", p => p.boolValue = locked);
+        FramePiece("Frame_Post", centre, rotation, new Vector3(-2.6f, 2.2f, 0f), new Vector3(0.4f, 4.4f, 0.5f), parent);
+        FramePiece("Frame_Post", centre, rotation, new Vector3(2.6f, 2.2f, 0f), new Vector3(0.4f, 4.4f, 0.5f), parent);
+        FramePiece("Frame_Top", centre, rotation, new Vector3(0f, 4.2f, 0f), new Vector3(5.6f, 0.4f, 0.5f), parent);
+        return door;
+    }
+
+    internal static void OpenOnFilled(ItemSocket socket, DoubleDoor door)
+    {
+        UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(socket.onFilled, door.Open);
+    }
+
     private static GameObject EnsureDoorLikePrefab(string path, string name, Vector3 triggerCenter, Vector3 triggerSize,
         Vector3 visualPosition, Vector3 visualScale, Color color, System.Action<SerializedObject> configure)
     {
@@ -518,8 +599,7 @@ public static class TestArenaBuilder
         configure?.Invoke(so);
         so.ApplyModifiedPropertiesWithoutUndo();
 
-        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
-        Object.DestroyImmediate(root);
+        GameObject prefab = SavePrefab(root, path);
         Debug.Log("Created " + path);
         return prefab;
     }
@@ -567,9 +647,9 @@ public static class TestArenaBuilder
         SetField(door, "locked", p => p.boolValue = locked);
         SetField(door, "closeBehindPlayer", p => p.boolValue = closeBehind);
 
-        FramePiece("Frame_Post", hinge, rotation, new Vector3(-0.2f, 1.5f, 0f), new Vector3(0.4f, 3f, 0.4f), parent);
-        FramePiece("Frame_Post", hinge, rotation, new Vector3(2.2f, 1.5f, 0f), new Vector3(0.4f, 3f, 0.4f), parent);
-        FramePiece("Frame_Top", hinge, rotation, new Vector3(1f, 3.2f, 0f), new Vector3(2.8f, 0.4f, 0.4f), parent);
+        FramePiece("Frame_Post", hinge, rotation, new Vector3(-0.2f, 1.5f, 0f), new Vector3(0.4f, 3f, 0.5f), parent);
+        FramePiece("Frame_Post", hinge, rotation, new Vector3(2.2f, 1.5f, 0f), new Vector3(0.4f, 3f, 0.5f), parent);
+        FramePiece("Frame_Top", hinge, rotation, new Vector3(1f, 3.2f, 0f), new Vector3(2.8f, 0.4f, 0.5f), parent);   // as deep as a wall, so no cut face shows beside the frame
         return door;
     }
 
@@ -640,9 +720,13 @@ public static class TestArenaBuilder
         GameObject plate = Spawn("RespawnPlate", new Vector3(3f, 0.05f, 27.5f), zone);
         if (plate != null)
             plate.name = "Checkpoint_Chase";
-        Door finalDoor = SpawnDoor("Door_Final", new Vector3(2f, 0f, 30.5f), false, true, zone);
+        Door finalDoor = SpawnDoor("Door_Final", new Vector3(2f, 0f, 30.5f), true, true, zone);
         SetField(finalDoor, "lockBehind", p => p.boolValue = false);
-        Label("CHASE - E on the plate first. Through the door the grate at the far end of the hallway behind you bursts and three chase pufferfish come out: the dagger does nothing to them, three bites and you're dead. Grab the two stone fragments (Space / Ctrl), slot them in the tablet by the far door, then take the trident at the end of the long corridor and the rubble seals it behind you.", new Vector3(6.5f, 0f, 27f), zone);
+        SetField(finalDoor, "openPrompt", p => p.stringValue = "open the rune door");
+        // The rune lock beside it: the symbol puzzle on the board unlocks the door.
+        GameObject runeLock = Box("RuneLock", new Vector3(5.4f, 2f, 30.2f), new Vector3(0.7f, 0.7f, 0.15f), new Color(0.8f, 0.7f, 0.3f), zone);
+        PuzzleBuildTools.SolveUnlocks(PuzzleBuildTools.AddStation(runeLock, "Puzzle_Runes", null, 0, false, "enter the runes"), finalDoor);
+        Label("CHASE - E on the plate first, then the rune lock beside the door (the three symbols, 1-2-3) unlocks it. Through the door the grate at the far end of the hallway behind you bursts and three chase pufferfish come out: the dagger does nothing to them, three bites and you're dead. Grab the two stone fragments (Space / Ctrl), slot them in the tablet by the far door, then take the trident at the end of the long corridor and the rubble seals it behind you.", new Vector3(6.5f, 0f, 27f), zone);
 
         // Floor and ceilings outside the arena wall: the hallway (room 9), the room after it and the long corridor.
         Box("Floor_Chase", new Vector3(12f, -0.1f, 46.5f), new Vector3(46f, 0.2f, 31f), deck, zone);
@@ -1102,8 +1186,7 @@ public static class TestArenaBuilder
         RimPiece(root, "Jamb_L", new Vector3(-halfW - t * 0.5f, 0f, 0.1f), new Vector3(t, WindowHeight, 0.3f), rim);
         RimPiece(root, "Jamb_R", new Vector3(halfW + t * 0.5f, 0f, 0.1f), new Vector3(t, WindowHeight, 0.3f), rim);
 
-        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, FishWindowPrefabPath);
-        Object.DestroyImmediate(root);
+        GameObject prefab = SavePrefab(root, FishWindowPrefabPath);
         Debug.Log("Created " + FishWindowPrefabPath);
         return prefab;
     }
@@ -1116,6 +1199,29 @@ public static class TestArenaBuilder
         piece.transform.localPosition = localPosition;
         piece.transform.localScale = size;
         piece.AddComponent<RendererTint>().Tint = color;
+    }
+
+    // Saves a freshly built prefab and always removes the scene copy, even when saving fails, so a failed build never
+    // leaves loose *_Placeholder objects behind in the scene.
+    private static GameObject SavePrefab(GameObject root, string path)
+    {
+        try
+        {
+            return PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally
+        {
+            Object.DestroyImmediate(root);
+        }
+    }
+
+    // Loose *_Placeholder objects at the scene root that are not prefab instances: leftovers of a prefab build that
+    // failed part way. Both builders clear them before building.
+    internal static void RemoveStrayPlaceholders(Scene scene)
+    {
+        foreach (GameObject root in scene.GetRootGameObjects())
+            if (root.name.EndsWith("_Placeholder", System.StringComparison.OrdinalIgnoreCase) && !PrefabUtility.IsPartOfPrefabInstance(root))
+                Object.DestroyImmediate(root);
     }
 
     internal static GameObject Spawn(string prefabName, Vector3 position, Transform parent, float yaw = 0f)
@@ -1245,5 +1351,209 @@ public static class TestArenaBuilder
         }
         set(prop);
         so.ApplyModifiedPropertiesWithoutUndo();
+    }
+}
+
+// The two puzzles the game ships with, as assets an artist can fill: Tools > Out of the Depths > Create Puzzle Assets
+// draws placeholder pictures into Art/UI/Puzzle (the board, a slot, a tile frame, the rune tiles, the three tablet
+// pieces) and makes Assets/Puzzles/Puzzle_StoneTablet.asset and Puzzle_Runes.asset from them; nothing already
+// there is touched, so replacing a PNG or a sprite on the asset is all the real art needs. AddStation puts a
+// PuzzleStation on a scene object for the builders; SolveOpens / SolveUnlocks wire what solving it does.
+// (It lives in this file because Unity kept leaving a file of its own out of the editor assembly.)
+public static class PuzzleBuildTools
+{
+    public const string PuzzleFolder = "Assets/Puzzles";
+    public const string ArtFolder = "Assets/Art/UI/Puzzle";
+
+    private static readonly Color Parchment = new Color(0.93f, 0.87f, 0.7f);
+    private static readonly Color Ink = new Color(0.2f, 0.16f, 0.12f);
+    private static readonly Color StoneGrey = new Color(0.52f, 0.52f, 0.47f);
+
+    [MenuItem("Tools/Out of the Depths/Create Puzzle Assets")]
+    public static void CreateAssetsMenu() => EnsureAssets(true);
+
+    public static void EnsureAssets(bool verbose)
+    {
+        Folder("Assets/Art/UI");
+        Folder(ArtFolder);
+        Folder(PuzzleFolder);
+
+        Sprite board = Painted("Board", 480, 300, Rounded(480, 300, 40f, 14f, new Color(0.45f, 0.3f, 0.15f), new Color(0.24f, 0.14f, 0.07f)), 56);
+        Sprite slot = Painted("Slot", 128, 128, Rounded(128, 128, 18f, 6f, new Color(0.2f, 0.13f, 0.07f), new Color(0.1f, 0.06f, 0.03f)), 24);
+        Sprite frame = Painted("TileFrame", 128, 128, Rounded(128, 128, 12f, 5f, Parchment, new Color(0.58f, 0.47f, 0.32f)), 20);
+
+        // The three symbols painted about the ship (their colours), and five that are not.
+        Sprite triangle = Glyph("Rune_Triangle", (u, v) => v >= -0.55f && Mathf.Abs(u) <= 0.62f * (0.6f - v) / 1.15f, new Color(0.9f, 0.15f, 0.1f));
+        Sprite square = Glyph("Rune_Square", (u, v) => Mathf.Abs(u) <= 0.52f && Mathf.Abs(v) <= 0.52f, new Color(0.15f, 0.2f, 0.9f));
+        Sprite spiral = Glyph("Rune_Spiral", (u, v) =>
+        {
+            float r = Mathf.Sqrt(u * u + v * v);
+            float turn = (Mathf.Atan2(v, u) + Mathf.PI) / (2f * Mathf.PI);
+            for (int k = 0; k < 2; k++)
+                if (Mathf.Abs(r - (0.12f + 0.28f * (k + turn))) < 0.085f && r < 0.72f)
+                    return true;
+            return false;
+        }, new Color(0.2f, 0.85f, 0.35f));
+        Sprite circle = Glyph("Rune_Circle", (u, v) => { float r = Mathf.Sqrt(u * u + v * v); return r >= 0.44f && r <= 0.62f; }, Ink);
+        Sprite cross = Glyph("Rune_Cross", (u, v) => (Mathf.Abs(u) <= 0.14f && Mathf.Abs(v) <= 0.62f) || (Mathf.Abs(v) <= 0.14f && Mathf.Abs(u) <= 0.62f), Ink);
+        Sprite bars = Glyph("Rune_Bars", (u, v) => Mathf.Abs(v) <= 0.58f && (Mathf.Abs(u + 0.45f) <= 0.12f || Mathf.Abs(u) <= 0.12f || Mathf.Abs(u - 0.45f) <= 0.12f), Ink);
+        Sprite dots = Glyph("Rune_Dots", (u, v) =>
+        {
+            foreach (float i in new[] { -0.42f, 0f, 0.42f })
+                foreach (float j in new[] { -0.42f, 0f, 0.42f })
+                    if ((u - i) * (u - i) + (v - j) * (v - j) <= 0.13f * 0.13f)
+                        return true;
+            return false;
+        }, Ink);
+        Sprite diamond = Glyph("Rune_Diamond", (u, v) => Mathf.Abs(u) + Mathf.Abs(v) <= 0.62f, Ink);
+
+        // The tablet in three pieces, the breaks jagged so they only read one way round.
+        Sprite stoneLeft = Glyph("Stone_Left", (u, v) => Mathf.Abs(v) <= 0.7f && u >= -0.85f && u <= 0.25f + 0.12f * Mathf.Sin(v * 9f), StoneGrey);
+        Sprite stoneMiddle = Glyph("Stone_Middle", (u, v) => Mathf.Abs(v) <= 0.7f && u >= -0.45f + 0.12f * Mathf.Sin(v * 9f) && u <= 0.45f + 0.12f * Mathf.Cos(v * 7f), StoneGrey);
+        Sprite stoneRight = Glyph("Stone_Right", (u, v) => Mathf.Abs(v) <= 0.7f && u >= -0.25f + 0.12f * Mathf.Cos(v * 7f) && u <= 0.85f, StoneGrey);
+
+        bool made = false;
+        made |= Puzzle("Puzzle_StoneTablet", p =>
+        {
+            p.title = "Piece the tablet together";
+            p.hint = "Drag the three fragments into the slots in the order they fit, or click them. Click a placed one to take it back.";
+            p.solvedText = "The tablet is whole.";
+            p.board = board;
+            p.slot = slot;
+            p.tileFrame = frame;
+            p.tiles = new[]
+            {
+                new PuzzleDefinition.Tile { id = "left", art = stoneLeft, label = "left" },
+                new PuzzleDefinition.Tile { id = "middle", art = stoneMiddle, label = "middle" },
+                new PuzzleDefinition.Tile { id = "right", art = stoneRight, label = "right" },
+            };
+            p.solution = new[] { "left", "middle", "right" };
+        });
+        made |= Puzzle("Puzzle_Runes", p =>
+        {
+            p.title = "Enter the runes";
+            p.hint = "The three symbols painted about the ship, in the order you found them. Drag or click the tiles into the slots.";
+            p.solvedText = "The lock turns.";
+            p.board = board;
+            p.slot = slot;
+            p.tileFrame = frame;
+            p.tiles = new[]
+            {
+                new PuzzleDefinition.Tile { id = "symbol1", art = triangle, label = "1" },
+                new PuzzleDefinition.Tile { id = "symbol2", art = square, label = "2" },
+                new PuzzleDefinition.Tile { id = "symbol3", art = spiral, label = "3" },
+                new PuzzleDefinition.Tile { id = "circle", art = circle, label = "o" },
+                new PuzzleDefinition.Tile { id = "cross", art = cross, label = "+" },
+                new PuzzleDefinition.Tile { id = "bars", art = bars, label = "|||" },
+                new PuzzleDefinition.Tile { id = "dots", art = dots, label = ":::" },
+                new PuzzleDefinition.Tile { id = "diamond", art = diamond, label = "<>" },
+            };
+            p.solution = new[] { "symbol1", "symbol2", "symbol3" };
+        });
+        if (made)
+            AssetDatabase.SaveAssets();
+        if (verbose)
+            Debug.Log($"Puzzle assets are in {PuzzleFolder}, their placeholder pictures in {ArtFolder}. Drop the real sprites onto the puzzle assets, or replace the PNGs.");
+    }
+
+    // ---- for the builders --------------------------------------------------------------------------------------------
+
+    // A puzzle station on a scene object (it needs a collider): E opens the puzzle; requiredItem x amount must be in
+    // the inventory first (null = nothing), consumed on solving if consume.
+    internal static PuzzleStation AddStation(GameObject host, string puzzleAsset, string requiredItem, int amount, bool consume, string prompt)
+    {
+        EnsureAssets(false);
+        var station = host.AddComponent<PuzzleStation>();
+        if (host.GetComponent<InteractableHighlight>() == null)
+            host.AddComponent<InteractableHighlight>();
+        var puzzle = AssetDatabase.LoadAssetAtPath<PuzzleDefinition>($"{PuzzleFolder}/{puzzleAsset}.asset");
+        TestArenaBuilder.SetField(station, "puzzle", p => p.objectReferenceValue = puzzle);
+        TestArenaBuilder.SetField(station, "prompt", p => p.stringValue = prompt);
+        if (!string.IsNullOrEmpty(requiredItem))
+        {
+            TestArenaBuilder.SetField(station, "requiredItem", p => p.objectReferenceValue = ItemTools.Load(requiredItem));
+            TestArenaBuilder.SetField(station, "requiredAmount", p => p.intValue = amount);
+            TestArenaBuilder.SetField(station, "consume", p => p.boolValue = consume);
+        }
+        return station;
+    }
+
+    internal static void SolveOpens(PuzzleStation station, Door door) => UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(station.onSolved, door.Open);
+    internal static void SolveUnlocks(PuzzleStation station, Door door) => UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(station.onSolved, door.Unlock);
+
+    // ---- making the assets -------------------------------------------------------------------------------------------
+
+    private static void Folder(string path)
+    {
+        if (AssetDatabase.IsValidFolder(path))
+            return;
+        string parent = System.IO.Path.GetDirectoryName(path).Replace('\\', '/');
+        AssetDatabase.CreateFolder(parent, System.IO.Path.GetFileName(path));
+    }
+
+    // A puzzle asset, made only if there is none of that name.
+    private static bool Puzzle(string name, System.Action<PuzzleDefinition> fill)
+    {
+        string path = $"{PuzzleFolder}/{name}.asset";
+        if (AssetDatabase.LoadAssetAtPath<PuzzleDefinition>(path) != null)
+            return false;
+        var puzzle = ScriptableObject.CreateInstance<PuzzleDefinition>();
+        fill(puzzle);
+        AssetDatabase.CreateAsset(puzzle, path);
+        Debug.Log("Created " + path);
+        return true;
+    }
+
+    // A rune or piece: the shape in u, v (-1..1 across the tile) in one colour on nothing.
+    private static Sprite Glyph(string file, System.Func<float, float, bool> inside, Color color)
+    {
+        return Painted(file, 128, 128, (x, y) => inside((x + 0.5f) / 64f - 1f, (y + 0.5f) / 64f - 1f) ? color : (Color?)null, 0);
+    }
+
+    // A rounded rectangle with a rim, in pixels.
+    private static System.Func<int, int, Color?> Rounded(int width, int height, float radius, float rim, Color fill, Color rimColor)
+    {
+        return (x, y) =>
+        {
+            float px = Mathf.Abs(x + 0.5f - width * 0.5f) - (width * 0.5f - radius);
+            float py = Mathf.Abs(y + 0.5f - height * 0.5f) - (height * 0.5f - radius);
+            float d = new Vector2(Mathf.Max(px, 0f), Mathf.Max(py, 0f)).magnitude + Mathf.Min(Mathf.Max(px, py), 0f) - radius;
+            if (d > 0f)
+                return null;
+            return d > -rim ? rimColor : fill;
+        };
+    }
+
+    // A PNG painted pixel by pixel and imported as a sprite (border = 9-slice edges); an existing file is kept.
+    private static Sprite Painted(string file, int width, int height, System.Func<int, int, Color?> paint, int border)
+    {
+        string path = $"{ArtFolder}/{file}.png";
+        var existing = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        if (existing != null)
+            return existing;
+
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        var pixels = new Color[width * height];
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+                pixels[y * width + x] = paint(x, y) ?? Color.clear;
+        texture.SetPixels(pixels);
+        texture.Apply();
+        System.IO.File.WriteAllBytes(path, texture.EncodeToPNG());
+        UnityEngine.Object.DestroyImmediate(texture);
+        AssetDatabase.ImportAsset(path);
+
+        if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+        {
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.spriteBorder = new Vector4(border, border, border, border);
+            importer.alphaIsTransparency = true;
+            importer.mipmapEnabled = false;
+            importer.filterMode = FilterMode.Bilinear;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+        }
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
     }
 }

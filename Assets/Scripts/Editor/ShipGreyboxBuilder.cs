@@ -34,6 +34,8 @@ public static class ShipGreyboxBuilder
     private const float DoorGap = 2.8f;     // door + frame posts
     private static readonly Vector3 Spawn = new Vector3(-26f, 1.6f, 11.25f);
 
+    private static PuzzleStation runeStation;   // the code lock in room 8, wired to the rune door once that exists
+
     // Ship extents from the map: x -29..29, z 0..58.5. The basement runs z 0..44.25 under the rooms.
     private const float HullW = -29f, HullE = 29f, HullS = 0f, HullN = 58.5f, BasementN = 44.25f;
 
@@ -77,6 +79,7 @@ public static class ShipGreyboxBuilder
 
         Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
         RemoveOldShip(scene);
+        RemoveStrayPlaceholders(scene);
         ship = new GameObject(RootName).transform;
         BeginBuild(ship, Spawn, "Ship");
         finalDoor = null;
@@ -97,6 +100,7 @@ public static class ShipGreyboxBuilder
         Step("Room 8: symbol room", BuildSymbolRoom);
         Step("Room 9: hallway + chase", BuildHallway);
         Step("Trident corridor", BuildColumn);
+        Step("Room lights", BuildLights);
         Step("Item models", ItemModelTools.ApplyItemModelsInOpenScene);
         Step("Player", PlacePlayer);
         Step("Inventory HUD", ItemTools.EnsureInventoryHud);
@@ -105,6 +109,7 @@ public static class ShipGreyboxBuilder
         Step("Pause menu theme", PauseMenuTools.EnsureTheme);
         Step("Pause menu pages", PauseMenuTools.EnsurePages);
         Step("Game font", FontTools.ApplyToOpenSceneQuietly);
+        Step("Underwater look", UnderwaterTools.ApplyToOpenScene);
         Step("Map bounds", SetMapBounds);
 
         EditorSceneManager.MarkSceneDirty(scene);
@@ -206,16 +211,27 @@ public static class ShipGreyboxBuilder
         // the middle room into the fish room (z 30..32.8). Below z 19.75 it is solid: room 7 is on the other side.
         WallZ("R1_E", -12.25f, 8.5f, 38.25f, room, 24f, 24f + DoorGap, 30f, 30f + DoorGap);
 
-        // The net you start in (button-mash escape later): bars around the spawn, no colliders.
+        // The net you start in (button-mash escape later): a cage of posts and rails round the spawn, wide enough to
+        // float in, nothing at eye height, no colliders.
         Transform net = Group("Net");
         net.SetParent(room, false);
-        for (int i = 0; i < 8; i++)
+        Color rope = new Color(0.35f, 0.3f, 0.2f);
+        const int posts = 8;
+        const float radius = 2.1f;
+        for (int i = 0; i < posts; i++)
         {
-            float a = i * Mathf.PI * 2f / 8f;
-            Decor("NetBar", Spawn + new Vector3(Mathf.Cos(a) * 1.3f, -0.1f, Mathf.Sin(a) * 1.3f), new Vector3(0.06f, 3f, 0.06f), new Color(0.35f, 0.3f, 0.2f), net);
+            float a = i * Mathf.PI * 2f / posts;
+            float b = (i + 1) * Mathf.PI * 2f / posts;
+            var p = new Vector3(Spawn.x + Mathf.Cos(a) * radius, 1.6f, Spawn.z + Mathf.Sin(a) * radius);
+            var q = new Vector3(Spawn.x + Mathf.Cos(b) * radius, 1.6f, Spawn.z + Mathf.Sin(b) * radius);
+            Decor("NetPost", p, new Vector3(0.06f, 3.2f, 0.06f), rope, net);
+            foreach (float y in new[] { 0.3f, 3.1f })   // rails at the ankles and above the head
+            {
+                Vector3 from = new Vector3(p.x, y, p.z), to = new Vector3(q.x, y, q.z);
+                GameObject rail = Decor("NetRail", (from + to) * 0.5f, new Vector3(0.05f, 0.05f, Vector3.Distance(from, to)), rope, net);
+                rail.transform.rotation = Quaternion.LookRotation(to - from);
+            }
         }
-        for (int i = 0; i < 3; i++)
-            Decor("NetRing", Spawn + Vector3.up * (-1.2f + i * 1.1f), new Vector3(2.7f, 0.05f, 2.7f), new Color(0.35f, 0.3f, 0.2f), net).transform.rotation = Quaternion.Euler(0f, i * 15f, 0f);
 
         // The key, in a drawer in the south-east corner: E slides the drawer out and the key appears in it.
         GameObject key = CreatePickup(new Vector3(-13.4f, 0.75f, 10.3f), "Item_FirstRoomKey", room);
@@ -241,8 +257,8 @@ public static class ShipGreyboxBuilder
         Transform room = Group("Room_2_Middle");
         Deck(room, -12.25f, 19.75f, 7f, 38.25f, 0f, Room2Red);
         WallX("R2_S", 19.75f, -12.25f, 7f, room);                                   // room 7 below, no door
-        WallX("R2_N", 38.25f, -12.25f, 19.75f, room, -5.5f, -5.5f + DoorGap);      // rooms 3, 8, 5 above: only the symbol room door
-        Door toSymbol = DoorX("Door_SymbolRoom", 38.25f, -5.5f, true, false, room);
+        WallXBig("R2_N", 38.25f, -12.25f, 19.75f, room, -5.05f, -5.05f + DoubleDoorGap);   // rooms 3, 8, 5 above: only the symbol room's big double door
+        DoubleDoor toSymbol = SpawnDoubleDoor("Door_SymbolRoom", new Vector3(-2.25f, 0f, 38.25f), 0f, true, room);
         WallZ("R2_E", 7f, 19.75f, 38.25f, room, 29f, 29f + DoorGap);               // room 6 east (and the stub down to its south wall)
         DoorZ("Door_StoneRoom", 7f, 29f, false, false, room);
         DoorZ("Door_FishRoom", -12.25f, 30f, false, false, room);                  // in room 1's east wall, north of room 1
@@ -252,9 +268,8 @@ public static class ShipGreyboxBuilder
         Decor("Symbol2_Floor", new Vector3(-2.5f, 0.02f, 29.25f), new Vector3(2.4f, 0.02f, 2.4f), new Color(0.15f, 0.2f, 0.9f), room);
         CreatePickup(new Vector3(-6.75f, 0.8f, 22f), "Item_StoneFragment", room);
 
-        // The bone key lock beside the symbol room door (room 2 side).
-        GameObject lockBox = Box("Lock_BoneKey", new Vector3(-2.3f, 1.3f, 37.9f), new Vector3(0.5f, 0.5f, 0.25f), new Color(0.8f, 0.7f, 0.3f), room);
-        OpenOnFilled(Socket(lockBox, "Item_BoneKey", 1, true, "unlock with", null, null), toSymbol);
+        // The bone key goes into the lock plate in the middle of the double door.
+        OpenOnFilled(Socket(toSymbol.LockPlate, "Item_BoneKey", 1, true, "unlock with", null, null), toSymbol);
 
         SeaweedSocket(new Vector3(5.2f, 0f, 36.4f), room);
     }
@@ -267,7 +282,7 @@ public static class ShipGreyboxBuilder
     {
         Transform room = Group("Room_3_FishRoom");
         Deck(room, HullW, 28.75f, -12.25f, 38.25f, 0f, Room3Orange);
-        Deck(room, HullW, 38.25f, -7f, 44f, 0f, Room3Orange);
+        Deck(room, HullW, 38.25f, -7f, 44f, 0f, Room3Orange, HatchFish);
         Deck(room, HullW, 44f, -7f, 50f, 0f, new Color(0.22f, 0.3f, 0.42f));
         WallZ("R3_E", -7f, 38.25f, 50f, room);   // shared with the symbol room; the z 50 line above is built by the hallway
 
@@ -284,9 +299,9 @@ public static class ShipGreyboxBuilder
         // The dagger, just inside from the middle room.
         CreatePickup(new Vector3(-15f, 0.8f, 31f), "Item_Dagger", room);
 
-        // The hatch: the 2 x 2 hole in the deck, covered by the trapdoor; symbol 1 is on its underside.
+        // The hatch: the 2 x 2 hole in the deck, covered by the trapdoor; symbol 1 is painted on the basement floor right under it (nothing sits in the hole itself).
         SpawnTrapdoor("Hatch_Basement", new Vector3(HatchFish.xMin, 0f, HatchFish.yMin), room);
-        Decor("Symbol1_HatchBottom", new Vector3(HatchFish.center.x, -0.55f, HatchFish.center.y), new Vector3(1.6f, 0.04f, 1.6f), new Color(0.9f, 0.15f, 0.1f), room);
+        Decor("Symbol1_UnderHatch", new Vector3(HatchFish.center.x, BasementFloor + 0.06f, HatchFish.center.y), new Vector3(1.6f, 0.04f, 1.6f), new Color(0.9f, 0.15f, 0.1f), room);
 
         // The wall of fish over the hatch: hack through it with the dagger.
         for (int i = 0; i < 7; i++)
@@ -363,7 +378,7 @@ public static class ShipGreyboxBuilder
     private static void BuildChestRoom()
     {
         Transform room = Group("Room_5_ChestRoom");
-        Deck(room, 2.5f, 38.25f, 19.75f, 50f, 0f, Room5Green);
+        Deck(room, 2.5f, 38.25f, 19.75f, 50f, 0f, Room5Green, HatchChest);
         WallZ("R8_E", 2.5f, 38.25f, 50f, room);   // shared with the symbol room
 
         // The hatch up from the basement.
@@ -381,8 +396,8 @@ public static class ShipGreyboxBuilder
         UnityEditor.Events.UnityEventTools.AddBoolPersistentListener(lockSocket.onFilled, bone.SetActive, true);
     }
 
-    // Room 6 (blue): the stone room (x 7..19.75, z 21.5..38.25), from the middle room. Three stone fragments on the
-    // pedestal open the door south into the box room.
+    // Room 6 (blue): the stone room (x 7..19.75, z 21.5..38.25), from the middle room. Piecing the stone tablet
+    // together at the pedestal (the puzzle board, with the three fragments on you) opens the door south into the box room.
     private static void BuildStoneRoom()
     {
         Transform room = Group("Room_6_StoneRoom");
@@ -391,13 +406,8 @@ public static class ShipGreyboxBuilder
         Door toBoxRoom = DoorX("Door_BoxRoom", 21.5f, 10.5f, true, false, room);
 
         GameObject pedestal = Box("Pedestal", new Vector3(13.5f, 0.6f, 34.25f), new Vector3(1.2f, 1.2f, 1.2f), Prop, room);
-        var pieces = new GameObject[3];
-        for (int i = 0; i < pieces.Length; i++)
-        {
-            pieces[i] = Box("Placed_Stone_" + (i + 1), new Vector3(13.15f + i * 0.35f, 1.35f, 34.25f), new Vector3(0.25f, 0.3f, 0.25f), Stone, room);
-            pieces[i].SetActive(false);
-        }
-        OpenOnFilled(Socket(pedestal, "Item_StoneFragment", 3, true, "place", null, pieces), toBoxRoom);
+        PuzzleStation tablet = PuzzleBuildTools.AddStation(pedestal, "Puzzle_StoneTablet", "Item_StoneFragment", 3, true, "piece the tablet together");
+        PuzzleBuildTools.SolveOpens(tablet, toBoxRoom);
         MuralAt(new Vector3(19.45f, 2.4f, 30f), new Vector2(8f, 1.6f), Vector3.left, room);
     }
 
@@ -407,7 +417,8 @@ public static class ShipGreyboxBuilder
     private static void BuildBoxRoom()
     {
         Transform room = Group("Room_7_BoxRoom");
-        Deck(room, -12.25f, 8.5f, 19.75f, 21.5f, 0f, Room7Yellow);
+        Deck(room, -12.25f, 8.5f, 7f, 19.75f, 0f, Room7Yellow);    // west of the stone room: up to the middle room's wall
+        Deck(room, 7f, 8.5f, 19.75f, 21.5f, 0f, Room7Yellow);      // east: up to the stone room's wall
 
         // The closet: x 15..19.75, z 8.5..12.5, its door in its north wall.
         WallZ("Closet_W", 15f, 8.5f, 12.5f, room);
@@ -439,7 +450,9 @@ public static class ShipGreyboxBuilder
         Decor("Symbol1_Lock", new Vector3(-3.4f, 3.2f, 49.7f), new Vector3(0.7f, 0.7f, 0.06f), new Color(0.9f, 0.15f, 0.1f), room);
         Decor("Symbol2_Lock", new Vector3(-2.6f, 3.2f, 49.7f), new Vector3(0.7f, 0.7f, 0.06f), new Color(0.15f, 0.2f, 0.9f), room);
         Decor("Symbol3_Lock", new Vector3(-3.4f, 2.3f, 49.7f), new Vector3(0.7f, 0.7f, 0.06f), new Color(0.2f, 0.85f, 0.35f), room);
-        Box("CodeLock", new Vector3(-2.6f, 2.3f, 49.75f), new Vector3(0.7f, 0.7f, 0.15f), new Color(0.8f, 0.7f, 0.3f), room);
+        // The rune puzzle: the three symbols in order, on the board; solving it unlocks the rune door (wired in the hallway).
+        GameObject codeLock = Box("CodeLock", new Vector3(-2.6f, 2.3f, 49.75f), new Vector3(0.7f, 0.7f, 0.15f), new Color(0.8f, 0.7f, 0.3f), room);
+        runeStation = PuzzleBuildTools.AddStation(codeLock, "Puzzle_Runes", null, 0, false, "enter the runes");
     }
 
     // Room 9: the hallway (x -29..-4.75, z 50..58.5) and the room east of it (x -4.75..19.75) that the rune door opens
@@ -455,9 +468,11 @@ public static class ShipGreyboxBuilder
         // rune door at the right end of the symbol room.
         WallX("Z50", 50f, HullW, 19.75f, room, -25f, -25f + DoorGap, -0.5f, -0.5f + DoorGap);
         DoorX("Door_Nook", 50f, -25f, false, false, room);
-        finalDoor = DoorX("Door_Final", 50f, -0.5f, false, true, room);
+        finalDoor = DoorX("Door_Final", 50f, -0.5f, true, true, room);   // locked until the rune puzzle at the code lock is solved
         SetField(finalDoor, "lockBehind", p => p.boolValue = false);
         SetField(finalDoor, "openPrompt", p => p.stringValue = "open the rune door");
+        if (runeStation != null)
+            PuzzleBuildTools.SolveUnlocks(runeStation, finalDoor);
         // Hallway / room 9b divider with an open doorway.
         WallZ("Hall_Div", -4.75f, 50f, HullN, room, 51f, 54.5f);
 
@@ -624,6 +639,37 @@ public static class ShipGreyboxBuilder
             });
     }
 
+    // A dim cool light in the middle of every room and along the basement, so the inside of the ship has shape
+    // when the roof keeps the sun out. Point lights without shadows (cheap), a little greener below deck.
+    private static void BuildLights()
+    {
+        Transform lights = Group("Lights");
+        var deck = new Color(0.55f, 0.8f, 1f);
+        var below = new Color(0.45f, 0.75f, 0.62f);
+        foreach (var (name, x, z) in new[]
+        {
+            ("Room1", -20.6f, 18.6f), ("Room2", -2.6f, 29f), ("Room3", -20.6f, 33.5f), ("Nook", -18f, 47f),
+            ("Room5", 11f, 44f), ("Room6", 13.4f, 30f), ("Room7", 3.75f, 15f), ("Room8", -2.25f, 44f),
+            ("Hallway_W", -17f, 54.25f), ("Hallway_E", 7.5f, 54.25f), ("Column_S", 24.4f, 15f), ("Column_N", 24.4f, 45f),
+        })
+            RoomLight("Light_" + name, new Vector3(x, Ceiling - 1.9f, z), deck, 1.3f, 22f, lights);
+        foreach (var (name, x, z) in new[] { ("Basement_SW", -15f, 12f), ("Basement_SE", 15f, 12f), ("Basement_NW", -15f, 32f), ("Basement_NE", 15f, 32f) })
+            RoomLight("Light_" + name, new Vector3(x, BasementCeiling - 2.4f, z), below, 1.2f, 20f, lights);
+    }
+
+    private static void RoomLight(string name, Vector3 position, Color color, float intensity, float range, Transform parent)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        go.transform.position = position;
+        var light = go.AddComponent<Light>();
+        light.type = LightType.Point;
+        light.color = color;
+        light.intensity = intensity;
+        light.range = range;
+        light.shadows = LightShadows.None;
+    }
+
     // The pause menu's map page: the GDD floor plans, cropped to the hull, with the hull edges as the world corners.
     private static void SetMapBounds()
     {
@@ -646,13 +692,17 @@ public static class ShipGreyboxBuilder
     private static void WallZ(string name, float x, float z1, float z2, Transform parent, params float[] gaps) =>
         WallRun(name, false, x, z1, z2, 0f, Ceiling, parent, gaps);
 
+    // A wall along X with taller gaps, for the double door.
+    private static void WallXBig(string name, float z, float x1, float x2, Transform parent, params float[] gaps) =>
+        WallRun(name, true, z, x1, x2, 0f, Ceiling, parent, gaps, DoubleDoorTop);
+
     private static void BasementWallX(string name, float z, float x1, float x2, Transform parent, params float[] gaps) =>
         WallRun(name, true, z, x1, x2, BasementFloor, BasementCeiling, parent, gaps);
 
     private static void BasementWallZ(string name, float x, float z1, float z2, Transform parent, params float[] gaps) =>
         WallRun(name, false, x, z1, z2, BasementFloor, BasementCeiling, parent, gaps);
 
-    private static void WallRun(string name, bool alongX, float cross, float a, float b, float y0, float y1, Transform parent, float[] gaps)
+    private static void WallRun(string name, bool alongX, float cross, float a, float b, float y0, float y1, Transform parent, float[] gaps, float doorTop = DoorTop)
     {
         if (a > b)
             (a, b) = (b, a);
@@ -672,7 +722,7 @@ public static class ShipGreyboxBuilder
             bool inGap = false;
             for (int g = 0; g + 1 < gaps.Length; g += 2)
                 inGap |= mid > Mathf.Min(gaps[g], gaps[g + 1]) && mid < Mathf.Max(gaps[g], gaps[g + 1]);
-            float bottom = inGap ? y0 + DoorTop : y0;
+            float bottom = inGap ? y0 + doorTop : y0;
             if (y1 - bottom > 0.01f)
                 Piece(name, alongX, cross, from, to, bottom, y1, parent);
         }
@@ -691,23 +741,35 @@ public static class ShipGreyboxBuilder
     private static Door DoorX(string name, float z, float gapStart, bool locked, bool closeBehind, Transform parent) =>
         SpawnDoor(name, new Vector3(gapStart + 0.4f, 0f, z), locked, closeBehind, parent, 0f);
 
-    // A door in a wall along Z at x: the door spans -Z from its hinge, so the hinge sits at the gap's far end.
+    // A door in a wall along Z at x: the door spans -Z from its hinge, so the hinge sits 0.4 m (a frame post) short
+    // of the gap's far end and the frame fills the gap exactly.
     private static Door DoorZ(string name, float x, float gapStart, bool locked, bool closeBehind, Transform parent) =>
-        SpawnDoor(name, new Vector3(x, 0f, gapStart + DoorGap - 0.2f), locked, closeBehind, parent, 90f);
+        SpawnDoor(name, new Vector3(x, 0f, gapStart + DoorGap - 0.4f), locked, closeBehind, parent, 90f);
 
     private static void Slab(string name, float x1, float z1, float x2, float z2, float top, Transform parent)
     {
         Box(name, new Vector3((x1 + x2) * 0.5f, top - SlabT * 0.5f, (z1 + z2) * 0.5f), new Vector3(x2 - x1, SlabT, z2 - z1), Hull, parent);
     }
 
-    // A slab with rectangular holes (hatches): cut into bands along x, and split a band north / south around its hole.
+    // A slab with rectangular holes (hatches): cut into bands along x, each split north / south round its hole.
     private static void SlabWithHoles(string name, float x1, float z1, float x2, float z2, float top, Rect[] holes, Transform parent)
     {
+        Bands(x1, z1, x2, z2, holes, (a, b, c, d) => Slab(name, a, b, c, d, top, parent));
+    }
+
+    // A rectangle minus rectangular holes, handed out as pieces: bands along x, each split north / south round its hole.
+    private static void Bands(float x1, float z1, float x2, float z2, Rect[] holes, System.Action<float, float, float, float> piece)
+    {
+        if (holes == null || holes.Length == 0)
+        {
+            piece(x1, z1, x2, z2);
+            return;
+        }
         var xs = new List<float> { x1, x2 };
         foreach (Rect hole in holes)
         {
-            xs.Add(hole.xMin);
-            xs.Add(hole.xMax);
+            xs.Add(Mathf.Clamp(hole.xMin, x1, x2));
+            xs.Add(Mathf.Clamp(hole.xMax, x1, x2));
         }
         xs.Sort();
         for (int i = 0; i + 1 < xs.Count; i++)
@@ -721,23 +783,29 @@ public static class ShipGreyboxBuilder
             {
                 if (mid <= hole.xMin || mid >= hole.xMax)
                     continue;
-                Slab(name, a, z1, b, hole.yMin, top, parent);
-                Slab(name, a, hole.yMax, b, z2, top, parent);
+                if (hole.yMin - z1 > 0.01f)
+                    piece(a, z1, b, hole.yMin);
+                if (z2 - hole.yMax > 0.01f)
+                    piece(a, hole.yMax, b, z2);
                 cut = true;
                 break;
             }
             if (!cut)
-                Slab(name, a, z1, b, z2, top, parent);
+                piece(a, z1, b, z2);
         }
     }
 
-    // A room's floor: a Grid Floor patch (a metre grid, heavier every 5 m, lined up worldwide) in the room's colour.
-    private static void Deck(Transform parent, float x1, float z1, float x2, float z2, float floorY, Color color)
+    // A coloured grid patch a hair above the hull slab (3 cm: far enough that the two never fight at a distance), cut
+    // round any hatch holes so the way down is open to look at, not only to swim through.
+    private static void Deck(Transform parent, float x1, float z1, float x2, float z2, float floorY, Color color, params Rect[] holes)
     {
-        var deck = new GameObject("Deck");
-        deck.transform.SetParent(parent, false);
-        deck.transform.position = new Vector3((x1 + x2) * 0.5f, floorY + 0.01f, (z1 + z2) * 0.5f);
-        deck.AddComponent<GridFloor>().Setup(new Vector2(x2 - x1, z2 - z1), color, EnsureGridMaterial());
+        Bands(x1, z1, x2, z2, holes, (a, b, c, d) =>
+        {
+            var deck = new GameObject("Deck");
+            deck.transform.SetParent(parent, false);
+            deck.transform.position = new Vector3((a + c) * 0.5f, floorY + 0.03f, (b + d) * 0.5f);
+            deck.AddComponent<GridFloor>().Setup(new Vector2(c - a, d - b), color, EnsureGridMaterial());
+        });
     }
 
     private const string GridTexturePath = "Assets/Art/Textures/GridFloor.png";
