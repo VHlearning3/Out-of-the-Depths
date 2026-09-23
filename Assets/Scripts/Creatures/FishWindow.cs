@@ -4,6 +4,8 @@ using UnityEngine;
 // Fish Spawner - or drag it into the spawner's Openings - and duplicate it for more windows. On box walls it cuts its own
 // hole (at Play, or bake it with the inspector button); modelled hulls need the hole in the model.
 // Holds that window's entry path: the fish appears behind and below (out of sight), rises to the opening, swims through and fans out.
+// It also works as a hole in a ceiling: point the blue arrow down into the room and the fish start above instead,
+// out of sight over the roof, and come down through it (the middle room's roof holes).
 public class FishWindow : MonoBehaviour
 {
     [Header("Hole")]
@@ -105,13 +107,13 @@ public class FishWindow : MonoBehaviour
     public static Vector3[] BuildLeavePath(Transform opening, float startDepth, float startDrop, Vector2 openingScatter)
     {
         Vector3 side = opening.right * Random.Range(-openingScatter.x, openingScatter.x);
-        Vector3 lift = Vector3.up * Random.Range(-openingScatter.y, openingScatter.y);
+        Vector3 lift = opening.up * Random.Range(-openingScatter.y, openingScatter.y);
         Vector3 behind = opening.position - opening.forward * startDepth;
         return new[]
         {
             opening.position + opening.forward * 1.5f + side * 0.5f + lift,
             behind + side + lift,
-            behind + side - Vector3.up * startDrop,
+            behind + side + OutOfSight(opening) * startDrop,
         };
     }
 
@@ -120,18 +122,22 @@ public class FishWindow : MonoBehaviour
         Vector2 openingScatter, Vector2 exitScatter, out Vector3 start)
     {
         Vector3 side = opening.right * Random.Range(-openingScatter.x, openingScatter.x);
-        Vector3 lift = Vector3.up * Random.Range(-openingScatter.y, openingScatter.y);
+        Vector3 lift = opening.up * Random.Range(-openingScatter.y, openingScatter.y);
         Vector3 behind = opening.position - opening.forward * startDepth;
 
-        start = behind + side - Vector3.up * (startDrop + Random.Range(0f, 1f));
+        start = behind + side + OutOfSight(opening) * (startDrop + Random.Range(0f, 1f));
         Vector3 rise = behind + side + lift;
         Vector3 through = opening.position + opening.forward * 0.8f + side * 0.5f + lift;
-        Quaternion fan = Quaternion.AngleAxis(Random.Range(-exitScatter.x, exitScatter.x), Vector3.up)
+        Quaternion fan = Quaternion.AngleAxis(Random.Range(-exitScatter.x, exitScatter.x), opening.up)
                        * Quaternion.AngleAxis(Random.Range(-exitScatter.y, exitScatter.y), opening.right);
         Vector3 exit = through + fan * opening.forward * (exitDistance * Random.Range(0.7f, 1.3f));
 
         return new[] { rise, through, exit };
     }
+
+    // Which way from behind the opening the fish waits: down for a window in a wall, up for a hole in a ceiling (its
+    // arrow pointing down into the room).
+    public static Vector3 OutOfSight(Transform opening) => opening.forward.y < -0.7f ? Vector3.up : Vector3.down;
 
     private void OnDrawGizmos()
     {
@@ -151,8 +157,8 @@ public class FishWindow : MonoBehaviour
         Gizmos.matrix = Matrix4x4.TRS(opening.position, opening.rotation, Vector3.one);
         Gizmos.DrawWireCube(Vector3.zero, new Vector3(openingScatter.x * 2f, openingScatter.y * 2f, 0.1f));
         Gizmos.matrix = Matrix4x4.identity;
-        Gizmos.DrawLine(behind - Vector3.up * startDrop, behind);
+        Gizmos.DrawLine(behind + OutOfSight(opening) * startDrop, behind);
         Gizmos.DrawLine(behind, opening.position + opening.forward * exitDistance);
-        Gizmos.DrawSphere(behind - Vector3.up * startDrop, 0.15f);
+        Gizmos.DrawSphere(behind + OutOfSight(opening) * startDrop, 0.15f);
     }
 }

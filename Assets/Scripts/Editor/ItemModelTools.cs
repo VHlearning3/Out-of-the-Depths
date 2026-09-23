@@ -20,7 +20,18 @@ public static class ItemModelTools
         ("Item_SymbolKey", "rune_key", null),
         ("Item_BoneKey", "bone_key_full", null),
         ("Item_BoneKeyFragment", "bone_key_piece1", new[] { "bone_key_piece2", "bone_key_piece3" }),
+        ("Item_Dagger", "dagger", null),     // Vili's weapons (Art/Models/weapons), tip up (+Y)
+        ("Item_Trident", "trident", null),
     };
+
+    // How the weapons sit: in a pickup (size on top of the pickup's 0.35 m fit) and in your hand (length, grip), applied
+    // once per Weapon Fit Version (the tip direction is read from the mesh).
+    private static readonly (string item, float pickupScale, float heldLength, float heldGrip, Vector3 heldRotation)[] WeaponFits =
+    {
+        ("Item_Dagger", 0.9f, 0.3f, 0.2f, new Vector3(-8f, -6f, 0f)),
+        ("Item_Trident", 3.2f, 1.5f, 0.35f, new Vector3(-4f, -4f, 0f)),
+    };
+    private const int WeaponFitVersion = 2;
 
     private const int IconRetries = 20;
     private static int iconRetriesLeft;
@@ -96,6 +107,24 @@ public static class ItemModelTools
             {
                 worldModel.objectReferenceValue = model;
                 changed = true;
+            }
+
+            // A weapon: how big it shows in a pickup and how it sits in your hand, once per fit version.
+            SerializedProperty fitVersion = so.FindProperty("heldFitVersion");
+            if (fitVersion != null && fitVersion.intValue < WeaponFitVersion && worldModel.objectReferenceValue is GameObject weaponModel)
+            {
+                foreach (var fit in WeaponFits)
+                {
+                    if (fit.item != itemName)
+                        continue;
+                    so.FindProperty("worldModelScale").floatValue = fit.pickupScale;
+                    so.FindProperty("heldLength").floatValue = fit.heldLength;
+                    so.FindProperty("heldGrip").floatValue = fit.heldGrip;
+                    so.FindProperty("heldRotation").vector3Value = fit.heldRotation;
+                    so.FindProperty("heldTipAxis").vector3Value = TipAxis(weaponModel);
+                    fitVersion.intValue = WeaponFitVersion;
+                    changed = true;
+                }
             }
 
             // The other looks, only while the item lists none of its own.
@@ -227,6 +256,50 @@ public static class ItemModelTools
         bakedVariant.intValue = variant;
         so.ApplyModifiedPropertiesWithoutUndo();
         return true;
+    }
+
+    // Which way a long model points, in its own space: along its longest side, towards the end that narrows to a
+    // point (a blade's tip, the trident's middle prong) rather than the blunt one (a pommel, the butt of the shaft).
+    internal static Vector3 TipAxis(GameObject model)
+    {
+        var points = new System.Collections.Generic.List<Vector3>();
+        foreach (MeshFilter filter in model.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (filter.sharedMesh == null)
+                continue;
+            foreach (Vector3 v in filter.sharedMesh.vertices)
+                points.Add(model.transform.InverseTransformPoint(filter.transform.TransformPoint(v)));
+        }
+        if (points.Count == 0)
+            return Vector3.up;
+
+        var bounds = new Bounds(points[0], Vector3.zero);
+        foreach (Vector3 p in points)
+            bounds.Encapsulate(p);
+        int axis = bounds.size.x >= bounds.size.y && bounds.size.x >= bounds.size.z ? 0 : bounds.size.y >= bounds.size.z ? 1 : 2;
+        float min = bounds.min[axis], max = bounds.max[axis];
+        float slice = (max - min) * 0.06f;
+        float Spread(bool top)
+        {
+            var end = new Bounds();
+            bool any = false;
+            foreach (Vector3 p in points)
+            {
+                if (top ? p[axis] < max - slice : p[axis] > min + slice)
+                    continue;
+                Vector3 flat = p;
+                flat[axis] = 0f;
+                if (!any)
+                    end = new Bounds(flat, Vector3.zero);
+                else
+                    end.Encapsulate(flat);
+                any = true;
+            }
+            return any ? end.size.magnitude : 0f;
+        }
+        var direction = Vector3.zero;
+        direction[axis] = Spread(true) <= Spread(false) ? 1f : -1f;
+        return direction;
     }
 
     internal static GameObject FindModel(string fileName)

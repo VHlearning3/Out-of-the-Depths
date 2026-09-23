@@ -5,8 +5,10 @@ using UnityEngine;
 // Fish swim in through windows / holes. Spawns Fish Prefab out of sight behind one of its Fish Windows, which rise into
 // view and swim through into the room, then wander around this object or join a pack. When a fish is eaten or fades away,
 // its replacement comes in through a window again after the prefab's Edible Fish → Respawn Time.
-// With Player Enters Trigger the room "loads" when the player swims in and unloads when they leave: live fish swim back
-// out through the nearest window and wait parked; corpses keep drifting; anything that respawns meanwhile waits too.
+// With Player Enters Trigger the room "loads" when the player swims in and unloads when they leave: live fish that are
+// already in the room pause right where they are (switched off) and are back the moment the player returns, so only the
+// first arrivals and replacements for eaten fish come in through the windows; corpses keep drifting; anything that
+// respawns meanwhile waits too.
 // Windows: every Fish Window under this object is used automatically (duplicate the FishWindow prefab as children);
 // or drag any transforms into Openings. Plain transforms use the fallback path settings below.
 public class FishSpawner : MonoBehaviour
@@ -38,7 +40,7 @@ public class FishSpawner : MonoBehaviour
              "covering the room; the fish come in when the player swims into it. Manual: call Activate() / Deactivate() from " +
              "events, e.g. a Player Area Trigger somewhere else.")]
     [SerializeField] private StartMode startMode = StartMode.SceneStart;
-    [Tooltip("When the player leaves the trigger (or Deactivate is called), live fish swim back out through a window and wait until the player returns.")]
+    [Tooltip("When the player leaves the trigger (or Deactivate is called), live fish pause where they are (switched off) until the player returns. Off = they keep swimming about the room meanwhile.")]
     [SerializeField] private bool despawnWhenPlayerLeaves = true;
     [Tooltip("Average seconds between fish swimming in (each gap varies ±50%), so they don't all appear at once.")]
     [SerializeField] private float stagger = 0.8f;
@@ -49,6 +51,7 @@ public class FishSpawner : MonoBehaviour
     private readonly List<Transform> activeOpenings = new List<Transform>();
     private readonly List<GameObject> fish = new List<GameObject>();
     private readonly List<GameObject> parked = new List<GameObject>();
+    private readonly List<GameObject> resting = new List<GameObject>();   // in the room, paused while the player is away
     private int nextOpening;
     private Coroutine arrivals;
 
@@ -71,6 +74,12 @@ public class FishSpawner : MonoBehaviour
             for (int i = 0; i < count; i++)
                 CreateFish();
         }
+
+        // The ones that were already in the room carry on from where they were, at once.
+        foreach (GameObject go in resting)
+            if (go != null)
+                go.SetActive(true);
+        resting.Clear();
 
         if (arrivals != null)
             StopCoroutine(arrivals);
@@ -100,20 +109,17 @@ public class FishSpawner : MonoBehaviour
             if (controller == null || !controller.IsAlive || wander == null)
                 continue;
 
-            // Not in the room yet: no need to swim back out, just wait out of sight.
+            // Not in the room yet: it comes in through a window again next time.
             if (wander.IsEntering)
             {
                 Park(go);
                 continue;
             }
 
-            Transform opening = NearestOpening(go.transform.position);
-            var window = opening.GetComponent<FishWindow>();
-            Vector3[] path = window != null
-                ? window.BuildLeavePath()
-                : FishWindow.BuildLeavePath(opening, startDepth, startDrop, openingScatter);
-            GameObject captured = go;
-            wander.SwimOut(path, transform.position, () => Park(captured));
+            // In the room: pause it right here, to carry on the moment the player is back.
+            go.SetActive(false);
+            if (!resting.Contains(go))
+                resting.Add(go);
         }
     }
 
@@ -213,7 +219,13 @@ public class FishSpawner : MonoBehaviour
             ? window.BuildPath(out start)
             : FishWindow.BuildPath(opening, startDepth, startDrop, exitDistance, openingScatter, exitScatter, out start);
 
-        go.transform.SetPositionAndRotation(start, Quaternion.LookRotation(Vector3.up, -opening.forward));
+        // Facing along the first leg (up for a window, down for a hole in the ceiling).
+        Vector3 heading = path.Length > 0 ? path[0] - start : Vector3.up;
+        if (heading.sqrMagnitude < 0.0001f)
+            heading = Vector3.up;
+        heading.Normalize();
+        Vector3 upHint = Mathf.Abs(Vector3.Dot(heading, opening.forward)) > 0.9f ? opening.up : -opening.forward;
+        go.transform.SetPositionAndRotation(start, Quaternion.LookRotation(heading, upHint));
 
         var wander = go.GetComponent<FishWander>();
         if (wander == null)

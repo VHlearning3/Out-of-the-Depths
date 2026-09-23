@@ -46,6 +46,19 @@ public static class ShipGreyboxBuilder
     private static readonly Rect HatchFish = new Rect(-27f, 40.25f, 2f, 2f);
     private static readonly Rect HatchChest = new Rect(7f, 40f, 2f, 2f);
 
+    // The middle room's roof is broken open: ragged holes of different sizes (centre, radii, turn in degrees, seed for
+    // the ragged edge) that show the surface and the sun and let the light and the fish in. Only the room's roof has them.
+    private static readonly Rect MiddleRoof = new Rect(-12.25f, 19.75f, 19.25f, 18.5f);
+    private static readonly (Vector2 centre, Vector2 radii, float turn, int seed)[] RoofBreaks =
+    {
+        (new Vector2(-6.5f, 25.2f), new Vector2(2.3f, 1.5f), 20f, 1),    // the big one, over the stone fragment
+        (new Vector2(2.2f, 24.6f), new Vector2(1.3f, 1.1f), -10f, 2),
+        (new Vector2(-2.6f, 33.9f), new Vector2(0.95f, 0.8f), 40f, 3),
+        (new Vector2(3.4f, 31.2f), new Vector2(2.4f, 0.42f), -35f, 4),   // a long split in the plating
+        (new Vector2(-9.2f, 33.6f), new Vector2(0.6f, 0.55f), 0f, 5),
+    };
+    // The sun: high, so looking up through the holes you see it, and its light falls in through them.
+    private static readonly Quaternion SunRotation = Quaternion.Euler(68f, -30f, 0f);
     private static readonly Color Hull = new Color(0.13f, 0.15f, 0.19f);
     private static readonly Color Prop = new Color(0.36f, 0.4f, 0.46f);
     private static readonly Color Wood = new Color(0.4f, 0.28f, 0.16f);
@@ -103,6 +116,7 @@ public static class ShipGreyboxBuilder
         Step("Room 8: symbol room", BuildSymbolRoom);
         Step("Room 9: hallway + chase", BuildHallway);
         Step("Trident corridor", BuildColumn);
+        Step("Collectibles", BuildCollectibles);
         Step("Room lights", BuildLights);
         Step("Item models", ItemModelTools.ApplyItemModelsInOpenScene);
         Step("Player", PlacePlayer);
@@ -113,6 +127,8 @@ public static class ShipGreyboxBuilder
         Step("Pause menu pages", PauseMenuTools.EnsurePages);
         Step("Game font", FontTools.ApplyToOpenSceneQuietly);
         Step("Underwater look", UnderwaterTools.ApplyToOpenScene);
+        Step("Sun and surface", BuildSunAndSurface);
+        Step("Clearance check", CheckClearance);
         Step("Map bounds", SetMapBounds);
 
         EditorSceneManager.MarkSceneDirty(scene);
@@ -147,10 +163,151 @@ public static class ShipGreyboxBuilder
         Slab("BasementFloor", HullW, HullS, HullE, BasementN, BasementFloor, decks);
     }
 
-    // The whole first-floor roof as one slab, so hiding it in the editor is one click.
+    // The first-floor roof, all under one Roof object so hiding it in the editor is one click: slabs everywhere but
+    // over the middle room, whose roof is the broken plating (Broken Roof).
     private static void BuildRoof()
     {
-        Box("Roof", new Vector3((HullW + HullE) * 0.5f, Ceiling + SlabT * 0.5f, (HullS + HullN) * 0.5f), new Vector3(HullE - HullW, SlabT, HullN - HullS), Hull, ship);
+        Transform roof = Group("Roof");
+        SlabWithHoles("Roof", HullW, HullS, HullE, HullN, Ceiling + SlabT, new[] { MiddleRoof }, roof);
+        BrokenRoof(roof);
+    }
+
+    // The middle room's roof: one mesh of 25 cm plates with the Roof Breaks torn out of it (a ragged staircase edge),
+    // solid to swim into (Mesh Collider), and a few bent plates hanging into the room round each hole. An invisible lid
+    // over each hole keeps the player inside (the fish coming in through them ignore it).
+    private static void BrokenRoof(Transform parent)
+    {
+        const float cell = 0.25f;
+        int nx = Mathf.RoundToInt(MiddleRoof.width / cell), nz = Mathf.RoundToInt(MiddleRoof.height / cell);
+        var solid = new bool[nx, nz];
+        for (int i = 0; i < nx; i++)
+            for (int j = 0; j < nz; j++)
+                solid[i, j] = !InRoofBreak(MiddleRoof.xMin + (i + 0.5f) * cell, MiddleRoof.yMin + (j + 0.5f) * cell);
+
+        var verts = new List<Vector3>();
+        var normals = new List<Vector3>();
+        var uvs = new List<Vector2>();
+        var tris = new List<int>();
+        float bottom = Ceiling, top = Ceiling + SlabT;
+        void Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 normal)
+        {
+            int start = verts.Count;
+            foreach (Vector3 v in new[] { a, b, c, d })
+            {
+                verts.Add(v);
+                normals.Add(normal);
+                uvs.Add(Mathf.Abs(normal.y) > 0.5f ? new Vector2(v.x, v.z) * 0.5f : new Vector2(v.x + v.z, v.y) * 0.5f);
+            }
+            tris.AddRange(new[] { start, start + 1, start + 2, start, start + 2, start + 3 });
+        }
+        // Top and bottom: a quad per run of solid cells along each row.
+        for (int j = 0; j < nz; j++)
+        {
+            int i = 0;
+            while (i < nx)
+            {
+                if (!solid[i, j])
+                {
+                    i++;
+                    continue;
+                }
+                int from = i;
+                while (i < nx && solid[i, j])
+                    i++;
+                float x0 = MiddleRoof.xMin + from * cell, x1 = MiddleRoof.xMin + i * cell;
+                float z0 = MiddleRoof.yMin + j * cell, z1 = z0 + cell;
+                Quad(new Vector3(x0, top, z0), new Vector3(x0, top, z1), new Vector3(x1, top, z1), new Vector3(x1, top, z0), Vector3.up);
+                Quad(new Vector3(x0, bottom, z0), new Vector3(x1, bottom, z0), new Vector3(x1, bottom, z1), new Vector3(x0, bottom, z1), Vector3.down);
+            }
+        }
+        // The torn edges: a side face wherever a solid cell meets a hole.
+        for (int i = 0; i < nx; i++)
+            for (int j = 0; j < nz; j++)
+            {
+                if (!solid[i, j])
+                    continue;
+                float x0 = MiddleRoof.xMin + i * cell, x1 = x0 + cell;
+                float z0 = MiddleRoof.yMin + j * cell, z1 = z0 + cell;
+                if (i + 1 < nx && !solid[i + 1, j])
+                    Quad(new Vector3(x1, bottom, z0), new Vector3(x1, top, z0), new Vector3(x1, top, z1), new Vector3(x1, bottom, z1), Vector3.right);
+                if (i > 0 && !solid[i - 1, j])
+                    Quad(new Vector3(x0, bottom, z1), new Vector3(x0, top, z1), new Vector3(x0, top, z0), new Vector3(x0, bottom, z0), Vector3.left);
+                if (j + 1 < nz && !solid[i, j + 1])
+                    Quad(new Vector3(x1, bottom, z1), new Vector3(x1, top, z1), new Vector3(x0, top, z1), new Vector3(x0, bottom, z1), Vector3.forward);
+                if (j > 0 && !solid[i, j - 1])
+                    Quad(new Vector3(x0, bottom, z0), new Vector3(x0, top, z0), new Vector3(x1, top, z0), new Vector3(x1, bottom, z0), Vector3.back);
+            }
+
+        var mesh = new Mesh { name = "BrokenRoof" };
+        if (verts.Count > 65000)
+            mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        mesh.SetVertices(verts);
+        mesh.SetNormals(normals);
+        mesh.SetUVs(0, uvs);
+        mesh.SetTriangles(tris, 0);
+        mesh.RecalculateBounds();
+
+        var roof = new GameObject("Roof_Broken");
+        roof.transform.SetParent(parent, false);
+        roof.AddComponent<MeshFilter>().sharedMesh = mesh;
+        roof.AddComponent<MeshRenderer>().sharedMaterial = DefaultMaterial();
+        roof.AddComponent<MeshCollider>().sharedMesh = mesh;
+        roof.AddComponent<RendererTint>().Tint = Hull;
+
+        Color bent = new Color(0.16f, 0.17f, 0.2f);
+        var random = new System.Random(7);
+        float Range(float a, float b) => a + (float)random.NextDouble() * (b - a);
+        foreach (var hole in RoofBreaks)
+        {
+            // The lid: a box over the whole ragged outline, turned with it.
+            var lid = new GameObject("RoofLid");
+            lid.transform.SetParent(parent, false);
+            lid.transform.SetPositionAndRotation(new Vector3(hole.centre.x, Ceiling + SlabT * 0.5f, hole.centre.y), Quaternion.Euler(0f, -hole.turn, 0f));
+            lid.AddComponent<BoxCollider>().size = new Vector3(hole.radii.x * 2.7f, SlabT, hole.radii.y * 2.7f);
+
+            // Bent plates hanging off the rim, more round the bigger holes.
+            int plates = Mathf.Clamp(Mathf.RoundToInt((hole.radii.x + hole.radii.y) * 2f), 2, 8);
+            for (int k = 0; k < plates; k++)
+            {
+                float angle = (k + Range(-0.3f, 0.3f)) / plates * Mathf.PI * 2f;
+                Vector2 local = new Vector2(Mathf.Cos(angle) * hole.radii.x, Mathf.Sin(angle) * hole.radii.y) * 1.05f;
+                float turn = hole.turn * Mathf.Deg2Rad;
+                Vector2 at = hole.centre + new Vector2(local.x * Mathf.Cos(turn) - local.y * Mathf.Sin(turn), local.x * Mathf.Sin(turn) + local.y * Mathf.Cos(turn));
+                Vector3 outward = new Vector3(at.x - hole.centre.x, 0f, at.y - hole.centre.y).normalized;
+                float length = Range(0.5f, 1.1f);
+                GameObject plate = Decor("BentPlate", Vector3.zero, new Vector3(Range(0.35f, 0.8f), 0.05f, length), bent, parent);
+                // Hinged at the rim, drooping down into the room.
+                Quaternion droop = Quaternion.LookRotation(-outward, Vector3.up) * Quaternion.Euler(Range(35f, 70f), Range(-15f, 15f), Range(-10f, 10f));
+                plate.transform.rotation = droop;
+                plate.transform.position = new Vector3(at.x, Ceiling - 0.02f, at.y) + droop * new Vector3(0f, 0f, length * 0.5f);
+            }
+        }
+    }
+
+    // Inside one of the Roof Breaks: an ellipse with a ragged edge.
+    private static bool InRoofBreak(float x, float z)
+    {
+        foreach (var hole in RoofBreaks)
+        {
+            Vector2 d = new Vector2(x, z) - hole.centre;
+            float a = -hole.turn * Mathf.Deg2Rad;
+            var local = new Vector2(d.x * Mathf.Cos(a) - d.y * Mathf.Sin(a), d.x * Mathf.Sin(a) + d.y * Mathf.Cos(a));
+            float r = new Vector2(local.x / hole.radii.x, local.y / hole.radii.y).magnitude;
+            float angle = Mathf.Atan2(local.y, local.x);
+            float edge = 1f + 0.16f * Mathf.Sin(angle * 5f + hole.seed * 1.7f) + 0.1f * Mathf.Sin(angle * 11f + hole.seed * 3.1f) + 0.06f * Mathf.Sin(angle * 23f + hole.seed);
+            if (r < edge)
+                return true;
+        }
+        return false;
+    }
+
+    // The material the primitives get (the render pipeline's default), for meshes made here.
+    private static Material DefaultMaterial()
+    {
+        GameObject probe = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        Material material = probe.GetComponent<MeshRenderer>().sharedMaterial;
+        Object.DestroyImmediate(probe);
+        return material;
     }
 
     // The outer hull, minus the pieces other rooms build with holes in them (the west hull by the hallway: the vent).
@@ -240,8 +397,10 @@ public static class ShipGreyboxBuilder
         // drawer each run: E opens any drawer, and the key rides out with its drawer. The placeholder cabinet stands in
         // if the dresser prefab is missing.
         GameObject key = CreatePickup(new Vector3(-13.4f, 0.75f, 10.3f), "Item_FirstRoomKey", room);
-        if (!Dresser("Dresser_Key", new Vector3(-15.14f, 0f, 10.58f), 0f, key, room))
+        GameObject drawerPearl = CreatePickup(new Vector3(-13.4f, 0.75f, 10.3f), "Item_Pearl", room);   // in another drawer
+        if (!Dresser("Dresser_Key", new Vector3(-15.14f, 0f, 10.58f), 0f, key, room, drawerPearl))
         {
+            Object.DestroyImmediate(drawerPearl);
             key.SetActive(false);
             Door drawer = Drawer("Drawer_Key", new Vector3(-13.2f, 0f, 10.3f), Vector3.left, room);
             UnityEditor.Events.UnityEventTools.AddBoolPersistentListener(drawer.onOpened, key.SetActive, true);
@@ -273,14 +432,58 @@ public static class ShipGreyboxBuilder
 
         foreach (Vector3 corner in new[] { new Vector3(-11f, 0f, 21f), new Vector3(5.75f, 0f, 21f), new Vector3(-11f, 0f, 37f), new Vector3(5.75f, 0f, 37f) })
             Box("Pillar", corner + Vector3.up * (Ceiling * 0.5f), new Vector3(1.5f, Ceiling, 1.5f), Prop, room);
-        Decor("Symbol2_Floor", new Vector3(-2.5f, 0.02f, 29.25f), new Vector3(2.4f, 0.02f, 2.4f), new Color(0.15f, 0.2f, 0.9f), room);
+        // On the floor, above the deck grid (which is 3 cm up), so the two never fight.
+        Decor("Symbol2_Floor", new Vector3(-2.5f, 0.055f, 29.25f), new Vector3(2.4f, 0.02f, 2.4f), new Color(0.15f, 0.2f, 0.9f), room);
         CreatePickup(new Vector3(-6.75f, 0.8f, 22f), "Item_StoneFragment", room);
 
         // The bone key goes into the lock plate in the middle of the double door.
         OpenOnFilled(Socket(toSymbol.LockPlate, "Item_BoneKey", 1, true, "unlock with", null, null), toSymbol);
 
-        SeaweedSocket(new Vector3(5.2f, 0f, 36.4f), room);
+        SeaweedSocket(SeaweedSpot, room);   // clear of the pillar in the north-east corner
+
+        // Fish drop in through the holes in the roof when you come in (the bigger holes are the spawner's openings,
+        // arrows pointing down), join one pack and wander the room. While you are away they pause where they are.
+        FishSchool school = CreateSchool("Fish_Wanderer", 0, new Vector3(-2.6f, 2.5f, 29f), room);
+        var spawner = new GameObject("FishSpawner_RoofHoles");
+        spawner.transform.SetParent(room, false);
+        spawner.transform.position = new Vector3(-2.6f, 2.5f, 29f);
+        for (int h = 0; h < RoofBreaks.Length; h++)
+        {
+            var hole = RoofBreaks[h];
+            if (Mathf.Min(hole.radii.x, hole.radii.y) < 0.7f)
+                continue;   // too narrow for a fish
+            var opening = new GameObject("RoofHole_" + (char)('A' + h));
+            opening.transform.SetParent(spawner.transform, false);
+            opening.transform.SetPositionAndRotation(new Vector3(hole.centre.x, Ceiling, hole.centre.y), Quaternion.LookRotation(Vector3.down, Vector3.forward));
+            var window = opening.AddComponent<FishWindow>();
+            SetField(window, "cutHoleAtStart", p => p.boolValue = false);
+            SetField(window, "holeSize", p => p.vector2Value = hole.radii * 2f);
+            SetField(window, "startDepth", p => p.floatValue = 1.5f);
+            SetField(window, "startDrop", p => p.floatValue = 5f);
+            SetField(window, "exitDistance", p => p.floatValue = 2.5f);
+            SetField(window, "openingScatter", p => p.vector2Value = hole.radii * 0.4f);
+            SetField(window, "exitScatter", p => p.vector2Value = new Vector2(40f, 35f));
+        }
+        var area = spawner.AddComponent<BoxCollider>();
+        area.isTrigger = true;
+        area.center = new Vector3(MiddleRoof.center.x, Ceiling * 0.5f, MiddleRoof.center.y) - spawner.transform.position;
+        area.size = new Vector3(MiddleRoof.width - 0.5f, Ceiling, MiddleRoof.height - 0.5f);
+        var fish = spawner.AddComponent<FishSpawner>();
+        SetField(fish, "fishPrefab", p => p.objectReferenceValue = FindPrefab("Fish_Wanderer"));
+        SetField(fish, "count", p => p.intValue = 5);
+        SetField(fish, "joinSchool", p => p.objectReferenceValue = school);
+        SetField(fish, "startMode", p => p.enumValueIndex = (int)FishSpawner.StartMode.PlayerEntersTrigger);
+        SetField(fish, "stagger", p => p.floatValue = 1.2f);
+
+        // Sunlit debris under the big hole: bits of the roof on the floor.
+        Color bent = new Color(0.16f, 0.17f, 0.2f);
+        GameObject slab = Box("FallenPlate", new Vector3(-8.2f, 0.12f, 26.6f), new Vector3(1.4f, 0.1f, 0.9f), bent, room);
+        slab.transform.rotation = Quaternion.Euler(4f, 25f, 8f);
+        slab = Box("FallenPlate", new Vector3(-4.6f, 0.1f, 23.9f), new Vector3(0.8f, 0.08f, 0.6f), bent, room);
+        slab.transform.rotation = Quaternion.Euler(-6f, -40f, 3f);
     }
+
+    private static readonly Vector3 SeaweedSpot = new Vector3(3.2f, 0f, 35.2f);
 
     // Room 3 (orange): the fish room, L-shaped (x -29..-12.25 from z 28.75, x -29..-7 from z 38.25, up to the mural
     // wall at z 44), entered from the middle room. The dagger, the wall of fish over the hatch, the pack coming in
@@ -374,6 +577,22 @@ public static class ShipGreyboxBuilder
         CreatePickup(new Vector3(10f, BasementFloor + 0.8f, 15f), "Item_Pearl", room);
         CreatePickup(new Vector3(-24f, BasementFloor + 0.8f, 30f), "Item_Pearl", room);
         CreatePickup(new Vector3(22f, BasementFloor + 0.8f, 38f), "Item_Shell", room);
+
+        // A current along the south wall, west to east (the bubbles show where): ride it and grab the pearls and shells
+        // strung along it as you go past.
+        var ride = new GameObject("Current_SouthRide");
+        ride.transform.SetParent(room, false);
+        ride.transform.SetPositionAndRotation(new Vector3(0f, BasementFloor + 2.5f, 4f), Quaternion.LookRotation(Vector3.right));
+        var rideBox = ride.AddComponent<BoxCollider>();
+        rideBox.isTrigger = true;
+        rideBox.size = new Vector3(3f, 2f, 48f);
+        var current = ride.AddComponent<WaterCurrent>();
+        SetField(current, "strength", p => p.floatValue = 6f);
+        SetField(current, "maxSpeed", p => p.floatValue = 5f);
+        SetField(current, "bubbleMaterial", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<Material>(UnderwaterTools.MotesMaterialPath));
+        string[] riders = { "Item_Pearl", "Item_Shell", "Item_Pearl", "Item_Shell", "Item_Pearl" };
+        for (int i = 0; i < riders.Length; i++)
+            CreatePickup(new Vector3(-18f + i * 9f, BasementFloor + 2.5f + (i % 2) * 0.5f, 4f), riders[i], room);
 
         CreateSchool("Fish_Wanderer", 3, new Vector3(-10f, BasementFloor + 2.5f, 25f), room);
         CreateSchool("Fish_Wanderer", 3, new Vector3(15f, BasementFloor + 2.5f, 12f), room);
@@ -620,7 +839,7 @@ public static class ShipGreyboxBuilder
 
         // The trident on its pedestal (button mash later): taking it drops the rubble behind you.
         Box("Pedestal_Trident", new Vector3(24f, 0.6f, 28.75f), new Vector3(1.2f, 1.2f, 1.2f), Prop, room);
-        GameObject trident = CreatePickup(new Vector3(24f, 1.7f, 28.75f), "Item_Trident", room);
+        GameObject trident = CreatePickup(new Vector3(24f, 1.9f, 28.75f), "Item_Trident", room);   // standing up, clear of the pedestal top
         SetField(rubble, "dropOnPickup", p => p.objectReferenceValue = trident != null ? trident.GetComponentInChildren<PickupItem>() : null);
 
         // South of the divider: the first fights with the trident, then the one-way exit.
@@ -680,22 +899,105 @@ public static class ShipGreyboxBuilder
             });
     }
 
-    // A dim cool light in the middle of every room and along the basement, so the inside of the ship has shape
-    // when the roof keeps the sun out. Point lights without shadows (cheap), a little greener below deck.
+    // The lighting, in layers: a dim cool fill in every room and along the basement so nothing is pitch black; the
+    // ship's own old lamps, warm against the blue, a few of them stuttering; the water light, a cool beam slanting in
+    // through every window and the sun falling through the roof holes (each with a faint shaft); warm spots on what
+    // matters (the dresser, the seaweed, the pedestals, the locks); and glowing algae on the basement floor.
     private static void BuildLights()
     {
         Transform lights = Group("Lights");
-        var deck = new Color(0.55f, 0.8f, 1f);
-        var below = new Color(0.45f, 0.75f, 0.62f);
+
+        var fill = new Color(0.42f, 0.66f, 0.95f);
+        var below = new Color(0.4f, 0.72f, 0.62f);
         foreach (var (name, x, z) in new[]
         {
             ("Room1", -20.6f, 18.6f), ("Room2", -2.6f, 29f), ("Room3", -20.6f, 33.5f), ("Nook", -18f, 47f),
             ("Room5", 11f, 44f), ("Room6", 13.4f, 30f), ("Room7", 3.75f, 15f), ("Room8", -2.25f, 44f),
             ("Hallway_W", -17f, 54.25f), ("Hallway_E", 7.5f, 54.25f), ("Column_S", 24.4f, 15f), ("Column_N", 24.4f, 45f),
         })
-            RoomLight("Light_" + name, new Vector3(x, Ceiling - 1.9f, z), deck, 1.3f, 22f, lights);
+            RoomLight("Light_" + name, new Vector3(x, Ceiling - 1.9f, z), fill, 0.85f, 20f, lights);
         foreach (var (name, x, z) in new[] { ("Basement_SW", -15f, 12f), ("Basement_SE", 15f, 12f), ("Basement_NW", -15f, 32f), ("Basement_NE", 15f, 32f) })
-            RoomLight("Light_" + name, new Vector3(x, BasementCeiling - 2.4f, z), below, 1.2f, 20f, lights);
+            RoomLight("Light_" + name, new Vector3(x, BasementCeiling - 2.4f, z), below, 1f, 20f, lights);
+
+        Transform lamps = Group("Lamps");
+        lamps.SetParent(lights, false);
+        foreach (var (name, x, z, flicker) in new[]
+        {
+            ("Room1_A", -16f, 13.5f, false), ("Room1_B", -23f, 24f, false),
+            ("Room2_A", -9.5f, 30f, false), ("Room2_B", 4.5f, 27.5f, false), ("Room2_C", -2.5f, 21.5f, true),
+            ("Room3_A", -17f, 33f, true), ("Room3_B", -24f, 41f, false), ("Nook", -18f, 47f, true),
+            ("Room5", 11f, 46f, false), ("Room6", 13.5f, 25.5f, false), ("Room7_A", -6f, 12f, false), ("Room7_B", 13f, 17f, true),
+            ("Room8", -2.25f, 42.5f, false), ("Hallway_A", -21f, 54.25f, true), ("Hallway_B", -11f, 54.25f, false), ("Room9b", 8f, 54.25f, false),
+            ("Column_A", 24.4f, 8f, false), ("Column_B", 24.4f, 18f, true), ("Column_C", 24.4f, 44f, false),
+        })
+            Lamp("Lamp_" + name, new Vector3(x, Ceiling, z), flicker, lamps);
+
+        Transform water = Group("WaterLight");
+        water.SetParent(lights, false);
+        var beam = new Color(0.5f, 0.85f, 1f);
+        foreach (FishWindow window in ship.GetComponentsInChildren<FishWindow>(true))
+        {
+            Transform w = window.transform;
+            if (Mathf.Abs(w.forward.y) > 0.3f)
+                continue;   // the roof holes: the sun does those
+            Vector3 into = (w.forward * Mathf.Cos(35f * Mathf.Deg2Rad) + Vector3.down * Mathf.Sin(35f * Mathf.Deg2Rad)).normalized;
+            bool shadows = w.position.x < -20f && w.position.y > 0f;   // the spawn and fish room windows, the most looked at
+            BeamLight("Beam_" + w.name, w.position - into * 2f, into, 50f, 2.6f, 11f, shadows, beam, water);
+            Shaft("Shaft_" + w.name, w.position - into * 0.3f, into, 5f, 1.2f, new Color(0.5f, 0.85f, 1f, 0.14f), water);
+        }
+        // The roof holes: a shaft down each along the sun's light, and a soft spot to lift the pool it lands in.
+        Vector3 sunward = SunRotation * Vector3.forward;
+        foreach (var hole in RoofBreaks)
+        {
+            Vector3 top = new Vector3(hole.centre.x, Ceiling + SlabT + 0.2f, hole.centre.y);
+            float length = (Ceiling + SlabT + 0.2f) / Mathf.Max(0.2f, -sunward.y);
+            float width = Mathf.Min(hole.radii.x, hole.radii.y) * 1.6f;
+            Shaft("Shaft_RoofHole", top, sunward, length, width, new Color(0.6f, 0.9f, 1f, 0.2f), water);
+            if (Mathf.Min(hole.radii.x, hole.radii.y) >= 0.7f)
+                BeamLight("Beam_RoofHole", top - sunward * 3f, sunward, 20f + Mathf.Max(hole.radii.x, hole.radii.y) * 12f, 2.2f, 14f, true, new Color(0.7f, 0.92f, 1f), water);
+        }
+
+        Transform accents = Group("Accents");
+        accents.SetParent(lights, false);
+        foreach (var (name, target, from) in new[]
+        {
+            ("Dresser", new Vector3(-15.14f, 0.8f, 10.6f), new Vector3(-15.14f, 4.6f, 12.8f)),
+            ("Seaweed", SeaweedSpot + Vector3.up, SeaweedSpot + new Vector3(-1.2f, 4.6f, -2f)),
+            ("StoneTablet", new Vector3(13.5f, 1.2f, 34.25f), new Vector3(13.5f, 4.6f, 32.3f)),
+            ("Chest", new Vector3(16f, 1f, 44f), new Vector3(16f, 4.6f, 42.2f)),
+            ("PressurePlates", new Vector3(9f, 0f, 13f), new Vector3(8.5f, 4.6f, 13f)),
+            ("CodeLock", new Vector3(-2.6f, 2.3f, 49.5f), new Vector3(-2.6f, 4.6f, 46.8f)),
+            ("HallwayTablet", new Vector3(-7f, 1.8f, 58.1f), new Vector3(-7f, 4.6f, 55.6f)),
+            ("Trident", new Vector3(24f, 1.8f, 28.75f), new Vector3(24f, 4.6f, 26.8f)),
+        })
+            BeamLight("Accent_" + name, from, target - from, 38f, 2.2f, 8f, false, new Color(1f, 0.88f, 0.7f), accents);
+
+        Transform algae = Group("GlowAlgae");
+        algae.SetParent(lights, false);
+        Material glow = EnsureGlowMaterial(AlgaeMaterialPath, new Color(0.25f, 1f, 0.7f));
+        var random = new System.Random(11);
+        float Range(float a, float b) => a + (float)random.NextDouble() * (b - a);
+        foreach (var (x, z) in new[] { (-26f, 4f), (-6f, 14f), (12f, 24f), (25f, 40f), (-18f, 27f), (3f, 7f), (20f, 12f), (-10f, 40f) })
+        {
+            var cluster = new GameObject("Algae");
+            cluster.transform.SetParent(algae, false);
+            cluster.transform.position = new Vector3(x, BasementFloor, z);
+            int blobs = 4 + random.Next(3);
+            for (int i = 0; i < blobs; i++)
+            {
+                float r = Range(0.06f, 0.18f);
+                GameObject blob = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                Object.DestroyImmediate(blob.GetComponent<Collider>());
+                blob.name = "Glow";
+                blob.transform.SetParent(cluster.transform, false);
+                blob.transform.position = new Vector3(x + Range(-0.7f, 0.7f), BasementFloor + 0.03f + r * 0.6f, z + Range(-0.7f, 0.7f));
+                blob.transform.localScale = new Vector3(r * 2f, r * 1.4f, r * 2f);
+                var renderer = blob.GetComponent<MeshRenderer>();
+                renderer.sharedMaterial = glow;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            RoomLight("AlgaeLight", new Vector3(x, BasementFloor + 0.5f, z), new Color(0.3f, 1f, 0.75f), 1.4f, 5f, cluster.transform);
+        }
     }
 
     private static void RoomLight(string name, Vector3 position, Color color, float intensity, float range, Transform parent)
@@ -709,6 +1011,225 @@ public static class ShipGreyboxBuilder
         light.intensity = intensity;
         light.range = range;
         light.shadows = LightShadows.None;
+    }
+
+    // An old ceiling lamp: a rod, a shade, a glowing bulb and a warm light just under it. Flicker = it stutters now and then.
+    private static void Lamp(string name, Vector3 ceiling, bool flicker, Transform parent)
+    {
+        var lamp = new GameObject(name);
+        lamp.transform.SetParent(parent, false);
+        lamp.transform.position = ceiling;
+        Color metal = new Color(0.12f, 0.12f, 0.13f);
+        Decor("Rod", ceiling + Vector3.down * 0.45f, new Vector3(0.04f, 0.9f, 0.04f), metal, lamp.transform);
+        Decor("Shade", ceiling + Vector3.down * 0.95f, new Vector3(0.5f, 0.1f, 0.5f), metal, lamp.transform);
+        GameObject bulb = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        Object.DestroyImmediate(bulb.GetComponent<Collider>());
+        bulb.name = "Bulb";
+        bulb.transform.SetParent(lamp.transform, false);
+        bulb.transform.position = ceiling + Vector3.down * 1.1f;
+        bulb.transform.localScale = Vector3.one * 0.22f;
+        var bulbRenderer = bulb.GetComponent<MeshRenderer>();
+        bulbRenderer.sharedMaterial = EnsureGlowMaterial(LampMaterialPath, new Color(1f, 0.72f, 0.42f));
+        bulbRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+        var go = new GameObject("Light");
+        go.transform.SetParent(lamp.transform, false);
+        go.transform.position = ceiling + Vector3.down * 1.35f;
+        var light = go.AddComponent<Light>();
+        light.type = LightType.Point;
+        light.color = new Color(1f, 0.72f, 0.42f);
+        light.intensity = 1.8f;
+        light.range = 8f;
+        light.shadows = LightShadows.None;
+        if (flicker)
+        {
+            var stutter = go.AddComponent<LightFlicker>();
+            SetField(stutter, "bulb", p => p.objectReferenceValue = bulbRenderer);
+        }
+    }
+
+    // A spot light from `from` along `direction`. Shadows on = soft shadows, so walls and window frames shape it.
+    private static void BeamLight(string name, Vector3 from, Vector3 direction, float angle, float intensity, float range, bool shadows, Color color, Transform parent)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        go.transform.SetPositionAndRotation(from, Quaternion.LookRotation(direction.normalized, Mathf.Abs(direction.normalized.y) > 0.95f ? Vector3.forward : Vector3.up));
+        var light = go.AddComponent<Light>();
+        light.type = LightType.Spot;
+        light.color = color;
+        light.intensity = intensity;
+        light.range = range;
+        light.spotAngle = angle;
+        light.innerSpotAngle = angle * 0.5f;
+        light.shadows = shadows ? LightShadows.Soft : LightShadows.None;
+    }
+
+    // A faint shaft of light: two crossed quads from `start` along `direction`, bright at the start and fading out
+    // along its length and at its sides (additive, never casting or catching shadows).
+    private static void Shaft(string name, Vector3 start, Vector3 direction, float length, float width, Color color, Transform parent)
+    {
+        var shaft = new GameObject(name);
+        shaft.transform.SetParent(parent, false);
+        Vector3 d = direction.normalized;
+        shaft.transform.SetPositionAndRotation(start, Quaternion.LookRotation(d, Mathf.Abs(d.y) > 0.95f ? Vector3.forward : Vector3.up));
+        Material material = EnsureShaftMaterial();
+        foreach (Quaternion turn in new[] { Quaternion.Euler(90f, 0f, 0f), Quaternion.Euler(0f, 0f, 90f) * Quaternion.Euler(90f, 0f, 0f) })
+        {
+            GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Object.DestroyImmediate(quad.GetComponent<Collider>());
+            quad.name = "Beam";
+            quad.transform.SetParent(shaft.transform, false);
+            quad.transform.localRotation = turn;
+            quad.transform.localPosition = new Vector3(0f, 0f, length * 0.5f);
+            quad.transform.localScale = new Vector3(width, length, 1f);
+            var renderer = quad.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+        }
+        shaft.AddComponent<RendererTint>().Tint = color;
+    }
+
+    private const string LampMaterialPath = "Assets/Art/Materials/LampBulb.mat";
+    private const string AlgaeMaterialPath = "Assets/Art/Materials/GlowAlgae.mat";
+    private const string ShaftMaterialPath = "Assets/Art/Materials/LightShaft.mat";
+    private const string ShaftTexturePath = "Assets/Art/Textures/LightShaft.png";
+
+    // A URP Lit material that glows (emission, which the bloom picks up), saved once.
+    private static Material EnsureGlowMaterial(string path, Color glow)
+    {
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material != null)
+            return material;
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        material = new Material(shader) { name = System.IO.Path.GetFileNameWithoutExtension(path) };
+        material.SetColor("_BaseColor", glow * 0.6f);
+        material.EnableKeyword("_EMISSION");
+        material.SetColor("_EmissionColor", glow * 3f);
+        material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+        AssetDatabase.CreateAsset(material, path);
+        return material;
+    }
+
+    // LightShaft.mat: a URP particle material, additive, with a soft streak (LightShaft.png: bright near the start,
+    // fading along its length and to its sides), saved once.
+    private static Material EnsureShaftMaterial()
+    {
+        var material = AssetDatabase.LoadAssetAtPath<Material>(ShaftMaterialPath);
+        if (material != null)
+            return material;
+        var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(ShaftTexturePath);
+        if (texture == null)
+        {
+            const int w = 32, h = 128;
+            var generated = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            var pixels = new Color[w * h];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    float u = (x + 0.5f) / w, v = (y + 0.5f) / h;
+                    float side = Mathf.Pow(Mathf.Sin(u * Mathf.PI), 2f);
+                    float along = Mathf.SmoothStep(0f, 1f, v / 0.08f) * Mathf.Pow(1f - v, 1.6f);
+                    pixels[y * w + x] = new Color(1f, 1f, 1f, side * along);
+                }
+            generated.SetPixels(pixels);
+            generated.Apply();
+            System.IO.File.WriteAllBytes(ShaftTexturePath, generated.EncodeToPNG());
+            Object.DestroyImmediate(generated);
+            AssetDatabase.ImportAsset(ShaftTexturePath);
+            if (AssetImporter.GetAtPath(ShaftTexturePath) is TextureImporter importer)
+            {
+                importer.alphaIsTransparency = true;
+                importer.wrapMode = TextureWrapMode.Clamp;
+                importer.SaveAndReimport();
+            }
+            texture = AssetDatabase.LoadAssetAtPath<Texture2D>(ShaftTexturePath);
+        }
+        Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        material = new Material(shader) { name = "LightShaft" };
+        UnderwaterLighting.ConfigureMoteMaterial(material, texture);
+        material.SetFloat("_Blend", 2f);   // additive
+        material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+        AssetDatabase.CreateAsset(material, ShaftMaterialPath);
+        return material;
+    }
+
+    // Collectibles tucked away round the ship, for the counter in the corner: high corners you have to swim up to,
+    // corners behind things. (More are in the rooms: the spawn room, the dresser, the middle room's roof hole, the
+    // basement and its current.)
+    private static void BuildCollectibles()
+    {
+        Transform group = Group("Collectibles");
+        foreach (var (item, x, y, z) in new[]
+        {
+            ("Item_Shell", -28.2f, 4.4f, 29.5f),   // fish room, high in the north-west corner
+            ("Item_Pearl", 19f, 4.4f, 37.5f),      // stone room, high behind the pedestal
+            ("Item_Shell", -11.5f, 0.6f, 9.2f),    // box room, the far south-west corner
+            ("Item_Pearl", 19f, 4.4f, 49.3f),      // chest room, high in the far corner
+            ("Item_Shell", 19f, 0.6f, 57.8f),      // the room past the rune door
+            ("Item_Pearl", 28.2f, 4.4f, 5f),       // the column, high by the way out
+            ("Item_Pearl", 2.2f, 4.3f, 24.6f),     // middle room, up in the sunlight under a roof hole
+        })
+            CreatePickup(new Vector3(x, y, z), item, group);
+    }
+
+    // The sun, turned high (Sun Rotation) so it shows through the roof holes and its light falls in through them, and
+    // the ocean surface overhead (Ocean Surface: the shimmering underside of the surface and the sun's glow).
+    private static void BuildSunAndSurface()
+    {
+        Light sun = RenderSettings.sun;
+        if (sun == null)
+            foreach (Light light in Object.FindObjectsByType<Light>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (light.type == LightType.Directional)
+                {
+                    sun = light;
+                    break;
+                }
+        if (sun != null)
+        {
+            sun.transform.rotation = SunRotation;
+            sun.shadows = LightShadows.Soft;
+        }
+        var surface = new GameObject("OceanSurface");
+        surface.transform.SetParent(ship, false);
+        var component = surface.AddComponent<OceanSurface>();
+        if (sun != null)
+            SetField(component, "sun", p => p.objectReferenceValue = sun);
+    }
+
+    // Nothing left poking through the level: a pickup placed inside something solid (a wall, a pillar, a pedestal)
+    // is lifted clear, and seaweed growing into a wall or pillar is reported. Things hidden in drawers are left alone.
+    private static void CheckClearance()
+    {
+        Physics.SyncTransforms();
+        var hits = new Collider[16];
+        foreach (PickupItem pickup in ship.GetComponentsInChildren<PickupItem>(true))
+        {
+            if (pickup.GetComponentInParent<DrawerLoot>(true) != null)
+                continue;
+            Transform t = pickup.transform;
+            Vector3 was = t.position;
+            for (int step = 0; step < 25 && Blocked(t, t.position, 0.15f, hits); step++)
+            {
+                t.position += Vector3.up * 0.1f;
+                Physics.SyncTransforms();
+            }
+            if (t.position != was)
+                Debug.Log($"Ship greybox: lifted {t.name} {t.position.y - was.y:0.0} m clear of what it was inside.", t);
+        }
+        foreach (Seaweed weed in ship.GetComponentsInChildren<Seaweed>(true))
+            if (Blocked(weed.transform, weed.transform.position + Vector3.up * 0.8f, 0.35f, hits))
+                Debug.LogWarning($"Ship greybox: {weed.name} grows into something at {weed.transform.position}.", weed);
+    }
+
+    private static bool Blocked(Transform self, Vector3 at, float radius, Collider[] hits)
+    {
+        int count = Physics.OverlapSphereNonAlloc(at, radius, hits, ~0, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < count; i++)
+            if (!hits[i].transform.IsChildOf(self))
+                return true;
+        return false;
     }
 
     // The pause menu's map page: the GDD floor plans, cropped to the hull, with the hull edges as the world corners.
@@ -905,7 +1426,7 @@ public static class ShipGreyboxBuilder
     // of the real drawer that slides by code. Every drawer: Animated Drawer (E), a collider on its front and one on its
     // bottom, the glow. The cabinet: a solid box up to the drawer fronts (the model has no colliders). Drawer Loot hides
     // the key in a random drawer at start. False if the prefab is missing.
-    private static bool Dresser(string name, Vector3 position, float yaw, GameObject key, Transform parent)
+    private static bool Dresser(string name, Vector3 position, float yaw, GameObject key, Transform parent, params GameObject[] extras)
     {
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(DresserPrefabPath);
         if (prefab == null)
@@ -992,6 +1513,19 @@ public static class ShipGreyboxBuilder
                 p.arraySize = drawers.Count;
                 for (int i = 0; i < drawers.Count; i++)
                     p.GetArrayElementAtIndex(i).objectReferenceValue = drawers[i];
+            });
+            // Anything else hidden in it: shown in the next drawers here, shuffled at start like the key.
+            for (int i = 0; i < extras.Length; i++)
+            {
+                extras[i].transform.SetParent(dresser.transform, true);
+                if (i + 1 < drawers.Count)
+                    extras[i].transform.position = drawers[i + 1].Part.TransformPoint(StashPoint(drawerFilter.sharedMesh.bounds));
+            }
+            SetField(loot, "extras", p =>
+            {
+                p.arraySize = extras.Length;
+                for (int i = 0; i < extras.Length; i++)
+                    p.GetArrayElementAtIndex(i).objectReferenceValue = extras[i].transform;
             });
         }
         return true;

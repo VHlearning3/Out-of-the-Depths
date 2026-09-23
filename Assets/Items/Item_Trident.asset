@@ -14,6 +14,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ItemDefinition
   displayName: trident
   category: 2
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 773ac3fac95940240aa0dbd6f9707c5b, type: 3}
   maxStack: 1
   description: A heavy trident. Whatever lives down here will notice it.
+  worldModel: {fileID: 919132149155446097, guid: 57e8da5c0244e5f4ea1273b74e62636c, type: 3}
+  worldModelScale: 3.2
+  worldModelRotation: {x: 0, y: 0, z: 0}
+  worldModelVariants: []
+  heldLength: 1.5
+  heldGrip: 0.35
+  heldTipAxis: {x: 0, y: -1, z: 0}
+  heldRotation: {x: -4, y: -4, z: 0}
+  heldFitVersion: 2

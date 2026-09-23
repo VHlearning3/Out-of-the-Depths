@@ -14,6 +14,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ItemDefinition
   displayName: dagger
   category: 2
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: c0bb63ae7b6c34b46873af084fcfd62c, type: 3}
   maxStack: 1
   description: A rusted dagger. Enough to fend off the small ones.
+  worldModel: {fileID: 919132149155446097, guid: 46d8563eda28cb840ab6bc4a6c495cad, type: 3}
+  worldModelScale: 0.9
+  worldModelRotation: {x: 0, y: 0, z: 0}
+  worldModelVariants: []
+  heldLength: 0.3
+  heldGrip: 0.2
+  heldTipAxis: {x: 0, y: 0, z: 1}
+  heldRotation: {x: -8, y: -6, z: 0}
+  heldFitVersion: 2

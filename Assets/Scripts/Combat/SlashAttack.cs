@@ -115,6 +115,9 @@ public class SlashAttack : MonoBehaviour
 
         if (placeholderTrail && GetComponent<SlashTrail>() == null)
             gameObject.AddComponent<SlashTrail>();
+        // The weapon's real model in the hand (dagger, trident) in place of the placeholder stick.
+        if (handAnimator != null && handAnimator.GetComponent<HeldWeapon>() == null)
+            handAnimator.gameObject.AddComponent<HeldWeapon>().Setup(inventory, weaponVisual);
 
         if (handAnimator != null && hands == null)
             Debug.LogError($"{name}: Hand Animator must implement IHandAnimator.", this);

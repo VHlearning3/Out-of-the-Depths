@@ -26,7 +26,7 @@ public class SwimController : MonoBehaviour
     [Tooltip("The burst a dash gives, in metres per second on top of your swimming; it glides away through the water.")]
     [SerializeField] private float dashSpeed = 7f;
     [Tooltip("Seconds before the next dash.")]
-    [SerializeField] private float dashCooldown = 1.5f;
+    [SerializeField] private float dashCooldown = 3f;
     [Tooltip("Hunger each dash costs; with less than that left you cannot dash.")]
     [SerializeField] private float dashHungerCost = 10f;
     [SerializeField, Range(0f, 1f)] private float dashShake = 0.12f;
