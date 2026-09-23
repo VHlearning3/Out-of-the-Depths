@@ -76,6 +76,17 @@ public class HungerSystem : MonoBehaviour
             foodFlash.Flash();
     }
 
+    // Pay for an action (the dash): false, and nothing taken, when there is not that much left.
+    public bool Spend(float amount)
+    {
+        if (amount <= 0f)
+            return true;
+        if (CurrentHunger < amount)
+            return false;
+        SetHunger(CurrentHunger - amount);
+        return true;
+    }
+
     public void ResetHunger()
     {
         depletedEventFired = false;

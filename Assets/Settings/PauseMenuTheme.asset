@@ -53,8 +53,10 @@ MonoBehaviour:
   startScale: 0.96
   pageFadeSeconds: 0.2
   smoothing: 16
-  hoverSound: {fileID: 0}
+  hoverSound: {fileID: 8300000, guid: e74b81702314cf902d709b29b426dc82, type: 3}
   hoverVolume: 0.35
+  pressSound: {fileID: 8300000, guid: 803e0ec2c2e386572a4050f20dd49c64, type: 3}
+  pressVolume: 0.45
   openSound: {fileID: 0}
   closeSound: {fileID: 0}
   menuVolume: 0.6

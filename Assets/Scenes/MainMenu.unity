@@ -409,10 +409,11 @@ MonoBehaviour:
   infoPanel: {fileID: 100}
   infoPanelText: {fileID: 109}
   infoPanelBackButton: {fileID: 114}
-  settingsMessage: Settings coming soon.
-  creditsMessage: 'Out the Depths Demo
-
-    Noora, Otto, Sara, Ibrahim, Rebe, Vili'
+  theme: {fileID: 11400000, guid: fbc728cd8cab78a4fbc83242e659ceb7, type: 2}
+  inputActions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  restyleButtons: 1
+  buttonFontSize: 26
+  titleFontSize: 76
 --- !u!1 &40
 GameObject:
   m_ObjectHideFlags: 0

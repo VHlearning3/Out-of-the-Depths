@@ -2,7 +2,9 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 // First-person swimming: mouse look, WASD swim (forward follows where you look, so pitching changes depth),
-// Space / Ctrl for straight up / down, sprint, and the camera bank/sway/bob feel. Movement carries momentum:
+// Space / Ctrl for straight up / down, Shift to dash (a burst the way you are swimming, or looking, that costs
+// hunger and has a cooldown; the Dash Indicator ring round the crosshair shows it), and the camera
+// bank/sway/bob feel. Movement carries momentum:
 // slow to get going, long glide when you let go - tune Acceleration and Drag for heavier or lighter water.
 // AddImpulse() shoves the player (a bite), AddShake() rattles the camera (a bite, falling rubble).
 [RequireComponent(typeof(CharacterController))]
@@ -20,7 +22,16 @@ public class SwimController : MonoBehaviour
     [Header("Swim Movement")]
     [Tooltip("Top speed in metres per second.")]
     [SerializeField] private float swimSpeed = 2.2f;
-    [SerializeField] private float sprintMultiplier = 1.6f;
+    [Header("Dash (the Sprint key, Shift)")]
+    [Tooltip("The burst a dash gives, in metres per second on top of your swimming; it glides away through the water.")]
+    [SerializeField] private float dashSpeed = 7f;
+    [Tooltip("Seconds before the next dash.")]
+    [SerializeField] private float dashCooldown = 1.5f;
+    [Tooltip("Hunger each dash costs; with less than that left you cannot dash.")]
+    [SerializeField] private float dashHungerCost = 10f;
+    [SerializeField, Range(0f, 1f)] private float dashShake = 0.12f;
+    [SerializeField] private AudioClip dashSound;
+    [SerializeField, Range(0f, 1f)] private float dashVolume = 0.5f;
     [Tooltip("Speed straight up (Space) and down (Ctrl), in metres per second.")]
     [SerializeField] private float verticalSpeed = 1.6f;
     [Tooltip("How quickly you reach top speed. Lower = heavier, more swimming-like. About 3 / this many seconds to get up to speed.")]
@@ -84,6 +95,15 @@ public class SwimController : MonoBehaviour
     public float PanicSway { get; set; }
     // Scales the swim speed: 1 = normal (PlayerPanic's adrenaline, later maybe a current or a heavy item).
     public float SpeedMultiplier { get; set; } = 1f;
+
+    // The dash, for the HUD ring: seconds until the next one, the cooldown, and when one was last refused (too hungry).
+    public float DashReadyIn => Mathf.Max(0f, nextDashAt - Time.time);
+    public float DashCooldown => dashCooldown;
+    public float DashHungerCost => dashHungerCost;
+    public float LastDashRefusedAt { get; private set; } = -10f;
+    public float LastDashAt { get; private set; } = -10f;
+    private float nextDashAt;
+    private HungerSystem hunger;
 
     private float swayPhase;
     private float bobPhase;
@@ -149,6 +169,8 @@ public class SwimController : MonoBehaviour
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
+        if (GetComponent<DashIndicator>() == null)
+            gameObject.AddComponent<DashIndicator>();   // the cooldown ring round the crosshair
         cameraPivotRestLocalPosition = cameraPivot.localPosition;
 
         var playerMap = inputActions.FindActionMap("Player");
@@ -230,6 +252,27 @@ public class SwimController : MonoBehaviour
         transform.rotation = Quaternion.Euler(0f, yaw, 0f);
     }
 
+    // A burst the way you are swimming (or looking, when still), gliding away through the water; paid for in hunger.
+    private void TryDash(Vector3 wishVelocity)
+    {
+        if (Time.time < nextDashAt)
+            return;
+        if (hunger == null)
+            hunger = GetComponentInParent<HungerSystem>() != null ? GetComponentInParent<HungerSystem>() : FindFirstObjectByType<HungerSystem>();
+        if (hunger != null && !hunger.Spend(dashHungerCost))
+        {
+            LastDashRefusedAt = Time.time;   // too hungry: the ring flashes
+            return;
+        }
+        Vector3 direction = wishVelocity.sqrMagnitude > 0.0001f ? wishVelocity.normalized : cameraPivot.forward;
+        currentVelocity += direction * dashSpeed;
+        nextDashAt = Time.time + dashCooldown;
+        LastDashAt = Time.time;
+        AddShake(dashShake);
+        if (dashSound != null)
+            AudioSource.PlayClipAtPoint(dashSound, transform.position, dashVolume);
+    }
+
     private void HandleSwim()
     {
         Vector2 move = moveAction.ReadValue<Vector2>();
@@ -242,7 +285,7 @@ public class SwimController : MonoBehaviour
         if (!allowControllerInput && device != null && !(device is Keyboard))
             move = Vector2.zero;
         LastMoveInput = move;
-        float speedMultiplier = (sprintAction.IsPressed() ? sprintMultiplier : 1f) * Mathf.Max(0f, SpeedMultiplier);
+        float speedMultiplier = Mathf.Max(0f, SpeedMultiplier);
 
         // Forward/strafe follow the camera's full pitch, so looking up or down while swimming forward changes depth.
         Vector3 wishVelocity = (cameraPivot.forward * move.y + transform.right * move.x) * (swimSpeed * speedMultiplier);
@@ -255,6 +298,9 @@ public class SwimController : MonoBehaviour
         float maxSpeed = Mathf.Max(swimSpeed, verticalSpeed) * speedMultiplier;
         if (wishVelocity.magnitude > maxSpeed)
             wishVelocity = wishVelocity.normalized * maxSpeed;
+
+        if (!Frozen && sprintAction.WasPressedThisFrame())
+            TryDash(wishVelocity);
 
         bool noInput = wishVelocity.sqrMagnitude < 0.0001f;
 

@@ -3,11 +3,12 @@ using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// Main menu buttons: New Game loads the level, Settings opens the info panel with a message, Credits fills the panel
-// with the credits page (the team, each name a row with their photo that opens to show what they did and pictures
-// of their work, then every sound, model and font the game uses, a folding list per kind; all from
-// Assets/Resources/Credits.asset, kept up by Tools > Out of the Depths > Update Credits), Quit exits. The credits
-// page is built where the info text sits, in a scroll view, each time it opens.
+// Main menu buttons: New Game loads the level, Settings and Credits open the pause menu's own panel over the menu (in
+// its main menu mode, the same look as in the game: Settings shows the Settings and Keybindings pages, Credits only
+// the credits; Back or Escape to close; it is made here at start with the Theme), Quit exits. With Restyle Buttons on, the buttons and the title are
+// dressed in the theme's colours, corners and font at start, so the two menus match: a soft rounded panel behind the
+// buttons, an accent line under the title, and on every button a tick when the mouse comes onto it, a click when it
+// is pressed, a small grow and an accent label on hover (Menu Button Feel).
 public class MainMenuController : MonoBehaviour
 {
     [Header("Buttons")]
@@ -17,23 +18,22 @@ public class MainMenuController : MonoBehaviour
     [SerializeField] private Button creditsButton;
     [SerializeField] private Button quitButton;
 
-    [Header("Info Panel")]
+    [Header("Info Panel (not used any more: Settings and Credits open the menu panel)")]
     [SerializeField] private GameObject infoPanel;
     [SerializeField] private Text infoPanelText;
     [SerializeField] private Button infoPanelBackButton;
-    [SerializeField, TextArea] private string settingsMessage = "Settings coming soon.";
 
-    [Header("Credits")]
-    [Tooltip("The team and the asset credits. Empty = Assets/Resources/Credits.asset.")]
-    [SerializeField] private CreditsList credits;
-    [Tooltip("Behind each name and each list heading (click to open).")]
-    [SerializeField] private Color rowColor = new Color(1f, 1f, 1f, 0.08f);
-    [Tooltip("What a name opens to while nothing is written for it on the credits asset.")]
-    [SerializeField, TextArea] private string nothingWrittenYet = "work here";
-    [Tooltip("The size of the pictures under a name, on a 1920 x 1080 screen.")]
-    [SerializeField] private Vector2 pictureSize = new Vector2(240f, 180f);
+    [Header("Look")]
+    [Tooltip("The pause menu's theme: the Settings / Credits panel uses it, and the buttons take its colours. Empty = the built-in defaults.")]
+    [SerializeField] private PauseMenuTheme theme;
+    [Tooltip("The game's controls, for the Keybindings page (there is no player here to take them from).")]
+    [SerializeField] private InputActionAsset inputActions;
+    [Tooltip("Dress the buttons and the title in the theme at start: rounded, its colours and font.")]
+    [SerializeField] private bool restyleButtons = true;
+    [SerializeField] private int buttonFontSize = 26;
+    [SerializeField] private int titleFontSize = 76;
 
-    private GameObject creditsView;
+    private PauseMenu menu;
 
     private void Awake()
     {
@@ -41,18 +41,37 @@ public class MainMenuController : MonoBehaviour
         settingsButton.onClick.AddListener(OnSettings);
         creditsButton.onClick.AddListener(OnCredits);
         quitButton.onClick.AddListener(OnQuit);
-        infoPanelBackButton.onClick.AddListener(CloseInfoPanel);
+        if (infoPanelBackButton != null && infoPanel != null)
+            infoPanelBackButton.onClick.AddListener(() => infoPanel.SetActive(false));
+        if (infoPanel != null)
+            infoPanel.SetActive(false);
 
-        infoPanel.SetActive(false);
+        menu = PauseMenu.CreateFrontEnd(theme, inputActions);
+        if (restyleButtons)
+            Restyle();
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }
 
+    // While the panel is up, the buttons underneath sleep: no hover ticks or clicks through it.
     private void Update()
     {
-        if (infoPanel.activeSelf && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-            CloseInfoPanel();
+        bool free = !PauseMenu.IsOpen;
+        foreach (Button button in new[] { newGameButton, settingsButton, creditsButton, quitButton })
+            if (button != null && button.interactable != free)
+                button.interactable = free;
     }
+
+#if UNITY_EDITOR
+    // The theme and the controls from their usual places, so the scene needs nothing dragged in.
+    private void OnValidate()
+    {
+        if (theme == null)
+            theme = UnityEditor.AssetDatabase.LoadAssetAtPath<PauseMenuTheme>("Assets/Settings/PauseMenuTheme.asset");
+        if (inputActions == null)
+            inputActions = UnityEditor.AssetDatabase.LoadAssetAtPath<InputActionAsset>("Assets/InputSystem_Actions.inputactions");
+    }
+#endif
 
     private void OnNewGame()
     {
@@ -61,14 +80,14 @@ public class MainMenuController : MonoBehaviour
 
     private void OnSettings()
     {
-        ShowInfoPanel(settingsMessage);
+        if (menu != null)
+            menu.OpenPage<SettingsPage>(typeof(KeybindingsPage));   // Settings and Keybindings
     }
 
     private void OnCredits()
     {
-        ShowInfoPanel("");
-        infoPanelText.gameObject.SetActive(false);
-        BuildCredits();
+        if (menu != null)
+            menu.OpenPage<CreditsPage>();   // the credits and nothing else
     }
 
     private void OnQuit()
@@ -80,189 +99,149 @@ public class MainMenuController : MonoBehaviour
 #endif
     }
 
-    private void ShowInfoPanel(string message)
+    // ---- the look ---------------------------------------------------------------------------------------------------
+
+    // Rounded buttons in the theme's colours (New Game a little brighter, it is the one to press), its font, and the
+    // title in the same font and text colour with a soft shadow.
+    private void Restyle()
     {
-        DestroyCredits();
-        infoPanelText.gameObject.SetActive(true);
-        infoPanelText.text = message;
-        infoPanel.SetActive(true);
-    }
+        PauseMenuTheme t = theme != null ? theme : PauseMenuTheme.Default;
+        Font font = t.font != null ? t.font : GameFont.Font;
+        Sprite rounded = Rounded(64, Mathf.Clamp(t.buttonCorner * 1.4f, 4f, 28f));
 
-    private void CloseInfoPanel()
-    {
-        DestroyCredits();
-        infoPanelText.gameObject.SetActive(true);
-        infoPanel.SetActive(false);
-    }
-
-    // ---- the credits page ---------------------------------------------------------------------------------------
-
-    private void DestroyCredits()
-    {
-        if (creditsView != null)
-            Destroy(creditsView);
-        creditsView = null;
-    }
-
-    private void BuildCredits()
-    {
-        if (credits == null)
-            credits = Resources.Load<CreditsList>("Credits");
-
-        // A scroll view where the info text sits, same place and size.
-        RectTransform area = infoPanelText.rectTransform;
-        creditsView = new GameObject("CreditsView", typeof(RectTransform));
-        var view = (RectTransform)creditsView.transform;
-        view.SetParent(area.parent, false);
-        view.anchorMin = area.anchorMin;
-        view.anchorMax = area.anchorMax;
-        view.pivot = area.pivot;
-        view.anchoredPosition = area.anchoredPosition;
-        view.sizeDelta = area.sizeDelta;
-        view.SetSiblingIndex(area.GetSiblingIndex());
-        creditsView.AddComponent<RectMask2D>();
-        var scroll = creditsView.AddComponent<ScrollRect>();
-
-        var content = new GameObject("Content", typeof(RectTransform)).GetComponent<RectTransform>();
-        content.SetParent(view, false);
-        content.anchorMin = new Vector2(0f, 1f);
-        content.anchorMax = new Vector2(1f, 1f);
-        content.pivot = new Vector2(0.5f, 1f);
-        content.offsetMin = Vector2.zero;
-        content.offsetMax = Vector2.zero;
-        Column(content.gameObject, 6f, new RectOffset(8, 8, 8, 8));
-        content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-        scroll.content = content;
-        scroll.viewport = view;
-        scroll.horizontal = false;
-        scroll.vertical = true;
-        scroll.movementType = ScrollRect.MovementType.Clamped;
-        scroll.scrollSensitivity = 30f;
-
-        int size = infoPanelText.fontSize;
-        Color color = infoPanelText.color;
-        if (credits == null)
+        foreach (Button button in new[] { newGameButton, settingsButton, creditsButton, quitButton })
         {
-            Line(content, "Credits", size + 8, color, TextAnchor.MiddleCenter);
-            Line(content, "No credits asset yet: Tools > Out of the Depths > Update Credits makes Assets/Resources/Credits.asset.", size - 6, color, TextAnchor.UpperLeft);
-            return;
-        }
-
-        Line(content, credits.title, size + 8, color, TextAnchor.MiddleCenter);
-        Line(content, "TEAM", size - 2, color, TextAnchor.MiddleLeft);
-        foreach (CreditsList.Member member in credits.team)
-        {
-            if (member == null || string.IsNullOrEmpty(member.name))
+            if (button == null)
                 continue;
-            string words = string.IsNullOrEmpty(member.contributions) ? nothingWrittenYet : member.contributions;
-            Folding(content, member.name, words, size, color, member.photo, member.pictures);
-        }
+            bool primary = button == newGameButton;
+            Image image = button.GetComponent<Image>();
+            if (image != null)
+            {
+                image.sprite = rounded;
+                image.type = Image.Type.Sliced;
+                image.color = Color.white;
+            }
+            Color normal = primary ? Color.Lerp(t.buttonColor, t.accent, 0.35f) : t.buttonColor;
+            normal.a = 0.9f;
+            ColorBlock colours = button.colors;
+            colours.normalColor = normal;
+            colours.highlightedColor = primary ? Color.Lerp(t.buttonHover, t.accent, 0.45f) : t.buttonHover;
+            colours.pressedColor = Color.Lerp(t.buttonHover, t.accent, 0.6f);
+            colours.selectedColor = normal;   // a clicked button does not stay lit
+            colours.disabledColor = normal;   // asleep under the Settings panel: looks the same
+            colours.colorMultiplier = 1f;
+            colours.fadeDuration = 0.08f;
+            button.colors = colours;
 
-        Line(content, credits.assetsHeading, size - 4, color, TextAnchor.MiddleLeft);
-        foreach (string category in credits.Categories())
+            Text label = button.GetComponentInChildren<Text>();
+            if (label != null)
+            {
+                label.font = font;
+                label.fontSize = buttonFontSize;
+                label.color = t.textColor;
+                label.alignment = TextAnchor.MiddleCenter;
+            }
+            MenuButtonFeel feel = button.GetComponent<MenuButtonFeel>() != null ? button.GetComponent<MenuButtonFeel>() : button.gameObject.AddComponent<MenuButtonFeel>();
+            feel.Setup(t);
+        }
+        PanelBehindButtons(t);
+
+        GameObject titleObject = GameObject.Find("Title");
+        Text title = titleObject != null ? titleObject.GetComponent<Text>() : null;
+        if (title != null)
         {
-            var lines = new System.Text.StringBuilder();
-            foreach (CreditsList.Entry entry in credits.In(category))
-                lines.Append(lines.Length > 0 ? "\n" : "").Append(entry.Line);
-            string heading = (string.IsNullOrEmpty(category) ? "Other" : category) + " (" + credits.In(category).Count + ")";
-            Folding(content, heading, lines.ToString(), size - 2, color, null, null);
+            title.font = font;
+            title.fontSize = titleFontSize;
+            title.color = t.textColor;
+            Shadow shadow = title.GetComponent<Shadow>() != null ? title.GetComponent<Shadow>() : title.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.55f);
+            shadow.effectDistance = new Vector2(3f, -3f);
+            LineUnder(title.rectTransform, t.accent);
         }
     }
 
-    // A row you click to open what is under it (words, then pictures), and click again to fold it away.
-    private void Folding(RectTransform parent, string name, string words, int size, Color color, Sprite photo, Sprite[] pictures)
+    // A soft rounded panel in the pause menu's panel colour behind the column of buttons, a little bigger than it.
+    private void PanelBehindButtons(PauseMenuTheme t)
     {
-        float rowHeight = photo != null ? Mathf.Max(size + 22f, 76f) : size + 22f;
-        var row = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
-        row.transform.SetParent(parent, false);
-        row.GetComponent<Image>().color = rowColor;
-        row.GetComponent<LayoutElement>().preferredHeight = rowHeight;
-
-        float labelLeft = 14f;
-        if (photo != null)
+        var buttons = new System.Collections.Generic.List<RectTransform>();
+        foreach (Button button in new[] { newGameButton, settingsButton, creditsButton, quitButton })
+            if (button != null)
+                buttons.Add((RectTransform)button.transform);
+        if (buttons.Count == 0)
+            return;
+        var parent = buttons[0].parent as RectTransform;
+        if (parent == null)
+            return;
+        Vector2 min = new Vector2(float.MaxValue, float.MaxValue), max = new Vector2(float.MinValue, float.MinValue);
+        int firstIndex = int.MaxValue;
+        var corners = new Vector3[4];
+        foreach (RectTransform rect in buttons)
         {
-            Image portrait = Picture(row.transform, photo);
-            RectTransform rect = portrait.rectTransform;
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 0.5f);
-            rect.anchoredPosition = new Vector2(8f, 0f);
-            rect.sizeDelta = new Vector2(rowHeight - 12f, rowHeight - 12f);
-            labelLeft = rowHeight + 8f;
+            if (rect.parent != parent)
+                continue;
+            rect.GetWorldCorners(corners);
+            foreach (Vector3 corner in corners)
+            {
+                Vector2 local = parent.InverseTransformPoint(corner);
+                min = Vector2.Min(min, local);
+                max = Vector2.Max(max, local);
+            }
+            firstIndex = Mathf.Min(firstIndex, rect.GetSiblingIndex());
         }
-        Text label = NewText((RectTransform)row.transform, "[+]  " + name, size, color, TextAnchor.MiddleLeft);
-        label.rectTransform.anchorMin = Vector2.zero;
-        label.rectTransform.anchorMax = Vector2.one;
-        label.rectTransform.offsetMin = new Vector2(labelLeft, 0f);
-        label.rectTransform.offsetMax = new Vector2(-14f, 0f);
-        label.raycastTarget = false;
-
-        var details = new GameObject("Details", typeof(RectTransform));
-        details.transform.SetParent(parent, false);
-        Column(details, 8f, new RectOffset(24, 8, 2, 10));
-        Line((RectTransform)details.transform, words, size - 6, color, TextAnchor.UpperLeft);
-        if (pictures != null && pictures.Length > 0)
-        {
-            var grid = new GameObject("Pictures", typeof(RectTransform), typeof(GridLayoutGroup));
-            grid.transform.SetParent(details.transform, false);
-            var layout = grid.GetComponent<GridLayoutGroup>();
-            layout.cellSize = pictureSize;
-            layout.spacing = new Vector2(10f, 10f);
-            layout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            layout.constraintCount = Mathf.Max(1, Mathf.FloorToInt((infoPanelText.rectTransform.rect.width - 40f) / (pictureSize.x + 10f)));
-            foreach (Sprite sprite in pictures)
-                if (sprite != null)
-                    Picture(grid.transform, sprite);
-        }
-        details.SetActive(false);
-
-        row.GetComponent<Button>().onClick.AddListener(() =>
-        {
-            bool open = !details.activeSelf;
-            details.SetActive(open);
-            label.text = (open ? "[-]  " : "[+]  ") + name;
-        });
-    }
-
-    private static void Column(GameObject host, float spacing, RectOffset padding)
-    {
-        var layout = host.AddComponent<VerticalLayoutGroup>();
-        layout.spacing = spacing;
-        layout.padding = padding;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
-    }
-
-    private static Image Picture(Transform parent, Sprite sprite)
-    {
-        var image = new GameObject("Picture", typeof(RectTransform), typeof(Image)).GetComponent<Image>();
-        image.transform.SetParent(parent, false);
-        image.sprite = sprite;
-        image.preserveAspect = true;
+        if (firstIndex == int.MaxValue)
+            return;
+        const float padding = 30f;
+        var panel = new GameObject("ButtonPanel", typeof(RectTransform), typeof(Image));
+        var panelRect = (RectTransform)panel.transform;
+        panelRect.SetParent(parent, false);
+        panelRect.SetSiblingIndex(firstIndex);   // behind the buttons
+        panelRect.anchorMin = panelRect.anchorMax = panelRect.pivot = new Vector2(0.5f, 0.5f);
+        panelRect.sizeDelta = max - min + Vector2.one * padding * 2f;
+        panelRect.anchoredPosition = (min + max) * 0.5f - parent.rect.center;
+        var image = panel.GetComponent<Image>();
+        image.sprite = Rounded(96, Mathf.Clamp(t.panelCorner, 6f, 40f));
+        image.type = Image.Type.Sliced;
+        image.color = new Color(t.panelColor.r, t.panelColor.g, t.panelColor.b, 0.72f);
         image.raycastTarget = false;
-        return image;
     }
 
-    private Text Line(RectTransform parent, string content, int size, Color color, TextAnchor anchor)
+    // A short accent line centred under the title.
+    private static void LineUnder(RectTransform title, Color accent)
     {
-        var holder = new GameObject("Line", typeof(RectTransform));
-        holder.transform.SetParent(parent, false);
-        return NewText((RectTransform)holder.transform, content, size, color, anchor, true);
+        var parent = title.parent as RectTransform;
+        if (parent == null)
+            return;
+        var corners = new Vector3[4];
+        title.GetWorldCorners(corners);
+        Vector2 bottomLeft = parent.InverseTransformPoint(corners[0]), bottomRight = parent.InverseTransformPoint(corners[3]);
+        var line = new GameObject("TitleLine", typeof(RectTransform), typeof(Image));
+        var rect = (RectTransform)line.transform;
+        rect.SetParent(parent, false);
+        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(220f, 3f);
+        rect.anchoredPosition = (bottomLeft + bottomRight) * 0.5f + Vector2.up * 4f - parent.rect.center;
+        var image = line.GetComponent<Image>();
+        image.color = new Color(accent.r, accent.g, accent.b, 0.85f);
+        image.raycastTarget = false;
     }
 
-    private Text NewText(RectTransform parent, string content, int size, Color color, TextAnchor anchor, bool onParent = false)
+    // A white rounded square, 9-sliced by its corners, tinted by the button colours.
+    private static Sprite Rounded(int size, float radius)
     {
-        GameObject host = onParent ? parent.gameObject : new GameObject("Text", typeof(RectTransform));
-        if (!onParent)
-            host.transform.SetParent(parent, false);
-        var text = host.AddComponent<Text>();
-        text.text = content;
-        text.font = infoPanelText.font != null ? infoPanelText.font : GameFont.Font;
-        text.fontSize = size;
-        text.color = color;
-        text.alignment = anchor;
-        text.horizontalOverflow = HorizontalWrapMode.Wrap;
-        text.verticalOverflow = VerticalWrapMode.Overflow;
-        return text;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear, hideFlags = HideFlags.DontSave };
+        var pixels = new Color32[size * size];
+        float half = size * 0.5f;
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float px = Mathf.Abs(x + 0.5f - half) - (half - radius);
+                float py = Mathf.Abs(y + 0.5f - half) - (half - radius);
+                float d = new Vector2(Mathf.Max(px, 0f), Mathf.Max(py, 0f)).magnitude + Mathf.Min(Mathf.Max(px, py), 0f) - radius;
+                pixels[y * size + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(0.5f - d) * 255f));
+            }
+        texture.SetPixels32(pixels);
+        texture.Apply();
+        float border = Mathf.Ceil(radius) + 1f;
+        return Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(border, border, border, border));
     }
 }

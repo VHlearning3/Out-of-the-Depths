@@ -57,6 +57,7 @@ public class InteractableHighlight : MonoBehaviour, IInteractTargetListener
         if (!targeted && weight <= 0f)
             return;
 
+        block ??= new MaterialPropertyBlock();   // scripts recompiled mid-play wipe it and Awake does not run again
         float goal = targeted ? 1f : 0f;
         weight = fadeTime > 0f ? Mathf.MoveTowards(weight, goal, Time.deltaTime / fadeTime) : goal;
 

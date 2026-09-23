@@ -57,7 +57,7 @@ public class PickupItem : MonoBehaviour, IInteractable
     [SerializeField] private AudioClip takeSound;
     [SerializeField, Range(0f, 1f)] private float takeVolume = 0.5f;
     [SerializeField] private GameObject pickedUpVfx;
-    [Tooltip("The pickup animation, in three beats: the item snaps up in front of your eyes (Grab), hangs there a moment so you see what you got (Hold), then dives into your torso and is gone (Absorb). All three at 0 = it just vanishes.")]
+    [Tooltip("The pickup animation, in three beats: the item snaps up in front of your eyes (Grab), hangs there a moment so you see what you got (Hold), then dives into your torso and is gone (Absorb). E or a right click puts it away at any moment, even during the Grab; Hold is only a timer when Wait For Interact is off. All three at 0 = it just vanishes.")]
     [SerializeField] private float grabSeconds = 0.12f;
     [SerializeField] private float holdSeconds = 0.5f;
     [FormerlySerializedAs("collectDuration")]
@@ -349,7 +349,9 @@ public class PickupItem : MonoBehaviour, IInteractable
         float turned = 0f;
         holdNow = holdDistance;
 
-        // Grab: up to the eyes, into the showcase pose, growing.
+        // Grab: up to the eyes, into the showcase pose, growing. E (or a right click) already here skips the inspect
+        // and it goes straight in from wherever it has got to.
+        bool closedEarly = false;
         for (float t = 0f; t < grabSeconds; t += Time.deltaTime)
         {
             float k = Ease.OutCubic(t / grabSeconds);
@@ -357,9 +359,14 @@ public class PickupItem : MonoBehaviour, IInteractable
             visual.rotation = Quaternion.Slerp(startRotation, Showcase(showcase, eye, 0f), k);
             visual.localScale = startScale * Mathf.Lerp(1f, holdScale, k);
             yield return null;
+            if (CloseRequested(interactor))
+            {
+                closedEarly = true;
+                break;
+            }
         }
 
-        if (ShouldInspect())
+        if (ShouldInspect() && !closedEarly)
         {
         // Hold: hang in front of the eyes, turning slowly. Left mouse held = grab it and turn it; the scroll wheel zooms;
         // E takes it (or the clock, with Wait For Interact off). Swimming and looking stop, the cursor shows, the
@@ -409,8 +416,8 @@ public class PickupItem : MonoBehaviour, IInteractable
                 heldE = eKey != null && eKey.IsPressed() ? heldE + Time.unscaledDeltaTime : 0f;
                 if (holdToSkipSeconds > 0f && heldE >= holdToSkipSeconds)
                     break;
-                bool minimumHeld = held >= holdSeconds;
-                if (needsInteract ? minimumHeld && InteractPressed(interactor) : minimumHeld)
+                // E (or a right click) closes it at once; with Wait For Interact off it goes by itself after Hold Seconds.
+                if (needsInteract ? CloseRequested(interactor) : held >= holdSeconds)
                     break;
                 yield return null;
             }
@@ -532,6 +539,13 @@ public class PickupItem : MonoBehaviour, IInteractable
     }
 
     // E, however it arrives: the Interact action (any of its states) or the key itself as a fallback.
+    // Put the item away: E, or a right click.
+    private static bool CloseRequested(PlayerInteractor interactor)
+    {
+        Mouse mouse = Mouse.current;
+        return InteractPressed(interactor) || (mouse != null && mouse.rightButton.wasPressedThisFrame);
+    }
+
     private static bool InteractPressed(PlayerInteractor interactor)
     {
         InputAction action = interactor != null ? interactor.InteractAction : null;

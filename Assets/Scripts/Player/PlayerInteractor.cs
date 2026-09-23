@@ -15,6 +15,8 @@ public class PlayerInteractor : MonoBehaviour
     [SerializeField] private LayerMask interactableMask = ~0;
     [Tooltip("How much the target has to be in front of the camera. 0 = anywhere around you, 1 = dead centre.")]
     [SerializeField, Range(0f, 1f)] private float minLookAlignment = 0.3f;
+    [Tooltip("Only what you can actually see: a wall (anything solid that is not part of the thing itself) between your eyes and it rules it out.")]
+    [SerializeField] private bool needsLineOfSight = true;
 
     [Header("Prompt")]
     [SerializeField] private Text promptLabel;
@@ -56,6 +58,7 @@ public class PlayerInteractor : MonoBehaviour
     private GameObject currentTargetObject;
     private string hint;
     private readonly Collider[] overlapResults = new Collider[16];
+    private readonly RaycastHit[] sightHits = new RaycastHit[16];
     private Material outlineMaterial;
     // The outline material, for anything else that wants the same rim (a pickup being inspected).
     public Material OutlineMaterial => outlineMaterial;
@@ -100,6 +103,32 @@ public class PlayerInteractor : MonoBehaviour
         CurrentTarget?.Interact(gameObject);
     }
 
+    // Nothing solid between the eyes and the nearest point of the target, other than the target's own parts (a door's
+    // leaf, a box's lid) and the player.
+    private bool InSight(Vector3 origin, Collider target, Component interactable)
+    {
+        Vector3 point = target is MeshCollider mesh && !mesh.convex ? target.bounds.ClosestPoint(origin) : target.ClosestPoint(origin);
+        Vector3 delta = point - origin;
+        float distance = delta.magnitude;
+        if (distance < 0.05f)
+            return true;   // right on it (or inside it)
+        int count = Physics.RaycastNonAlloc(origin, delta / distance, sightHits, distance - 0.02f, ~0, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < count; i++)
+        {
+            Collider hit = sightHits[i].collider;
+            if (hit == target || PlayerBody.Is(hit) || hit.transform.IsChildOf(transform))
+                continue;
+            // Part of the thing itself: inside it, the object it sits on (a lock on its box), or the same interactable.
+            if (hit.transform.IsChildOf(interactable.transform) || interactable.transform.IsChildOf(hit.transform) || ReferenceEquals(hit.GetComponentInParent<IInteractable>(), interactable))
+                continue;
+            // Something the target sits inside (a key in a drawer, an item in its box): that is its container, not a wall.
+            if (hit.bounds.Contains(point))
+                continue;
+            return false;
+        }
+        return true;
+    }
+
     private void FindTarget(out IInteractable best, out GameObject bestObject)
     {
         best = null;
@@ -125,6 +154,8 @@ public class PlayerInteractor : MonoBehaviour
             float distance = toTarget.magnitude;
             float alignment = distance > 0.001f ? Vector3.Dot(forward, toTarget / distance) : 1f;
             if (alignment < minLookAlignment)
+                continue;
+            if (needsLineOfSight && !InSight(origin, overlapResults[i], (Component)interactable))
                 continue;
 
             // Prefer what you're looking at, then what's closest.

@@ -68,7 +68,7 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
     [SerializeField] private List<Row> rows = new List<Row>();
     [SerializeField, HideInInspector] private bool rowsFilled;
 
-    private const string VolumeKey = "settings.masterVolume";
+    private const string VolumeKey = GameAudio.VolumeKey;
     private const string SensitivityKey = "settings.mouseSensitivity";
     private const string VSyncKey = "settings.vSync";
     private const string QualityKey = "settings.quality";
@@ -81,6 +81,7 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
     private string[] sizeLabels = new string[0];
     private int sizeIndex;
     private float defaultSensitivity = -1f;
+    private const float MenuDefaultSensitivity = 0.12f;   // Swim Controller's own default, for the main menu
 
     public string PageTitle => pageTitle;
     public int Order => 10;
@@ -99,8 +100,7 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
             QualitySettings.SetQualityLevel(Mathf.Clamp(PlayerPrefs.GetInt(QualityKey), 0, QualitySettings.names.Length - 1), true);
         if (PlayerPrefs.HasKey(VSyncKey))
             QualitySettings.vSyncCount = PlayerPrefs.GetInt(VSyncKey) > 0 ? 1 : 0;
-        if (PlayerPrefs.HasKey(VolumeKey))
-            AudioListener.volume = Mathf.Clamp01(PlayerPrefs.GetFloat(VolumeKey));
+        // The master volume (with the game's mix trim under it) is applied as the game starts: GameAudio.
     }
 
     private void Start()
@@ -221,25 +221,22 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
 
             case RowType.MasterVolume:
             {
-                float volume = AudioListener.volume;
+                float volume = GameAudio.Master;   // the player's own share; the game's mix trim sits under it
                 float now = MenuGUI.SliderRow(row.label, volume, 0f, 1f, Mathf.RoundToInt(volume * 100f) + "%");
                 if (!Mathf.Approximately(now, volume))
-                {
-                    AudioListener.volume = now;
-                    PlayerPrefs.SetFloat(VolumeKey, now);
-                }
+                    GameAudio.Master = now;
                 break;
             }
 
             case RowType.MouseSensitivity:
             {
-                if (swimmer == null)
-                    break;
-                float sensitivity = swimmer.MouseSensitivity;
+                // No player (the main menu): the saved value, which the game picks up when it starts.
+                float sensitivity = swimmer != null ? swimmer.MouseSensitivity : PlayerPrefs.GetFloat(SensitivityKey, MenuDefaultSensitivity);
                 float now = MenuGUI.SliderRow(row.label, sensitivity, row.min, row.max, sensitivity.ToString("0.00"));
                 if (!Mathf.Approximately(now, sensitivity))
                 {
-                    swimmer.MouseSensitivity = now;
+                    if (swimmer != null)
+                        swimmer.MouseSensitivity = now;
                     PlayerPrefs.SetFloat(SensitivityKey, now);
                 }
                 break;
@@ -351,8 +348,7 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
     // Every remembered setting back to what the project ships with: the built-in ones and every row with a save key.
     private void ResetToDefaults()
     {
-        AudioListener.volume = 1f;
-        PlayerPrefs.DeleteKey(VolumeKey);
+        GameAudio.ResetMaster();
         if (swimmer != null && defaultSensitivity > 0f)
             swimmer.MouseSensitivity = defaultSensitivity;
         PlayerPrefs.DeleteKey(SensitivityKey);

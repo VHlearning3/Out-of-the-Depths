@@ -113,14 +113,14 @@ public static class MenuGUI
     public static bool Toggle(bool value, string text, params GUILayoutOption[] options)
     {
         bool result = GUILayout.Toggle(value, text, options);
-        Note(false);
+        Note(result != value);
         return result;
     }
 
     public static bool Toggle(bool value, string text, GUIStyle style, params GUILayoutOption[] options)
     {
         bool result = GUILayout.Toggle(value, text, style ?? GUI.skin.toggle, options);
-        Note(false);
+        Note(result != value);
         return result;
     }
 
@@ -128,6 +128,8 @@ public static class MenuGUI
     public static bool NavEntry(bool on, string text, GUIStyle style)
     {
         bool result = GUILayout.Toggle(on, text, style ?? GUI.skin.toggle);
+        if (result && !on)
+            pressedSinceAsked = true;
         if (Event.current.type == EventType.Repaint)
         {
             Rect rect = GUILayoutUtility.GetLastRect();
@@ -185,7 +187,10 @@ public static class MenuGUI
             return value;
         }
         if (GUI.Button(rect, GUIContent.none, GUIStyle.none))
+        {
             value = !value;
+            pressedSinceAsked = true;
+        }
         if (Event.current.type == EventType.Repaint)
         {
             Motion m = MotionFor(rect);
@@ -253,15 +258,27 @@ public static class MenuGUI
     }
 
     // A key cap: the key bound to something; click it to change. Listening = waiting for the new key.
-    public static bool KeyCap(string text, bool listening)
+    public static bool KeyCap(string text, bool listening, params GUILayoutOption[] options)
     {
         GUIStyle style = listening ? (KeyListeningStyle ?? KeyStyle) : KeyStyle;
-        return Button(text, style ?? GUI.skin.button);
+        return Button(text, style ?? GUI.skin.button, options);
     }
 
     // On the repaint pass, the last control drawn: is the mouse over it (tell the menu), and ease its highlight.
+    // Something was pressed since the menu last asked (it plays the press sound).
+    private static bool pressedSinceAsked;
+
+    public static bool TakePress()
+    {
+        bool pressed = pressedSinceAsked;
+        pressedSinceAsked = false;
+        return pressed;
+    }
+
     private static bool Note(bool pressed)
     {
+        if (pressed)
+            pressedSinceAsked = true;
         if (Event.current.type == EventType.Repaint)
         {
             Rect rect = GUILayoutUtility.GetLastRect();

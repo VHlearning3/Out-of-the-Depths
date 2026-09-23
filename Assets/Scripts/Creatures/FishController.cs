@@ -1,8 +1,10 @@
 using System.Collections;
 using UnityEngine;
 
-// Alive: wanders, can be slashed. Dead: flips belly-up and drifts upward (edible the whole way) until it meets a
-// Dead Fish Barrier or times out, then fades away and respawns like an eaten fish would (EdibleFish → Respawn Time).
+// Alive: wanders, can be slashed. Dead: flips belly-up and drifts upward until it meets a Dead Fish Barrier or times
+// out, then fades away and respawns like an eaten fish would (EdibleFish → Respawn Time). Not every kill is food (the
+// GDD: one slash cuts a whole school, so for every Kills Per Food fish killed, counted across all fish, one is left
+// as food): that one is edible the whole way up; the rest fade after No Food Fade After.
 [RequireComponent(typeof(Damageable), typeof(EdibleFish))]
 public class FishController : MonoBehaviour
 {
@@ -25,6 +27,15 @@ public class FishController : MonoBehaviour
     [Tooltip("Fade anyway after drifting this long without reaching a barrier. 0 = never.")]
     [SerializeField] private float driftTimeout = 40f;
     [SerializeField] private float fadeDuration = 1.5f;
+
+    [Header("Food")]
+    [Tooltip("Every this many kills (all fish together), the fish killed is left as food: edible while it drifts up. 1 = every kill is food.")]
+    [SerializeField, Min(1)] private int killsPerFood = 4;
+    [Tooltip("A kill that is not food fades after drifting this many seconds.")]
+    [SerializeField] private float noFoodFadeAfter = 2.5f;
+
+    private static int kills;
+    private bool isFood;
 
     public bool IsAlive { get; private set; } = true;
     public bool IsFading { get; private set; }
@@ -52,6 +63,10 @@ public class FishController : MonoBehaviour
     {
         damageable = GetComponent<Damageable>();
         edible = GetComponent<EdibleFish>();
+        if (GetComponent<FishKnockback>() == null)
+            gameObject.AddComponent<FishKnockback>();   // shoved back and dazed by a hit
+        if (GetComponent<FishHealthDisplay>() == null)
+            gameObject.AddComponent<FishHealthDisplay>();   // pips over a hurt fish and the damage each hit does
         renderers = GetComponentsInChildren<Renderer>();
         block = new MaterialPropertyBlock();
         spawnPosition = transform.position;
@@ -92,7 +107,7 @@ public class FishController : MonoBehaviour
         if (spinSpeed != 0f)
             transform.Rotate(0f, spinSpeed * Time.deltaTime, 0f, Space.World);
 
-        if (TouchingBarrier(radius) || (driftTimeout > 0f && drifted >= driftTimeout))
+        if (TouchingBarrier(radius) || (driftTimeout > 0f && drifted >= driftTimeout) || (!isFood && drifted >= noFoodFadeAfter))
             StartCoroutine(FadeOut());
     }
 
@@ -109,7 +124,9 @@ public class FishController : MonoBehaviour
         SetBehavioursEnabled(false);
         if (wander != null)
             wander.enabled = false;
-        edible.enabled = true;
+        kills++;
+        isFood = killsPerFood <= 1 || kills % killsPerFood == 0;
+        edible.enabled = isFood;
         StartCoroutine(FlipBellyUp());
     }
 

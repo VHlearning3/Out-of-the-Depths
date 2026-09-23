@@ -2,10 +2,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// The Keybindings page of the pause menu: the keyboard and mouse bindings of the Player actions, each a key cap you
-// click and then press the new key for (Escape cancels). Changes are remembered in PlayerPrefs and put back when the
-// game starts; Reset all restores the defaults. Which actions show, and what they are called, is an Inspector list
-// (empty = the swim set: Move, Jump as Swim up, Crouch as Swim down, Sprint, Interact, Attack).
+// The Keybindings page of the pause menu: one row per action (per direction for Move) with two key slots side by side,
+// the action's first two keyboard-and-mouse bindings (every action has two in the input asset, the second empty where
+// there is no default). Click a slot and press the new key (Escape cancels); right-click a slot to clear it. Changes
+// are remembered in PlayerPrefs and put back when the game starts; Reset all restores the defaults. Which actions
+// show, and what they are called, is an Inspector list
+// (empty = the swim set: Move, Jump as Swim up, Crouch as Swim down, Sprint as Dash, Interact, Attack).
 public class KeybindingsPage : MonoBehaviour, IPauseMenuPage
 {
     [System.Serializable]
@@ -25,6 +27,8 @@ public class KeybindingsPage : MonoBehaviour, IPauseMenuPage
     [SerializeField] private List<Entry> entries = new List<Entry>();
 
     private const string PrefsKey = "keybindings.overrides";
+    private const int Slots = 2;
+    private const float SlotWidth = 150f;
 
     private InputActionRebindingExtensions.RebindingOperation rebinding;
     private InputAction listeningAction;
@@ -47,6 +51,16 @@ public class KeybindingsPage : MonoBehaviour, IPauseMenuPage
         CancelRebind();
     }
 
+    // The main menu has no player to take the controls from: it hands them over (with any saved rebinds applied).
+    public void UseActions(InputActionAsset actions)
+    {
+        if (actions == null || actions == inputActions)
+            return;
+        inputActions = actions;
+        if (PlayerPrefs.HasKey(PrefsKey))
+            inputActions.LoadBindingOverridesFromJson(PlayerPrefs.GetString(PrefsKey));
+    }
+
     private void FindAsset()
     {
         if (inputActions == null)
@@ -60,7 +74,7 @@ public class KeybindingsPage : MonoBehaviour, IPauseMenuPage
             entries.Add(new Entry { action = "Move", label = "Move" });
             entries.Add(new Entry { action = "Jump", label = "Swim up" });
             entries.Add(new Entry { action = "Crouch", label = "Swim down" });
-            entries.Add(new Entry { action = "Sprint", label = "Sprint" });
+            entries.Add(new Entry { action = "Sprint", label = "Dash" });
             entries.Add(new Entry { action = "Interact", label = "Interact" });
             entries.Add(new Entry { action = "Attack", label = "Attack" });
         }
@@ -94,16 +108,49 @@ public class KeybindingsPage : MonoBehaviour, IPauseMenuPage
             if (action == null)
                 continue;
             string name = string.IsNullOrEmpty(entry.label) ? action.name : entry.label;
+            // One row per action, or per part of a composite (Move up, down, left, right), with its bindings in order.
+            var rows = new List<KeyValuePair<string, List<int>>>();
             for (int i = 0; i < action.bindings.Count; i++)
             {
                 InputBinding binding = action.bindings[i];
                 if (binding.isComposite || !InScheme(binding))
                     continue;
-                string label = binding.isPartOfComposite ? name + "   " + Capitalise(binding.name) : name;
-                bool listening = rebinding != null && listeningAction == action && listeningBinding == i;
-                MenuGUI.BeginRow(label);
-                if (MenuGUI.KeyCap(listening ? "press a key" : Display(action, i), listening) && !listening)
-                    StartRebind(action, i);
+                string part = binding.isPartOfComposite ? binding.name : "";
+                List<int> slots = null;
+                foreach (var row in rows)
+                    if (row.Key == part)
+                        slots = row.Value;
+                if (slots == null)
+                {
+                    slots = new List<int>();
+                    rows.Add(new KeyValuePair<string, List<int>>(part, slots));
+                }
+                slots.Add(i);
+            }
+            foreach (var row in rows)
+            {
+                MenuGUI.BeginRow(row.Key == "" ? name : name + "   " + Capitalise(row.Key));
+                for (int slot = 0; slot < Slots; slot++)
+                {
+                    if (slot > 0)
+                        GUILayout.Space(8f);
+                    if (slot >= row.Value.Count)
+                    {
+                        GUI.enabled = false;   // no binding to put a key in (the input asset has only one here)
+                        MenuGUI.KeyCap("-", false, GUILayout.Width(SlotWidth));
+                        GUI.enabled = true;
+                        continue;
+                    }
+                    int index = row.Value[slot];
+                    bool listening = rebinding != null && listeningAction == action && listeningBinding == index;
+                    if (MenuGUI.KeyCap(listening ? "press a key" : Display(action, index), listening, GUILayout.Width(SlotWidth)) && !listening)
+                    {
+                        if (Event.current.button == 1)
+                            Clear(action, index);   // right-click: empty this slot
+                        else
+                            StartRebind(action, index);
+                    }
+                }
                 MenuGUI.EndRow();
             }
         }
@@ -119,7 +166,7 @@ public class KeybindingsPage : MonoBehaviour, IPauseMenuPage
         GUILayout.Space(6f);
         if (!string.IsNullOrEmpty(statusNote))
             GUILayout.Label(statusNote, note);
-        GUILayout.Label("Click a key, then press the new one; Escape cancels. Mouse look and the hotbar number keys cannot be changed here.", note);
+        GUILayout.Label("Click a slot, then press the new key; Escape cancels. Right-click a slot to clear it. Mouse look and the hotbar number keys cannot be changed here.", note);
     }
 
     private bool InScheme(InputBinding binding)
@@ -134,7 +181,7 @@ public class KeybindingsPage : MonoBehaviour, IPauseMenuPage
     {
         string path = action.bindings[index].effectivePath;
         if (string.IsNullOrEmpty(path))
-            return "none";
+            return "-";   // an empty slot
         return InputControlPath.ToHumanReadableString(path, InputControlPath.HumanReadableStringOptions.OmitDevice);
     }
 
@@ -216,6 +263,15 @@ public class KeybindingsPage : MonoBehaviour, IPauseMenuPage
             }
         }
         return null;
+    }
+
+    // Empties one slot (the action keeps its other key).
+    private void Clear(InputAction action, int index)
+    {
+        CancelRebind();
+        action.ApplyBindingOverride(index, "");
+        Save();
+        statusNote = null;
     }
 
     private void Save()

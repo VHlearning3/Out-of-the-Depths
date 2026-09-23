@@ -13,6 +13,9 @@ using UnityEngine.SceneManagement;
 // names, timings and sounds come from a PauseMenuTheme asset (Theme; the defaults when none). Lives on the Player.
 // Preview In Editor (or Tools > Out of the Depths > Preview Pause Menu) shows it open in the Game view without
 // playing, the pages look-only, so the theme and the pages can be worked on and watched.
+// Main menu mode (Front End, made by Main Menu Controller with CreateFrontEnd): the same panel over the main menu,
+// opened by its Settings and Credits buttons (OpenPage); not a pause: time runs, the cursor stays free, Escape only
+// closes it; only Settings, Keybindings and Credits show, and the one button is Back.
 [ExecuteAlways]
 public class PauseMenu : MonoBehaviour
 {
@@ -34,6 +37,8 @@ public class PauseMenu : MonoBehaviour
     [SerializeField] private bool adminInReleaseBuilds = false;
     [Tooltip("The scene the Main menu button loads (it has to be in Build Settings). Empty = no button.")]
     [SerializeField] private string mainMenuScene = "MainMenu";
+    [Tooltip("Main menu mode: the panel over the main menu, not a pause (see the top of this script). Main Menu Controller makes its own.")]
+    [SerializeField] private bool frontEnd = false;
 
     [Header("Editor preview")]
     [Tooltip("Show the menu open in the Game view without playing, to work on the theme and the pages (Tools > Out of the Depths > Preview Pause Menu toggles it too). Clicking switches pages; the pages themselves are look-only, so nothing changes by accident.")]
@@ -81,6 +86,8 @@ public class PauseMenu : MonoBehaviour
     private float navBarX;
     private float navBarHeight;
     private bool navBarKnown;
+    private float tabBarX, tabBarTargetX, tabBarW, tabBarTargetW, tabBarY;   // the tab layout's sliding underline
+    private bool tabBarKnown;
     private PlayerInteractor interactorRef;   // to know whether the inspect view or a board holds the cursor
     private float visibility;      // 0..1, eased: the menu draws while it is above 0
     private float pageVisibility;  // 0..1, the current page fading in
@@ -108,14 +115,51 @@ public class PauseMenu : MonoBehaviour
     private GUIStyle dangerStyle;
     private GUIStyle panelStyle;
     private GUIStyle shadowStyle;
+    private GUIStyle tabStyle;
+    private GUIStyle tabTitleStyle;
+    private GUIStyle footNoteStyle;
+    private GUIStyle footResumeStyle;
+    private GUIStyle footQuietStyle;
+    private GUIStyle footDangerStyle;
     private Texture2D backdropTex;
+
+    // The panel for the main menu: made inactive so it wakes up already in main menu mode, with the game's theme.
+    public static PauseMenu CreateFrontEnd(PauseMenuTheme theme, UnityEngine.InputSystem.InputActionAsset actions)
+    {
+        var host = new GameObject("Menu (main menu)");
+        host.SetActive(false);
+        var menu = host.AddComponent<PauseMenu>();
+        menu.frontEnd = true;
+        menu.theme = theme;
+        menu.mainMenuScene = "";
+        host.SetActive(true);
+        KeybindingsPage keys = FindFirstObjectByType<KeybindingsPage>();
+        if (keys != null && actions != null)
+            keys.UseActions(actions);
+        return menu;
+    }
+
+    // Main menu mode: open straight onto a page, showing only it and the pages given with it (Credits alone; Settings
+    // with Keybindings). With one page the panel is titled after it and has no tabs.
+    public void OpenPage<TPage>(params System.Type[] with) where TPage : class
+    {
+        var only = new List<System.Type> { typeof(TPage) };
+        if (with != null)
+            only.AddRange(with);
+        pageFilter = only;
+        SetOpen(true);
+        SelectPage<TPage>();
+    }
+
+    private List<System.Type> pageFilter;
 
     private void Awake()
     {
         if (!Application.isPlaying)
             return;   // the edit-mode preview adds nothing to the scene
-        // The built-in pages, unless the scene already has them (then their Inspector settings are used).
-        if (FindFirstObjectByType<MapPage>() == null)
+        // The built-in pages, unless the scene already has them (then their Inspector settings are used). The main
+        // menu has no map.
+        if (!frontEnd && FindFirstObjectByType<MapPage>() == null)
             gameObject.AddComponent<MapPage>();
         if (FindFirstObjectByType<SettingsPage>() == null)
             gameObject.AddComponent<SettingsPage>();
@@ -142,6 +186,12 @@ public class PauseMenu : MonoBehaviour
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null)
             return;
+        if (frontEnd)
+        {
+            if (IsOpen && keyboard[toggleKey].wasPressedThisFrame)
+                SetOpen(false);   // on the main menu Escape only closes it
+            return;
+        }
         if (keyboard[toggleKey].wasPressedThisFrame)
             SetOpen(!IsOpen);
         else if (keyboard[adminKey].wasPressedThisFrame)
@@ -193,6 +243,27 @@ public class PauseMenu : MonoBehaviour
             return;
         IsOpen = open;
         PlayClip(open ? T.openSound : T.closeSound, T.menuVolume);
+        if (frontEnd)
+        {
+            // Not a pause: nothing stops, the cursor stays free for the main menu.
+            if (open)
+            {
+                CollectPages();
+                pageVisibility = 0f;
+                openedAt = Time.unscaledTime;
+                lastHoverKey = 0;
+                confirmQuit = false;
+                scrollNow = scrollTarget = 0f;
+                navBarKnown = false;
+                tabBarKnown = false;
+                MenuGUI.Reset();
+                if (pages.Count > 0)
+                    pages[pageIndex].OnPageShown();
+            }
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            return;
+        }
 
         foreach (Behaviour b in pauseWhileOpen)
             if (b != null)
@@ -214,6 +285,7 @@ public class PauseMenu : MonoBehaviour
             confirmQuit = false;
             scrollNow = scrollTarget = 0f;
             navBarKnown = false;
+            tabBarKnown = false;
             MenuGUI.Reset();
             if (pages.Count > 0)
                 pages[pageIndex].OnPageShown();
@@ -262,6 +334,10 @@ public class PauseMenu : MonoBehaviour
             if (!(behaviour is IPauseMenuPage page))
                 continue;
             if (behaviour is AdminPanel && !adminAllowed)
+                continue;
+            if (frontEnd && !(behaviour is SettingsPage || behaviour is KeybindingsPage || behaviour is CreditsPage))
+                continue;
+            if (frontEnd && pageFilter != null && !pageFilter.Contains(behaviour.GetType()))
                 continue;
             if (T.IsHidden(page.PageTitle))
                 continue;
@@ -331,6 +407,11 @@ public class PauseMenu : MonoBehaviour
         scrollNow = Mathf.Lerp(scrollNow, scrollTarget, k);
         if (navBarKnown)
             navBarY = Mathf.Lerp(navBarY, navBarTargetY, k);
+        if (tabBarKnown)
+        {
+            tabBarX = Mathf.Lerp(tabBarX, tabBarTargetX, k);
+            tabBarW = Mathf.Lerp(tabBarW, tabBarTargetW, k);
+        }
     }
 
     // The edit-mode preview: the menu fully open, its eases run from here (nothing else ticks outside Play mode),
@@ -426,18 +507,29 @@ public class PauseMenu : MonoBehaviour
         GUI.Box(new Rect(panel.x - 24f, panel.y - 14f, panel.width + 48f, panel.height + 48f), GUIContent.none, shadowStyle);
         GUI.Box(panel, GUIContent.none, panelStyle);
 
-        // The sidebar on the left, the page on the right, a hairline between.
-        float side = Mathf.Min(T.sidebarWidth, panel.width * 0.4f);
-        bool right = T.sidebarOnRight;
-        var sidebar = right ? new Rect(panel.x + panel.width - side, panel.y, side, panel.height) : new Rect(panel.x, panel.y, side, panel.height);
-        var content = right ? new Rect(panel.x, panel.y, panel.width - side, panel.height) : new Rect(panel.x + side, panel.y, panel.width - side, panel.height);
-        Color previous = GUI.color;
-        GUI.color = new Color(1f, 1f, 1f, 0.08f * ease);
-        GUI.DrawTexture(new Rect(right ? sidebar.x : content.x, panel.y + 30f, 1f, panel.height - 60f), Texture2D.whiteTexture);
-        GUI.color = previous;
+        if (T.layout == PauseMenuTheme.Layout.Tabs)
+        {
+            DrawTabs(panel, sp, ease);
+        }
+        else
+        {
+            // The sidebar on the left, the page on the right, a hairline between.
+            float side = Mathf.Min(T.sidebarWidth, panel.width * 0.4f);
+            bool right = T.sidebarOnRight;
+            var sidebar = right ? new Rect(panel.x + panel.width - side, panel.y, side, panel.height) : new Rect(panel.x, panel.y, side, panel.height);
+            var content = right ? new Rect(panel.x, panel.y, panel.width - side, panel.height) : new Rect(panel.x + side, panel.y, panel.width - side, panel.height);
+            Color previous = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, 0.08f * ease);
+            GUI.DrawTexture(new Rect(right ? sidebar.x : content.x, panel.y + 30f, 1f, panel.height - 60f), Texture2D.whiteTexture);
+            GUI.color = previous;
 
-        DrawSidebar(sidebar, sp, ease);
-        DrawContent(content, sp, ease);
+            DrawSidebar(sidebar, sp, ease);
+            DrawContent(content, sp, ease);
+        }
+
+        // Press sound: a button, entry, switch or key was pressed while drawing.
+        if (MenuGUI.TakePress() && IsOpen)
+            PlayClip(T.pressSound, T.pressVolume, true);
 
         // Hover sound: something new under the mouse this repaint.
         if (Event.current.type == EventType.Repaint)
@@ -459,7 +551,7 @@ public class PauseMenu : MonoBehaviour
     private void DrawSidebar(Rect rect, float sp, float ease)
     {
         GUILayout.BeginArea(new Rect(rect.x + 28f * sp, rect.y + 34f * sp, rect.width - 44f * sp, rect.height - 68f * sp));
-        GUILayout.Label(T.title, titleStyle);
+        GUILayout.Label(frontEnd ? T.frontEndTitle : T.title, titleStyle);
         GUILayout.Space(22f * sp);
 
         for (int i = 0; i < pages.Count; i++)
@@ -490,7 +582,12 @@ public class PauseMenu : MonoBehaviour
         }
 
         GUILayout.FlexibleSpace();
-        if (confirmQuit)
+        if (frontEnd)
+        {
+            if (MenuGUI.Button(T.backLabel, resumeStyle) && IsOpen)
+                SetOpen(false);
+        }
+        else if (confirmQuit)
         {
             GUILayout.Label(T.quitConfirm, noteStyle);
             GUILayout.Space(6f * sp);
@@ -517,10 +614,109 @@ public class PauseMenu : MonoBehaviour
         GUILayout.EndArea();
     }
 
-    // The open page: its title, a rule, then the page itself in a scroll view (fading in on a page change).
-    private void DrawContent(Rect rect, float sp, float ease)
+    // The tab layout: the title and the pages as tabs along the top (an accent line slides under the open one), the
+    // page below across the whole panel, and a footer with the key hint on the left and the buttons on the right.
+    private void DrawTabs(Rect panel, float sp, float ease)
     {
-        var area = new Rect(rect.x + 40f * sp, rect.y + 34f * sp, rect.width - 80f * sp, rect.height - 68f * sp);
+        float pad = 36f * sp;
+        var header = new Rect(panel.x + pad, panel.y + 24f * sp, panel.width - pad * 2f, 50f);
+        GUILayout.BeginArea(header);
+        GUILayout.BeginHorizontal();
+        // One page only (the main menu's Credits): the panel is titled after it and there are no tabs.
+        bool single = frontEnd && pages.Count == 1;
+        string heading = single ? T.LabelFor(pages[0].PageTitle).ToUpperInvariant() : (frontEnd ? T.frontEndTitle : T.title);
+        GUILayout.Label(heading, tabTitleStyle, GUILayout.Height(header.height));
+        GUILayout.FlexibleSpace();
+        for (int i = 0; i < pages.Count && !single; i++)
+        {
+            bool on = MenuGUI.NavEntry(pageIndex == i, T.LabelFor(pages[i].PageTitle), tabStyle);
+            if (pageIndex == i && Event.current.type == EventType.Repaint)
+            {
+                Rect tab = GUILayoutUtility.GetLastRect();
+                tabBarTargetX = tab.x + 14f;
+                tabBarTargetW = Mathf.Max(8f, tab.width - 28f);
+                tabBarY = tab.yMax + 1f;
+                if (!tabBarKnown)
+                {
+                    tabBarX = tabBarTargetX;
+                    tabBarW = tabBarTargetW;
+                    tabBarKnown = true;
+                }
+            }
+            if (on && pageIndex != i)
+                ShowPage(i);
+        }
+        GUILayout.EndHorizontal();
+        if (tabBarKnown && !single && Event.current.type == EventType.Repaint)
+        {
+            Color previous = GUI.color;
+            GUI.color = new Color(T.accent.r, T.accent.g, T.accent.b, previous.a);
+            GUI.DrawTexture(new Rect(tabBarX, tabBarY, tabBarW, 3f), Texture2D.whiteTexture);
+            GUI.color = previous;
+        }
+        GUILayout.EndArea();
+
+        // Hairlines under the header and over the footer.
+        const float footerHeight = 46f;
+        var footer = new Rect(panel.x + pad, panel.yMax - 24f * sp - footerHeight, panel.width - pad * 2f, footerHeight);
+        Color keep = GUI.color;
+        GUI.color = new Color(1f, 1f, 1f, 0.08f * ease);
+        GUI.DrawTexture(new Rect(panel.x + pad, header.yMax + 10f, panel.width - pad * 2f, 1f), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(panel.x + pad, footer.y - 16f, panel.width - pad * 2f, 1f), Texture2D.whiteTexture);
+        GUI.color = keep;
+
+        // The page, across the whole panel.
+        float top = header.yMax + 28f;
+        DrawContent(new Rect(panel.x + pad, top, panel.width - pad * 2f, footer.y - 30f - top), sp, ease, true);
+
+        // The footer: the hint (or the quit question) on the left, the buttons on the right.
+        GUILayout.BeginArea(footer);
+        GUILayout.BeginHorizontal();
+        if (confirmQuit && !frontEnd)
+        {
+            GUILayout.Label(T.quitConfirm, footNoteStyle, GUILayout.Height(footerHeight));
+            GUILayout.FlexibleSpace();
+            if (MenuGUI.Button(T.cancelLabel, footQuietStyle, GUILayout.Width(130f)))
+                confirmQuit = false;
+            GUILayout.Space(8f);
+            if (MenuGUI.Button(T.quitLabel, footDangerStyle, GUILayout.Width(130f)))
+            {
+                if (Previewing)
+                    confirmQuit = false;
+                else
+                    Quit();
+            }
+        }
+        else
+        {
+            GUILayout.Label((frontEnd ? T.backHint : T.resumeHint).Replace("{key}", toggleKey.ToString()), footNoteStyle, GUILayout.Height(footerHeight));
+            GUILayout.FlexibleSpace();
+            if (frontEnd)
+            {
+                if (MenuGUI.Button(T.backLabel, footResumeStyle, GUILayout.Width(170f)) && IsOpen)
+                    SetOpen(false);
+            }
+            else
+            {
+                if (HasMainMenu && MenuGUI.Button(T.mainMenuLabel, footQuietStyle, GUILayout.Width(150f)) && !Previewing)
+                    GoToMainMenu();
+                GUILayout.Space(8f);
+                if (MenuGUI.Button(T.quitLabel, footQuietStyle, GUILayout.Width(110f)))
+                    confirmQuit = true;
+                GUILayout.Space(8f);
+                if (MenuGUI.Button(T.resumeLabel, footResumeStyle, GUILayout.Width(170f)) && IsOpen)
+                    SetOpen(false);
+            }
+        }
+        GUILayout.EndHorizontal();
+        GUILayout.EndArea();
+    }
+
+    // The open page in a scroll view (fading in on a page change); in the sidebar layout with its title and a rule
+    // above it. Tabs = the rect is already the page's own area and the tab says which page it is.
+    private void DrawContent(Rect rect, float sp, float ease, bool tabs = false)
+    {
+        var area = tabs ? rect : new Rect(rect.x + 40f * sp, rect.y + 34f * sp, rect.width - 80f * sp, rect.height - 68f * sp);
         GUILayout.BeginArea(area);
 
         // Smooth scrolling: the wheel moves a target and the view glides to it (dragging the slim bar still works).
@@ -530,18 +726,21 @@ public class PauseMenu : MonoBehaviour
             Event.current.Use();
         }
 
-        GUILayout.BeginHorizontal();
-        GUILayout.Label(pages.Count > 0 ? T.LabelFor(pages[pageIndex].PageTitle) : T.title, pageTitleStyle);
-        GUILayout.FlexibleSpace();
-        GUILayout.BeginVertical(GUILayout.ExpandHeight(true));
-        GUILayout.FlexibleSpace();
-        GUILayout.Label(T.resumeHint.Replace("{key}", toggleKey.ToString()), noteStyle);
-        GUILayout.FlexibleSpace();
-        GUILayout.EndVertical();
-        GUILayout.EndHorizontal();
-        GUILayout.Space(8f * sp);
-        Rule(0.2f * ease);
-        GUILayout.Space(18f * sp);
+        if (!tabs)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(pages.Count > 0 ? T.LabelFor(pages[pageIndex].PageTitle) : T.title, pageTitleStyle);
+            GUILayout.FlexibleSpace();
+            GUILayout.BeginVertical(GUILayout.ExpandHeight(true));
+            GUILayout.FlexibleSpace();
+            GUILayout.Label((frontEnd ? T.backHint : T.resumeHint).Replace("{key}", toggleKey.ToString()), noteStyle);
+            GUILayout.FlexibleSpace();
+            GUILayout.EndVertical();
+            GUILayout.EndHorizontal();
+            GUILayout.Space(8f * sp);
+            Rule(0.2f * ease);
+            GUILayout.Space(18f * sp);
+        }
 
         // The page fades and rises in on a page change.
         float pageEase = 1f - Mathf.Pow(1f - pageVisibility, 3f);
@@ -772,6 +971,17 @@ public class PauseMenu : MonoBehaviour
         dangerStyle.hover.textColor = Color.white;
         dangerStyle.active.textColor = Color.white;
         dangerStyle.focused.textColor = Color.white;
+
+        // The tab layout: tabs sized to their words, a title that sits on their line, and footer buttons all one height.
+        tabStyle = new GUIStyle(navStyle) { alignment = TextAnchor.MiddleCenter, fixedHeight = 40f, stretchWidth = false };
+        tabStyle.padding = new RectOffset(Px(18f * sp), Px(18f * sp), 0, 0);
+        tabStyle.margin = new RectOffset(2, 2, 5, 5);
+        tabTitleStyle = new GUIStyle(titleStyle) { alignment = TextAnchor.MiddleLeft, fontSize = Mathf.Max(12, T.titleFontSize - 4) };
+        tabTitleStyle.padding = new RectOffset(0, 0, 0, 0);
+        footNoteStyle = new GUIStyle(noteStyle) { alignment = TextAnchor.MiddleLeft };
+        footResumeStyle = new GUIStyle(resumeStyle) { fixedHeight = 44f, margin = new RectOffset(0, 0, 1, 1) };
+        footQuietStyle = new GUIStyle(quietStyle) { fixedHeight = 44f, margin = new RectOffset(0, 0, 1, 1) };
+        footDangerStyle = new GUIStyle(dangerStyle) { fixedHeight = 44f, margin = new RectOffset(0, 0, 1, 1) };
 
         var sectionStyle = new GUIStyle(skin.label) { fontSize = T.sectionFontSize, fontStyle = FontStyle.Bold, wordWrap = false };
         sectionStyle.normal.textColor = T.accent;

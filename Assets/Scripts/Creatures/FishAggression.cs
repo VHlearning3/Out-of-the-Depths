@@ -22,12 +22,14 @@ public class FishAggression : MonoBehaviour
     public bool IsChasing { get; private set; }
 
     private FishWander wander;
+    private FishKnockback knockback;
     private DamageManager target;
     private float nextAttackTime;
 
     private void Awake()
     {
         wander = GetComponent<FishWander>();
+        knockback = GetComponent<FishKnockback>();
     }
 
     private void Start()
@@ -55,6 +57,10 @@ public class FishAggression : MonoBehaviour
 
         if (!IsChasing)
             return;
+        if (knockback == null)
+            knockback = GetComponent<FishKnockback>();
+        if (knockback != null && knockback.Stunned)
+            return;   // knocked back by a hit: dazed, no chasing or biting until it clears
 
         // Steer around walls on the way, but never treat the player being chased as one.
         Vector3 toTarget = (targetPoint - transform.position).normalized;

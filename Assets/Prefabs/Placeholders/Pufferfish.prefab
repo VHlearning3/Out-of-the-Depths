@@ -74,7 +74,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e0914f2d2f812c73d9957563e89be1ed, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 40
+  maxHealth: 60
   destroyOnDeath: 0
   destroyDelay: 0
   hitFlashColor: {r: 1, g: 1, b: 1, a: 1}

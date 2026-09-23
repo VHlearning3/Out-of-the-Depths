@@ -28,6 +28,10 @@ public class PauseMenuTheme : ScriptableObject
     public string quitLabel = "Quit";
     public string quitConfirm = "Quit the game?";
     public string cancelLabel = "Cancel";
+    [Tooltip("On the main menu (the same panel opened by its Settings and Credits buttons): the title, the one button and the hint.")]
+    public string frontEndTitle = "OPTIONS";
+    public string backLabel = "Back";
+    public string backHint = "{key} to go back";
     [Tooltip("Shown top right of the page. {key} is the toggle key.")]
     public string resumeHint = "{key} to resume";
     public string emptyPageText = "Nothing here yet. Any script that implements IPauseMenuPage shows up as a page.";
@@ -49,7 +53,11 @@ public class PauseMenuTheme : ScriptableObject
     public Color mutedColor = new Color(0.6f, 0.68f, 0.76f);
     public Color dangerColor = new Color(0.85f, 0.3f, 0.3f);
 
+    public enum Layout { Tabs, Sidebar }
+
     [Header("Layout")]
+    [Tooltip("Tabs: the title and the pages as tabs along the top, the page across the whole panel, the buttons in a footer. Sidebar: the pages and the buttons in a column beside the page.")]
+    public Layout layout = Layout.Tabs;
     public float panelWidth = 1040f;
     public float panelHeight = 760f;
     public float sidebarWidth = 250f;
@@ -90,6 +98,9 @@ public class PauseMenuTheme : ScriptableObject
     [Tooltip("A quiet tick when the mouse moves onto a button, entry, switch or key (Assets/Sound/UI).")]
     public AudioClip hoverSound;
     [Range(0f, 1f)] public float hoverVolume = 0.35f;
+    [Tooltip("A soft click when a button, entry, switch or key is pressed.")]
+    public AudioClip pressSound;
+    [Range(0f, 1f)] public float pressVolume = 0.45f;
     [Tooltip("Played when the menu opens / closes. Optional.")]
     public AudioClip openSound;
     public AudioClip closeSound;

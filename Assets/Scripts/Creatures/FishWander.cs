@@ -2,6 +2,9 @@ using UnityEngine;
 
 // Drives the fish's root transform, so the visual mesh underneath can be swapped freely. On its own it wanders around
 // its spawn point; under a Fish School it keeps its slot in the pack instead. Steers around walls and never moves into them.
+// Attacked nearby (a slash close to it, or a fish near it hit: Slash Attack calls ScareAround), it darts away from the
+// player for a moment, fast and turning sharply, then a pack fish drifts back to its pack and a lone one settles where
+// it fled to. A pufferfish chasing the player has this switched off while it chases, so it keeps coming.
 public class FishWander : MonoBehaviour
 {
     [Header("Wander")]
@@ -24,6 +27,14 @@ public class FishWander : MonoBehaviour
     [SerializeField] private float separationDistance = 0.9f;
     [SerializeField] private float separationStrength = 1.5f;
 
+    [Header("Fleeing")]
+    [Tooltip("Dart away from the player when attacked nearby.")]
+    [SerializeField] private bool fleesWhenAttacked = true;
+    [Tooltip("How much faster than its normal speed it flees.")]
+    [SerializeField] private float fleeSpeedMultiplier = 3f;
+    [Tooltip("Roughly how long it flees, in seconds.")]
+    [SerializeField] private float fleeSeconds = 2.5f;
+
     [Header("In a pack")]
     [Tooltip("Beyond this distance from its slot a fish pulls hard toward it; within it, it mostly just swims along with the pack.")]
     [SerializeField] private float slotPullDistance = 2f;
@@ -38,6 +49,39 @@ public class FishWander : MonoBehaviour
     public bool IsEntering => entering;
 
     private static readonly Collider[] neighbours = new Collider[16];
+    private static readonly System.Collections.Generic.List<FishWander> awake = new System.Collections.Generic.List<FishWander>();
+    private float fleeUntil = -1f;
+    private float fleeStarted;
+    private Vector3 fleeFrom;
+
+    public bool Fleeing => Time.time < fleeUntil;
+
+    // Every fish swimming about within radius of centre flees from threat (the player).
+    public static void ScareAround(Vector3 centre, float radius, Vector3 threat)
+    {
+        float squared = radius * radius;
+        foreach (FishWander fish in awake)
+            if (fish != null && fish.fleesWhenAttacked && (fish.transform.position - centre).sqrMagnitude <= squared)
+                fish.Scare(threat);
+    }
+
+    public void Scare(Vector3 threat)
+    {
+        if (!fleesWhenAttacked || entering)
+            return;
+        if (!Fleeing)
+            fleeStarted = Time.time;
+        fleeFrom = threat;
+        fleeUntil = Time.time + fleeSeconds * Random.Range(0.8f, 1.2f);
+    }
+
+    private void OnEnable() => awake.Add(this);
+
+    private void OnDisable()
+    {
+        awake.Remove(this);
+        fleeUntil = -1f;
+    }
 
     private Vector3 home;
     private Vector3 target;
@@ -117,8 +161,30 @@ public class FishWander : MonoBehaviour
         }
 
         float moveSpeed = speed * speedScale;
+        float turn = turnSpeed;
         Vector3 desired;
-        if (school != null)
+        bool wasFleeing = fleeUntil > 0f;
+        if (Fleeing)
+        {
+            // Away from the player, mostly sideways (not straight up or down), fast at first and easing off.
+            Vector3 away = transform.position - fleeFrom;
+            away.y *= 0.3f;
+            if (away.sqrMagnitude < 0.01f)
+                away = transform.forward;
+            float left = Mathf.Clamp01((fleeUntil - Time.time) / Mathf.Max(0.01f, fleeUntil - fleeStarted));
+            desired = away.normalized + Separation();
+            moveSpeed = speed * speedScale * Mathf.Lerp(1.2f, fleeSpeedMultiplier, left);
+            turn = turnSpeed * 3f;
+        }
+        else if (wasFleeing)
+        {
+            // Done fleeing: a lone fish makes its new home where it ended up; a pack fish heads back to its slot.
+            fleeUntil = -1f;
+            if (school == null)
+                ResetHome(transform.position);
+            desired = transform.forward;
+        }
+        else if (school != null)
         {
             // Flocking: swim along with the pack, get pulled toward your slot the further you are from it, keep apart from neighbours.
             Vector3 slot = school.Center + school.Frame * slotOffset
@@ -146,7 +212,7 @@ public class FishWander : MonoBehaviour
             desired = transform.forward;
 
         Quaternion look = Quaternion.LookRotation(desired, Vector3.up);
-        transform.rotation = Quaternion.Slerp(transform.rotation, look, turnSpeed * Time.deltaTime);
+        transform.rotation = Quaternion.Slerp(transform.rotation, look, turn * Time.deltaTime);
 
         Vector3 bob = Vector3.up * (Mathf.Sin(Time.time * 2f + bobOffset) * idleBobAmount * Time.deltaTime);
         Vector3 move = transform.forward * (moveSpeed * Time.deltaTime) + bob;

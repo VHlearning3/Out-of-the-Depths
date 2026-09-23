@@ -418,8 +418,9 @@ public static class ShipGreyboxBuilder
     }
 
     // Room 7 (yellow): the box room, the whole south strip (x -12.25..19.75, z 8.5..21.5) up against room 1's wall.
-    // The pressure plates (box pushing comes later: swimming onto a plate works for now) open the closet in the
-    // south-east corner; the closet holds the last bone fragment.
+    // Push the two crates (Pushable Box: E puts your hands on one, W pushes and S pulls it along the room) onto the two
+    // pressure plates; with both plates down the closet in the south-east corner opens. The closet holds the last
+    // bone fragment.
     private static void BuildBoxRoom()
     {
         Transform room = Group("Room_7_BoxRoom");
@@ -433,17 +434,33 @@ public static class ShipGreyboxBuilder
         Box("OpenChest", new Vector3(17.4f, 0.4f, 10f), new Vector3(1.4f, 0.8f, 0.9f), Wood, room);
         PickupVariant(CreatePickup(new Vector3(17.4f, 1.1f, 10f), "Item_BoneKeyFragment", room), 2);
 
-        foreach (float z in new[] { 11f, 15f })
+        // Two plates, each needing the other; the crates start 7 m west of them, in line, so a straight push east lands
+        // each one on its plate.
+        var plates = new PressurePlate[2];
+        float[] rows = { 11f, 15f };
+        for (int i = 0; i < 2; i++)
         {
-            var plate = Decor("PressurePlate", new Vector3(9f, 0.04f, z), new Vector3(1.6f, 0.08f, 1.6f), new Color(0.9f, 0.75f, 0.2f), room);
-            var trigger = plate.AddComponent<BoxCollider>();
-            trigger.isTrigger = true;
-            trigger.center = new Vector3(0f, 12f, 0f);   // in the plate's scaled space: 1 m up
-            trigger.size = new Vector3(1f, 25f, 1f);
-            UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(plate.AddComponent<PlayerAreaTrigger>().onPlayerEnter, closet.Open);
+            GameObject plate = Decor("PressurePlate", new Vector3(9f, 0.04f, rows[i]), new Vector3(1.6f, 0.08f, 1.6f), new Color(0.9f, 0.75f, 0.2f), room);
+            plates[i] = plate.AddComponent<PressurePlate>();
+            SetField(plates[i], "pressSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Doors/Door_MetalClunk_Grinnell_CC0.mp3"));
         }
-        Box("PushBox", new Vector3(2f, 0.6f, 12f), new Vector3(1.2f, 1.2f, 1.2f), Wood, room);
-        Box("PushBox", new Vector3(2f, 0.6f, 16f), new Vector3(1.2f, 1.2f, 1.2f), Wood, room);
+        for (int i = 0; i < 2; i++)
+        {
+            PressurePlate other = plates[1 - i];
+            SetField(plates[i], "alsoNeeds", p =>
+            {
+                p.arraySize = 1;
+                p.GetArrayElementAtIndex(0).objectReferenceValue = other;
+            });
+        }
+        UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(plates[0].onAllPressed, closet.Open);
+        foreach (float z in rows)
+        {
+            GameObject crate = Box("PushBox", new Vector3(2f, 0.6f, z), new Vector3(1.2f, 1.2f, 1.2f), Wood, room);
+            crate.AddComponent<InteractableHighlight>();   // lights up when you look at it: E puts your hands on it
+            var push = crate.AddComponent<PushableBox>();
+            SetField(push, "slideSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Doors/Door_MetalScrapeLoop_Toddcircle_CC0.mp3"));
+        }
         CreateSchool("Fish_Wanderer", 3, new Vector3(-5f, 2.5f, 15f), room);
     }
 
