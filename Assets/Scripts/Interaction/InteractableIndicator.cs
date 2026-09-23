@@ -5,7 +5,7 @@ using UnityEngine;
 public class InteractableIndicator : MonoBehaviour, IInteractTargetListener
 {
     [Header("Effect")]
-    [Tooltip("A looping Particle System prefab, e.g. Art/Prefabs/Placeholders/Particle_Placeholder.")]
+    [Tooltip("A looping Particle System prefab, e.g. Prefabs/Placeholders/Particle_Placeholder.")]
     [SerializeField] private ParticleSystem effectPrefab;
     [Tooltip("Scale the emitter shape to the meshes under this object, so it fits whatever model is used.")]
     [SerializeField] private bool fitToModel = true;

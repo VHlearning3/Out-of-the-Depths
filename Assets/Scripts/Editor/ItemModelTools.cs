@@ -229,7 +229,7 @@ public static class ItemModelTools
         return true;
     }
 
-    private static GameObject FindModel(string fileName)
+    internal static GameObject FindModel(string fileName)
     {
         foreach (string guid in AssetDatabase.FindAssets(fileName + " t:Model", new[] { ModelFolder }))
         {
@@ -242,7 +242,7 @@ public static class ItemModelTools
 
     // A hotbar sprite from the editor's own thumbnail of the model. Returns null if the thumbnail is not ready yet;
     // the next project load or menu run will try again.
-    private static Sprite RenderIcon(GameObject model, string itemName)
+    internal static Sprite RenderIcon(GameObject model, string itemName)
     {
         Texture2D preview = AssetPreview.GetAssetPreview(model);
         if (preview == null)

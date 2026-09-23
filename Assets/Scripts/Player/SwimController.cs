@@ -151,10 +151,38 @@ public class SwimController : MonoBehaviour
 
     private void Update()
     {
+        ReclaimCursor();
         HandleLook();
         HandleSwim();
         ApplyCameraFeel();
     }
+
+    // In the editor, Escape frees the cursor and nothing can lock it again until the Game view is clicked. So when
+    // the game is in charge of the cursor (no menu, board, inspect view or death screen) and it is loose, the next
+    // click locks it back. A build never needs this: there the lock simply holds.
+    private void ReclaimCursor()
+    {
+        if (Frozen || LookLocked || PauseMenu.IsOpen || PuzzleBoard.IsOpen)
+            return;
+        if (Cursor.lockState == CursorLockMode.Locked && !Cursor.visible)
+            return;
+        if (interactorRef == null)
+            interactorRef = GetComponent<PlayerInteractor>();
+        if (interactorRef != null && interactorRef.Busy)
+            return;
+        if (death == null)
+            death = FindFirstObjectByType<DeathManager>();
+        if (death != null && death.IsDead)
+            return;
+        Mouse mouse = Mouse.current;
+        if (mouse == null || !mouse.leftButton.wasPressedThisFrame)
+            return;
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
+
+    private PlayerInteractor interactorRef;
+    private DeathManager death;
 
     private void HandleLook()
     {

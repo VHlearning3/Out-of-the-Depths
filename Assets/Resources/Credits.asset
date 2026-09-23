@@ -1,0 +1,555 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ccb8ffe74af812f4eba6ba12bca0d7eb, type: 3}
+  m_Name: Credits
+  m_EditorClassIdentifier: Assembly-CSharp::CreditsList
+  title: Out the Depths
+  team:
+  - name: Noora
+    contributions: 
+  - name: Otto
+    contributions: 
+  - name: Sara
+    contributions: 
+  - name: Ibrahim
+    contributions: 
+  - name: Rebe
+    contributions: 
+  - name: Vili
+    contributions: 
+  assetsHeading: 'Made with these sounds, models and fonts by kind people:'
+  entries:
+  - file: Ambience/Ambience_DeepBoom_ZaGames_CC0.mp3
+    category: Sounds
+    what: Deep Boom
+    author: Za-Games
+    licence: CC0
+    source: https://freesound.org/s/539968/
+    hidden: 0
+  - file: Ambience/Ambience_HorrorRumble_Medoob_CC0.mp3
+    category: Sounds
+    what: Horror Cinematic Rumble
+    author: medoob
+    licence: CC0
+    source: https://freesound.org/s/639414/
+    hidden: 0
+  - file: Ambience/Ambience_HullCreak_Kyles_CC0.mp3
+    category: Sounds
+    what: door wood old slow creaks ... or ship hull
+    author: kyles
+    licence: CC0
+    source: https://freesound.org/s/455757/
+    hidden: 0
+  - file: Ambience/Ambience_IceBoing_Angel4audio_CC0.mp3
+    category: Sounds
+    what: Frozen boing in Alaska
+    author: angel4audio
+    licence: CC0
+    source: https://freesound.org/s/497048/
+    hidden: 0
+  - file: Ambience/Ambience_MetalHinge_SFStudios_CC0.mp3
+    category: Sounds
+    what: Groaning Metal Hinge
+    author: sfstudios
+    licence: CC0
+    source: https://freesound.org/s/380005/
+    hidden: 0
+  - file: Ambience/Ambience_MetallicGroan_Hinchinbrook_CC0.mp3
+    category: Sounds
+    what: Metallic Groan
+    author: hinchinbrook
+    licence: CC0
+    source: https://freesound.org/s/496836/
+    hidden: 0
+  - file: Ambience/Ambience_OminousRumble_Mendenhall_CC0.mp3
+    category: Sounds
+    what: Ominous Rumbling
+    author: Mendenhall02
+    licence: CC0
+    source: https://freesound.org/s/521871/
+    hidden: 0
+  - file: Ambience/Ambience_SonarPing_Craigsmith_CC0.mp3
+    category: Sounds
+    what: S30-38 Sonar ping
+    author: craigsmith
+    licence: CC0
+    source: https://freesound.org/s/675790/
+    hidden: 0
+  - file: Ambience/Ambience_UnderwaterLoop_DCSFX_CC0.mp3
+    category: Sounds
+    what: Underwater [Loop] AMB
+    author: DCSFX
+    licence: CC0
+    source: https://freesound.org/s/366159/
+    hidden: 0
+  - file: Ambience/Ambience_WhaleMoan_RebekahDay_CC0.mp3
+    category: Sounds
+    what: LowWhalesong
+    author: RebekahDay
+    licence: CC0
+    source: https://freesound.org/s/171945/
+    hidden: 0
+  - file: Doors/Door_Close_CC0.mp3
+    category: Sounds
+    what: metal_door_close
+    author: Krokulator
+    licence: CC0
+    source: https://freesound.org/s/679461/
+    hidden: 0
+  - file: Doors/Door_CreakSpare_Wood_CC0.mp3
+    category: Sounds
+    what: Wooden Creak
+    author: Mafon2
+    licence: CC0
+    source: https://freesound.org/s/377552/
+    hidden: 0
+  - file: Doors/Door_Creak_Wood_CC0.mp3
+    category: Sounds
+    what: Door - Creak
+    author: JarredGibb
+    licence: CC0
+    source: https://freesound.org/s/219499/
+    hidden: 0
+  - file: Doors/Door_DungeonBolt_Bennynz_CC0.mp3
+    category: Sounds
+    what: Dungeon_Lock_2
+    author: bennynz
+    licence: CC0
+    source: https://freesound.org/s/580442/
+    hidden: 0
+  - file: Doors/Door_HatchUnlatch_Rotteveel_CC0.mp3
+    category: Sounds
+    what: Metal_Hatch_Small_Open_03
+    author: Rudmer_Rotteveel
+    licence: CC0
+    source: https://freesound.org/s/718445/
+    hidden: 0
+  - file: Doors/Door_HeavySlam_Kyles_CC0.mp3
+    category: Sounds
+    what: door metal big heavy close ... slam thud
+    author: kyles
+    licence: CC0
+    source: https://freesound.org/s/406197/
+    hidden: 0
+  - file: Doors/Door_LockedRattle_CastIronCarousel_CC0.mp3
+    category: Sounds
+    what: Locked doorknob rattle 3
+    author: CastIronCarousel
+    licence: CC0
+    source: https://freesound.org/s/216875/
+    hidden: 0
+  - file: Doors/Door_MetalClunk_Grinnell_CC0.mp3
+    category: Sounds
+    what: Metallic clunk
+    author: michael_grinnell
+    licence: CC0
+    source: https://freesound.org/s/512475/
+    hidden: 0
+  - file: Doors/Door_MetalScrapeLoop_Toddcircle_CC0.mp3
+    category: Sounds
+    what: metallic slide scrape 2
+    author: toddcircle
+    licence: CC0
+    source: https://freesound.org/s/443883/
+    hidden: 0
+  - file: Doors/Door_MetalStart_Newagesoup_CC0.mp3
+    category: Sounds
+    what: metal-open
+    author: newagesoup
+    licence: CC0
+    source: https://freesound.org/s/337847/
+    hidden: 0
+  - file: Doors/Door_Open_CC0.mp3
+    category: Sounds
+    what: metal_door_open
+    author: Krokulator
+    licence: CC0
+    source: https://freesound.org/s/679460/
+    hidden: 0
+  - file: Doors/Door_Open_Wood_CC0.mp3
+    category: Sounds
+    what: Creepy Creaky Squaky Door Opening
+    author: qubodup
+    licence: CC0
+    source: https://freesound.org/s/752063/
+    hidden: 0
+  - file: Doors/Door_Shut_Wood_CC0.mp3
+    category: Sounds
+    what: St Mullion Church Door Internal Shut
+    author: gropkcor
+    licence: CC0
+    source: https://freesound.org/s/392240/
+    hidden: 0
+  - file: Doors/Door_SlamReverb_Sheyvan_CC0.mp3
+    category: Sounds
+    what: Metal Door Slam Heavy Reverb 4
+    author: Sheyvan
+    licence: CC0
+    source: https://freesound.org/s/570001/
+    hidden: 0
+  - file: Doors/Door_SlamSpare_Wood_CC0.mp3
+    category: Sounds
+    what: Wood Door Slam
+    author: MootMcnoodles
+    licence: CC0
+    source: https://freesound.org/s/444409/
+    hidden: 0
+  - file: Items/Pickup_MagicKeyJingle_Tunetank.wav
+    category: Sounds
+    what: Pickup MagicKeyJingle Tunetank
+    author: Tunetank
+    licence: tunetank.com licence
+    source: 
+    hidden: 0
+  - file: Items/Pickup_TakeChimeSpare_Harp_CC0.mp3
+    category: Sounds
+    what: harp glissando
+    author: PhonosUPF
+    licence: CC0
+    source: https://freesound.org/s/490831/
+    hidden: 0
+  - file: Items/Pickup_TakeChime_CC0.mp3
+    category: Sounds
+    what: Echo Chime Chime
+    author: husky70
+    licence: CC0
+    source: https://freesound.org/s/161316/
+    hidden: 0
+  - file: Player/Panic_Breathing_Craigsmith_CC0.mp3
+    category: Sounds
+    what: R23-20-Scuba Diver
+    author: craigsmith
+    licence: CC0
+    source: https://freesound.org/s/482774/
+    hidden: 0
+  - file: Player/Panic_HeartbeatClean_Lunardrive_CC0.mp3
+    category: Sounds
+    what: Single Heartbeat Clean HQ_BeatSmith
+    author: Lunardrive
+    licence: CC0
+    source: https://freesound.org/s/22440/
+    hidden: 0
+  - file: Player/Panic_Heartbeat_Lunardrive_CC0.mp3
+    category: Sounds
+    what: Single Heartbeat HQ_BeatSmith
+    author: Lunardrive
+    licence: CC0
+    source: https://freesound.org/s/22417/
+    hidden: 0
+  - file: Player/Panic_HelmetExhaust_Plaamook_CC0.mp3
+    category: Sounds
+    what: Siebe Gorman Exhaust 11
+    author: plaamook
+    licence: CC0
+    source: https://freesound.org/s/409301/
+    hidden: 0
+  - file: Player/Swim_Bubbles_Vivegnis_CC0.mp3
+    category: Sounds
+    what: Underwater Bubble
+    author: Valerie-Vivegnis
+    licence: CC0
+    source: https://freesound.org/s/865358/
+    hidden: 0
+  - file: Player/Swim_HydrophoneMovements_Zumer_CC0.mp3
+    category: Sounds
+    what: Hydrophone Underwater movements
+    author: JavierZumer
+    licence: CC0
+    source: https://freesound.org/s/422657/
+    hidden: 0
+  - file: Player/Swim_UnderwaterMotion_Napier_CC0.mp3
+    category: Sounds
+    what: Underwater Motion
+    author: NapierFreesound
+    licence: CC0
+    source: https://freesound.org/s/760849/
+    hidden: 0
+  - file: Player/Swim_UnderwaterMovement_Cabusta_CC0.mp3
+    category: Sounds
+    what: Underwater movement
+    author: cabusta9
+    licence: CC0
+    source: https://freesound.org/s/443801/
+    hidden: 0
+  - file: Player/Swim_UnderwaterMovement_Verberne_CC0.mp3
+    category: Sounds
+    what: Underwater Movement
+    author: Tim_Verberne
+    licence: CC0
+    source: https://freesound.org/s/484187/
+    hidden: 0
+  - file: Props/Prop_DogBark_Kwahmah_CC0.mp3
+    category: Sounds
+    what: Single Dog Bark
+    author: kwahmah_02
+    licence: CC0
+    source: https://freesound.org/s/277058/
+    hidden: 0
+  - file: Props/Prop_DogBark_Sadiquecat_CC0.mp3
+    category: Sounds
+    what: Dog bark 2
+    author: Sadiquecat
+    licence: CC0
+    source: https://freesound.org/s/850823/
+    hidden: 0
+  - file: SFX Sound effects/Background Deep sea Ambient sounds.mp3
+    category: Sounds
+    what: Background Deep sea Ambient sounds
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Checkpoint chime.wav
+    category: Sounds
+    what: Checkpoint chime
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Chest opening  closing sound effect.mp3
+    category: Sounds
+    what: Chest opening closing sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Correct Button mash sound effect.mp3
+    category: Sounds
+    what: Correct Button mash sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Deep Sea Monster sound effect.mp3
+    category: Sounds
+    what: Deep Sea Monster sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Door closing sound effect.mp3
+    category: Sounds
+    what: Door closing sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Door opening sound effect.mp3
+    category: Sounds
+    what: Door opening sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Eating sound effect.mp3
+    category: Sounds
+    what: Eating sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Enemy fish Attack sound effect.mp3
+    category: Sounds
+    what: Enemy fish Attack sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Enemy killed sound effect.mp3
+    category: Sounds
+    what: Enemy killed sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Game over sound effect.mp3
+    category: Sounds
+    what: Game over sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Hit impact.wav
+    category: Sounds
+    what: Hit impact
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Hunger sound effect Warning long.mp3
+    category: Sounds
+    what: Hunger sound effect Warning long
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Hunger stomach gurgle.wav
+    category: Sounds
+    what: Hunger stomach gurgle
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Interaction sound effect.mp3
+    category: Sounds
+    what: Interaction sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Inventory sound effect (indicator) .mp3
+    category: Sounds
+    what: Inventory sound effect (indicator)
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Item pick up sound effect.mp3
+    category: Sounds
+    what: Item pick up sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Locked door sound effect.mp3
+    category: Sounds
+    what: Locked door sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Puzzle Completed Sound effect.mp3
+    category: Sounds
+    what: Puzzle Completed Sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Slashing sound effect 2 for trident attack.mp3
+    category: Sounds
+    what: Slashing sound effect 2 for trident attack
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Slashing sound effect.mp3
+    category: Sounds
+    what: Slashing sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: SFX Sound effects/Wrong Button mash sound effect.mp3
+    category: Sounds
+    what: Wrong Button mash sound effect
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: UI/UI_HoverSpare_Folder_BaggoNotes_CC0.mp3
+    category: Sounds
+    what: Button_Hover
+    author: BaggoNotes
+    licence: CC0
+    source: https://freesound.org/s/721504/
+    hidden: 0
+  - file: UI/UI_HoverSpare_Tick_Avaol_CC0.mp3
+    category: Sounds
+    what: button hover 3
+    author: avaol
+    licence: CC0
+    source: https://freesound.org/s/862447/
+    hidden: 0
+  - file: UI/UI_Hover_Paper_Steaq_CC0.mp3
+    category: Sounds
+    what: UI hover item
+    author: steaq
+    licence: CC0
+    source: https://freesound.org/s/757328/
+    hidden: 0
+  - file: Fonts/AldotheApache.ttf
+    category: Fonts
+    what: AldotheApache
+    author: 
+    licence: 
+    source: 
+    hidden: 0
+  - file: environment/checkpoint/checkpoint_book_left.obj
+    category: Models
+    what: checkpoint book left
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: environment/checkpoint/checkpoint_book_right.obj
+    category: Models
+    what: checkpoint book right
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: environment/checkpoint/checkpoint_pillar.obj
+    category: Models
+    what: checkpoint pillar
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: environment/seaweed/model.obj
+    category: Models
+    what: model
+    author: Laney XR Labs
+    licence: CC-BY 3.0
+    source: https://poly.pizza/u/Laney%20XR%20Labs
+    hidden: 0
+  - file: items/keys/bone_key_full.fbx
+    category: Models
+    what: bone key full
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: items/keys/gold_key.fbx
+    category: Models
+    what: gold key
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: items/keys/key_pieces/bone_key_piece1.fbx
+    category: Models
+    what: bone key piece1
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: items/keys/key_pieces/bone_key_piece2.fbx
+    category: Models
+    what: bone key piece2
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: items/keys/key_pieces/bone_key_piece3.fbx
+    category: Models
+    what: bone key piece3
+    author: the team
+    licence: 
+    source: 
+    hidden: 0
+  - file: items/keys/rune_key.fbx
+    category: Models
+    what: rune key
+    author: the team
+    licence: 
+    source: 
+    hidden: 0

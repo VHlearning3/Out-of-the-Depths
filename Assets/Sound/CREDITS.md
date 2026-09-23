@@ -45,6 +45,9 @@ Clips fetched from the internet, all **Creative Commons 0 (public domain)** - fr
 | `UI/UI_Hover_Paper_Steaq_CC0.mp3` | Pause Menu → Hover Sound (the quiet paper tick when the mouse moves onto a button) | https://freesound.org/s/757328/ "UI hover item" | steaq |
 | `UI/UI_HoverSpare_Folder_BaggoNotes_CC0.mp3` | spare (a softer thump) | https://freesound.org/s/721504/ "Button_Hover" | BaggoNotes |
 | `UI/UI_HoverSpare_Tick_Avaol_CC0.mp3` | spare (a tiny click) | https://freesound.org/s/862447/ "button hover 3" | avaol |
+| `Puzzles/Knot_Wrap_RopeTying_Kyles_CC0.mp3` | Bone Key Tying → Wind Sound (a slice per quarter turn round a joint) | https://freesound.org/s/450849/ "nylon rope string fishing line handling tying" | kyles |
+| `Puzzles/Knot_Slide_RopeSliding_Cmilo_CC0.mp3` | Bone Key Tying → Slide Sound (the key pulling together) | https://freesound.org/s/491960/ "Rope Sliding" | cmilo1269 |
+| `Puzzles/Knot_Tied_RopeSnap_Zepurple_CC0.mp3` | Bone Key Tying → Tied Sound (a joint holding) | https://freesound.org/s/540266/ "cut rope" | zepurple |
 
 These are Freesound's high-quality MP3 previews. The lossless originals need a Freesound login to download: log in on the page, hit Download, and drop the file over the MP3 in the Inspector.
 

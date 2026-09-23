@@ -1,12 +1,12 @@
 using UnityEditor;
 using UnityEngine;
 
-// Tools > Out of the Depths > Add Indicators To Interactable Prefabs: every prefab under Art/Prefabs whose root is an
+// Tools > Out of the Depths > Add Indicators To Interactable Prefabs: every prefab under Assets/Prefabs whose root is an
 // IInteractable (live fish, dead fish, pickups) gets Interactable Highlight + Interactable Indicator wired to the sparkle prefab.
 // Checkpoints are skipped, they have their own glow. The test arena builder runs this first.
 public static class InteractablePrefabTools
 {
-    public const string PrefabRoot = "Assets/Art/Prefabs";
+    public const string PrefabRoot = "Assets/Prefabs";
 
     [MenuItem("Tools/Out of the Depths/Add Indicators To Interactable Prefabs")]
     public static void AddIndicatorsToInteractablePrefabs()

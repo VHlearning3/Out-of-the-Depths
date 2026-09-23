@@ -41,6 +41,8 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
     private ProximityLabel[] signs = new ProximityLabel[0];
     private Checkpoint[] checkpoints = new Checkpoint[0];
     private Door[] doors = new Door[0];
+    private DoubleDoor[] doubleDoors = new DoubleDoor[0];
+    private PuzzleStation[] puzzles = new PuzzleStation[0];
     private RubbleFall[] rubble = new RubbleFall[0];
     private ChaseSequence chase;
 
@@ -81,6 +83,8 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
         checkpoints = FindObjectsByType<Checkpoint>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         System.Array.Sort(checkpoints, (a, b) => string.Compare(a.name, b.name, System.StringComparison.Ordinal));
         doors = FindObjectsByType<Door>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        doubleDoors = FindObjectsByType<DoubleDoor>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        puzzles = FindObjectsByType<PuzzleStation>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         rubble = FindObjectsByType<RubbleFall>(FindObjectsSortMode.None);
         chase = FindFirstObjectByType<ChaseSequence>();
     }
@@ -323,12 +327,23 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
         RequestedTimeScale = timeScale;   // applied by the pause menu when the game resumes
 
         GUILayout.BeginHorizontal();
-        if (MenuGUI.Button($"Unlock + open all doors ({doors.Length})"))
+        if (MenuGUI.Button($"Unlock + open all doors ({doors.Length + doubleDoors.Length})"))
+        {
             foreach (Door door in doors)
                 if (door != null) { door.Unlock(); door.Open(); }
+            foreach (DoubleDoor door in doubleDoors)
+                if (door != null) door.Open();
+        }
         if (MenuGUI.Button("Close all doors"))
+        {
             foreach (Door door in doors)
                 if (door != null) door.Close();
+            foreach (DoubleDoor door in doubleDoors)
+                if (door != null) door.Close();
+        }
+        if (MenuGUI.Button($"Solve all puzzles ({puzzles.Length})"))
+            foreach (PuzzleStation puzzle in puzzles)
+                if (puzzle != null) puzzle.SolveNow();
         GUILayout.EndHorizontal();
         GUILayout.BeginHorizontal();
         if (MenuGUI.Button($"Drop all rubble ({rubble.Length})"))
