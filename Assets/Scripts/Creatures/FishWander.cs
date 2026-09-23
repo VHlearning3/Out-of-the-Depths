@@ -53,6 +53,9 @@ public class FishWander : MonoBehaviour
     private void Awake()
     {
         home = transform.position;
+        // Hard spacing from other fish (Fish Space), on top of the soft Separation below.
+        FishSpace space = GetComponent<FishSpace>() != null ? GetComponent<FishSpace>() : gameObject.AddComponent<FishSpace>();
+        space.Setup(bodyRadius, obstacleMask);
         bobOffset = Random.value * 10f;
         PickNewTarget();
     }

@@ -2,40 +2,31 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
-// Runs the GDD chase. Begin() (wire it to a Player Area Trigger or the final door's On Opened) releases the Chase
-// Pufferfish under this object one by one; they hunt the player until End() (wire it to the rubble's On Dropped) sends
-// them away for good. Dying resets it: the pack goes back to its hole and comes again shortly after the respawn if the
-// player is still near; otherwise the next Begin() starts it over. Danger01 drives the red pulse (Chase Danger UI).
+// Runs the GDD chase. It starts with the reveal cutscene and releases the Chase Pufferfish under this object one by
+// one; they hunt the player until End() (wire it to the rubble's On Dropped) sends them away for good.
+// Starting: with only a Start Trigger, the player being in it starts it; with only a Start Door, the door opening
+// does; with both, the door opening arms it and the player being in the trigger (then or later) starts it, so the
+// reveal always plays where the vent can be seen. "In the trigger" means the middle of the player, not the first
+// brush of their body against its edge, so standing in a doorway at its edge does not count. Begin() starts it at once from anywhere (the admin panel).
+// The reveal cutscene takes the camera: black bars slide in, the ocean hushes, the lights stutter and something groans
+// in the vent while the view turns to face it (from wherever the player was looking); the grate bursts, time slows
+// and the camera follows the first one out; then time comes back, the bars go, control returns and SWIM! flashes up.
+// Dying resets it: the pack goes back to its hole and comes again shortly after the respawn if the player is still
+// near (without the cutscene, which only plays the first time). Danger01 drives the red pulse (Chase Danger UI).
 public class ChaseSequence : MonoBehaviour
 {
     [Header("Start and end (drag-in shortcuts; the Begin / End events work too)")]
-    [Tooltip("Begin() when the player enters this trigger.")]
+    [Tooltip("The player being in it starts the chase (once the Start Door is open, if there is one): their middle, not the first brush of their body. Put it where the vent can be seen, a little way in from any doorway.")]
     [SerializeField] private PlayerAreaTrigger startTrigger;
-    [Tooltip("Begin() when this door opens (the GDD's final door).")]
+    [Tooltip("The door opening starts the chase, or with a Start Trigger arms it (the GDD's final door).")]
     [SerializeField] private Door startDoor;
     [Tooltip("End() once this rubble has come down.")]
     [SerializeField] private RubbleFall endRubble;
 
-    [Header("Start condition")]
-    [Tooltip("When the trigger / door fires, wait until the player is actually looking down the corridor at the target with nothing in the way before starting, so the reveal is never wasted on a wall. Off = start the moment the trigger fires.")]
-    [SerializeField] private bool startWhenSeen = true;
-    [Tooltip("The vent (the grate, else the target) counts as seen when it is within this many degrees of the middle of the view...")]
-    [SerializeField, Range(5f, 90f)] private float seenAngle = 25f;
-    [Tooltip("...and (with this on) straight lines from the camera to it and to points around it hit nothing but the player, the grate and the pack - so a wall edge half-covering the corridor still counts as blocked.")]
-    [SerializeField] private bool seenNeedsClearLine = true;
-    [Tooltip("How far to the sides (metres) of the vent the extra sight lines go. Keep it inside the opening.")]
-    [SerializeField] private float seenSpread = 1f;
-    [Tooltip("How far above and below the vent the extra sight lines go.")]
-    [SerializeField] private float seenSpreadVertical = 0.6f;
-    [Tooltip("Safety net: start anyway once the player is this close to the target, seen or not. 0 = never.")]
-    [SerializeField] private float forceStartDistance = 4f;
-    [Tooltip("Safety net: start anyway this many seconds after the trigger fired. 0 = never.")]
-    [SerializeField] private float forceStartAfter = 0f;
-
     [Header("Pack")]
     [Tooltip("Empty = every Chase Pufferfish under this object.")]
     [SerializeField] private ChasePufferfish[] pursuers;
-    [Tooltip("Pause after Begin() before the first one comes out.")]
+    [Tooltip("Pause after the first one comes out before the rest follow (real seconds).")]
     [SerializeField] private float startDelay = 1f;
     [SerializeField] private float releaseInterval = 0.7f;
 
@@ -46,31 +37,41 @@ public class ChaseSequence : MonoBehaviour
     [SerializeField] private float grateFallHeight = 3f;
     [SerializeField] private float grateFlyTime = 0.8f;
     [SerializeField] private AudioClip grateSound;
-    [Tooltip("What the reveal zooms in on and the camera is drawn toward. Empty = the first pursuer, else the grate, else this object.")]
+    [Tooltip("What the camera turns to during the hush. Empty = the grate, else the first pursuer, else this object.")]
     [SerializeField] private Transform lookTarget;
-    [Tooltip("After the cutscene (or from the start, with no cutscene) the camera keeps being drawn toward the target for this long; the mouse can still fight it.")]
-    [SerializeField] private float lookPullSeconds = 1.6f;
 
     [Header("Reveal cutscene")]
-    [Tooltip("The hush before it happens: the ocean falls silent, the lights stutter, something groans in the vent and the view is drawn slowly toward it - for this many real seconds. Then the grate bursts. 0 = no hush.")]
-    [SerializeField] private float hushSeconds = 1.6f;
+    [Tooltip("Play the reveal. Off = the grate bursts and the pack comes out with no cutscene.")]
+    [SerializeField] private bool playCutscene = true;
+    [Tooltip("Play it again when the chase restarts after dying. Off = only the first time; after that the pack just bursts out.")]
+    [SerializeField] private bool cutsceneOnRestart = false;
+    [Tooltip("The hush before it happens, in real seconds: the ocean falls silent, the lights stutter and something groans in the vent while the view turns to face it.")]
+    [SerializeField, Min(0f)] private float hushSeconds = 1.8f;
+    [Tooltip("How long the turn to face the vent takes, in real seconds (within the hush; it eases in and out).")]
+    [SerializeField, Min(0.1f)] private float turnSeconds = 1.1f;
     [Tooltip("What groans in the vent during the hush (played from the grate).")]
     [SerializeField] private AudioClip hushSound;
     [SerializeField] private bool flickerLights = true;
-    [Tooltip("How hard the view is drawn toward the vent during the hush. Low = a slow, dreadful turn.")]
-    [SerializeField] private float hushLookRate = 1.5f;
-    [Tooltip("After the burst the camera zooms in on the target while time slows, for this many real seconds, then eases back. 0 = no slow-motion zoom.")]
-    [SerializeField] private float cutsceneSeconds = 1.5f;
-    [Tooltip("How slowly time runs during the cutscene (1 = normal speed).")]
-    [SerializeField, Range(0.05f, 1f)] private float cutsceneTimeScale = 0.25f;
-    [Tooltip("Camera field of view at full zoom. The normal view is whatever the camera has (about 60).")]
-    [SerializeField] private float cutsceneZoomFov = 30f;
-    [Tooltip("Real seconds the zoom in takes at the start of the cutscene...")]
-    [SerializeField] private float zoomInSeconds = 0.5f;
-    [Tooltip("...and the zoom back out at the end.")]
-    [SerializeField] private float zoomOutSeconds = 0.4f;
-    [Tooltip("The player can't swim or look around during the cutscene.")]
-    [SerializeField] private bool lockPlayer = true;
+    [Tooltip("After the burst: time slows and the camera zooms in and follows the first one out, for this many real seconds.")]
+    [SerializeField, Min(0f)] private float cutsceneSeconds = 1.4f;
+    [Tooltip("How slowly time runs during the burst (1 = normal speed).")]
+    [SerializeField, Range(0.05f, 1f)] private float cutsceneTimeScale = 0.3f;
+    [Tooltip("Camera field of view at full zoom on the burst. The normal view is whatever the camera has (about 60).")]
+    [SerializeField] private float cutsceneZoomFov = 34f;
+    [Tooltip("Real seconds the zoom in takes...")]
+    [SerializeField] private float zoomInSeconds = 0.35f;
+    [Tooltip("...and the zoom back out (time speeds back up over the same span).")]
+    [SerializeField] private float zoomOutSeconds = 0.5f;
+    [Tooltip("How hard the camera jolts when the grate bursts (0..1).")]
+    [SerializeField, Range(0f, 1f)] private float burstShake = 0.7f;
+    [Tooltip("Black bars top and bottom while the cutscene has the camera.")]
+    [SerializeField] private bool letterbox = true;
+    [Tooltip("Height of each bar, as a share of the screen.")]
+    [SerializeField, Range(0f, 0.25f)] private float letterboxSize = 0.1f;
+    [Tooltip("Flashed up in the middle of the screen as control comes back. Empty = nothing.")]
+    [SerializeField] private string runText = "SWIM!";
+    [SerializeField] private float runTextSeconds = 1.3f;
+    [SerializeField] private Color runTextColor = new Color(1f, 0.55f, 0.45f);
     [Tooltip("Hide the 'Press E to ...' prompt: during the reveal cutscene only, for the whole chase (E still works), or never.")]
     [SerializeField] private PromptHiding hideInteractPrompt = PromptHiding.DuringCutscene;
 
@@ -117,8 +118,9 @@ public class ChaseSequence : MonoBehaviour
     public static ChaseSequence Active { get; private set; }
     public bool IsRunning { get; private set; }
     public bool IsFinished { get; private set; }
-    // Triggered, waiting for the player to look down the corridor.
+    // The start door is open and the chase starts as soon as the player is in the start trigger.
     public bool IsArmed { get; private set; }
+    public bool InCutscene => cutsceneActive;
     public float Danger01 { get; private set; }
     // The hunting pursuer closest to the player right now (the HUD marker points at it), or null.
     public Transform NearestPursuer { get; private set; }
@@ -127,11 +129,14 @@ public class ChaseSequence : MonoBehaviour
     private DeathManager death;
     private PlayerTrail trail;
     private Coroutine releasing;
-    private bool restartPending;
+    private bool restartPending;   // died mid-chase: the trigger waits while the restart comes
+    private Coroutine restartRoutine;
+    private bool cutscenePlayed;
     private Vector3 grateStartPosition;
     private Quaternion grateStartRotation;
     private Coroutine revealRoutine;
     private bool cutsceneActive;
+    private bool playerLocked;
     private SwimController cutsceneSwimmer;
     private Camera cutsceneCamera;
     private float baseTimeScale = 1f;
@@ -139,7 +144,9 @@ public class ChaseSequence : MonoBehaviour
     private float baseFov = 60f;
     private bool wasFrozen;
     private bool wasLookLocked;
-    private float armedAt;
+    private float bars;            // 0..1, the letterbox sliding in and out
+    private float runTextAt = -10f;
+    private GUIStyle runTextStyle;
     private AudioSource tension;
     private float nextGrowl;
     private SwimController fearSwimmer;
@@ -168,10 +175,8 @@ public class ChaseSequence : MonoBehaviour
             death.onDied.AddListener(OnPlayerDied);
             death.onRespawned.AddListener(OnPlayerRespawned);
         }
-        if (startTrigger != null)
-            startTrigger.onPlayerEnter.AddListener(Begin);
         if (startDoor != null)
-            startDoor.onOpened.AddListener(Begin);
+            startDoor.onOpened.AddListener(OnDoorOpened);
         if (endRubble != null)
             endRubble.onDropped.AddListener(End);
     }
@@ -193,21 +198,45 @@ public class ChaseSequence : MonoBehaviour
             death.onDied.RemoveListener(OnPlayerDied);
             death.onRespawned.RemoveListener(OnPlayerRespawned);
         }
-        if (startTrigger != null)
-            startTrigger.onPlayerEnter.RemoveListener(Begin);
         if (startDoor != null)
-            startDoor.onOpened.RemoveListener(Begin);
+            startDoor.onOpened.RemoveListener(OnDoorOpened);
         if (endRubble != null)
             endRubble.onDropped.RemoveListener(End);
         if (Active == this)
             Active = null;
     }
 
-    // Start the chase - or, with Start When Seen, arm it and start once the player is looking down the corridor.
+    // ---- starting -------------------------------------------------------------------------------------------------
+
+    private void OnDoorOpened()
+    {
+        if (IsRunning || IsFinished)
+            return;
+        if (startTrigger == null)
+        {
+            Begin();
+            return;
+        }
+        IsArmed = true;   // Update starts it once the player is in the trigger (maybe already there)
+    }
+
+    // Is the player inside the start trigger right now?
+    private bool PlayerInTrigger()
+    {
+        if (startTrigger == null || player == null)
+            return false;
+        Vector3 p = player.transform.position;
+        foreach (Collider area in startTrigger.GetComponents<Collider>())
+            if (area.enabled && (area.ClosestPoint(p) - p).sqrMagnitude < 0.0001f)
+                return true;
+        return false;
+    }
+
+    // Start the chase now, from anywhere.
     [ContextMenu("Begin chase")]
     public void Begin()
     {
-        if (IsRunning || IsFinished || IsArmed)
+        if (IsRunning || IsFinished)
             return;
         if (player == null)
             player = FindFirstObjectByType<DamageManager>();
@@ -216,19 +245,6 @@ public class ChaseSequence : MonoBehaviour
             Debug.LogWarning($"{name}: no player (Damage Manager) in the scene, chase not started.", this);
             return;
         }
-
-        if (startWhenSeen && !CanSeeTarget())
-        {
-            IsArmed = true;
-            armedAt = Time.unscaledTime;
-            Debug.Log($"{name}: chase armed, waiting for the player to look down the corridor.", this);
-            return;
-        }
-        StartNow();
-    }
-
-    private void StartNow()
-    {
         IsArmed = false;
         trail = player.GetComponent<PlayerTrail>();
         if (trail == null)
@@ -242,22 +258,22 @@ public class ChaseSequence : MonoBehaviour
         fearCamera = fearSwimmer != null ? fearSwimmer.GetComponentInChildren<Camera>() : null;
         if (fearCamera == null)
             fearCamera = Camera.main;
-        restingFov = fearCamera != null ? fearCamera.fieldOfView : -1f;
+        if (restingFov < 0f)
+            restingFov = fearCamera != null ? fearCamera.fieldOfView : -1f;
         nextGrowl = Time.time + 2f;
         StartTension();
         if (hideInteractPrompt == PromptHiding.WholeChase)
             HidePrompt(true);
-        if (hushSeconds > 0f || cutsceneSeconds > 0f)
+
+        bool cutscene = playCutscene && (!cutscenePlayed || cutsceneOnRestart) && fearSwimmer != null;
+        if (cutscene)
         {
-            revealRoutine = StartCoroutine(RevealCutscene());   // the hush, then Burst(), then the slow-motion zoom
+            cutscenePlayed = true;
+            revealRoutine = StartCoroutine(RevealCutscene());   // the hush and the turn, then Burst(), then the slow motion
         }
         else
         {
-            Burst(false);
-            var swimmer = player.GetComponentInParent<SwimController>();
-            Transform look = CutsceneTarget();
-            if (swimmer != null && look != null && lookPullSeconds > 0f)
-                swimmer.PullLookToward(look.position, lookPullSeconds);
+            Burst(true);
         }
         onStarted.Invoke();
     }
@@ -294,7 +310,7 @@ public class ChaseSequence : MonoBehaviour
         onEnded.Invoke();
     }
 
-    // Back to the start: the pack vanishes into its hole and Begin() can run again.
+    // Back to the start: the pack vanishes into its hole and the chase can start again.
     [ContextMenu("Reset chase")]
     public void ResetChase()
     {
@@ -302,7 +318,7 @@ public class ChaseSequence : MonoBehaviour
         StopReleasing();
         IsRunning = false;
         IsFinished = false;
-        IsArmed = false;
+        IsArmed = startDoor != null && startDoor.IsOpen && startTrigger != null;
         Danger01 = 0f;
         NearestPursuer = null;
         StopTension(true);
@@ -317,8 +333,8 @@ public class ChaseSequence : MonoBehaviour
         onReset.Invoke();
     }
 
-    // With the reveal cutscene the first one comes out at once, so the zoom has something to look at; the rest follow
-    // after Start Delay (real seconds, so the slow motion doesn't stretch it).
+    // The first one comes out at once, so the cutscene has something to follow; the rest after Start Delay (real
+    // seconds, so the slow motion doesn't stretch it).
     private IEnumerator ReleaseAll(bool firstNow)
     {
         int next = 0;
@@ -355,23 +371,27 @@ public class ChaseSequence : MonoBehaviour
 
     private void OnPlayerRespawned()
     {
-        if (!restartPending)
-            return;
-        restartPending = false;
-        StartCoroutine(RestartLater());
+        if (restartPending && restartRoutine == null)
+            restartRoutine = StartCoroutine(RestartLater());
     }
 
+    // Breathing room after the respawn, then the pack comes again if the player is still near.
     private IEnumerator RestartLater()
     {
         yield return new WaitForSeconds(restartDelay);
+        restartPending = false;
+        restartRoutine = null;
         if (player != null && Vector3.Distance(player.transform.position, transform.position) <= restartDistance)
             Begin();
     }
 
+    // ---- while it runs --------------------------------------------------------------------------------------------
+
     private void Update()
     {
-        if (IsArmed && !IsRunning && !IsFinished && (CanSeeTarget() || ForceStartDue()))
-            StartNow();
+        // The start trigger (after the start door, if there is one): once the player's middle is inside it.
+        if (startTrigger != null && (startDoor == null || IsArmed) && !IsRunning && !IsFinished && !restartPending && PlayerInTrigger())
+            Begin();
 
         if (!IsRunning)
         {
@@ -419,7 +439,7 @@ public class ChaseSequence : MonoBehaviour
             nextGrowl = Time.time + Random.Range(nearCooldown.x, nearCooldown.y);
         }
 
-        if (fearSwimmer != null && shakeAtMaxDanger > 0f)
+        if (fearSwimmer != null && shakeAtMaxDanger > 0f && !cutsceneActive)
             fearSwimmer.AddShake(shakeAtMaxDanger * Danger01 * Danger01);
 
         if (fearCamera != null && restingFov > 0f && !cutsceneActive && fovBoost != 0f)
@@ -463,68 +483,6 @@ public class ChaseSequence : MonoBehaviour
             tension.Stop();
     }
 
-    // Is the player looking straight at the vent (the grate, else the target) with a clear view of all of it?
-    private bool CanSeeTarget()
-    {
-        if (player == null)
-            return false;
-        Transform vent = grate != null ? grate : CutsceneTarget();
-        if (vent == null)
-            return false;
-        Camera cam = player.GetComponentInChildren<Camera>();
-        if (cam == null)
-            cam = Camera.main;
-        if (cam == null)
-            return true;   // nothing to judge with; don't hold the chase hostage
-
-        Vector3 eye = cam.transform.position;
-        Vector3 toVent = vent.position - eye;
-        if (toVent.sqrMagnitude < 0.01f)
-            return true;
-        if (Vector3.Angle(cam.transform.forward, toVent) > seenAngle)
-            return false;
-        if (!seenNeedsClearLine)
-            return true;
-
-        // Not one sight line but a spread of them, to the middle of the opening and around it, so a wall edge that
-        // still half-covers the corridor counts as blocked.
-        Vector3 side = Vector3.Cross(Vector3.up, toVent).normalized;
-        if (side.sqrMagnitude < 0.5f)
-            side = cam.transform.right;
-        Vector3 spread = side * seenSpread;
-        Vector3 lift = Vector3.up * seenSpreadVertical;
-        return LineIsClear(eye, vent.position)
-            && LineIsClear(eye, vent.position + spread)
-            && LineIsClear(eye, vent.position - spread)
-            && LineIsClear(eye, vent.position + lift)
-            && LineIsClear(eye, vent.position - lift);
-    }
-
-    private bool LineIsClear(Vector3 from, Vector3 to)
-    {
-        Vector3 delta = to - from;
-        float length = delta.magnitude;
-        if (length < 0.05f)
-            return true;
-        foreach (RaycastHit hit in Physics.RaycastAll(from, delta / length, Mathf.Max(0f, length - 0.3f), ~0, QueryTriggerInteraction.Ignore))
-        {
-            Transform t = hit.collider.transform;
-            if (PlayerBody.Is(hit.collider) || t.IsChildOf(transform) || (grate != null && t.IsChildOf(grate)) || (lookTarget != null && t.IsChildOf(lookTarget)))
-                continue;
-            return false;   // something solid in the way
-        }
-        return true;
-    }
-
-    private bool ForceStartDue()
-    {
-        if (forceStartAfter > 0f && Time.unscaledTime - armedAt >= forceStartAfter)
-            return true;
-        Transform target = CutsceneTarget();
-        return forceStartDistance > 0f && player != null && target != null &&
-               Vector3.Distance(player.transform.position, target.position) <= forceStartDistance;
-    }
-
     // The grate flies out of the hole, tips over and drops to the floor.
     private IEnumerator BlowGrate()
     {
@@ -549,16 +507,25 @@ public class ChaseSequence : MonoBehaviour
         PlayAt(grateSound, grate.position);
     }
 
-    // The reveal: time slows and the camera zooms in on the target (the first pursuer coming out of its hole); then
-    // time and the view come back and the player has control again. Runs on real time throughout.
+    // ---- the reveal cutscene --------------------------------------------------------------------------------------
+
+    // Real seconds this frame, but none while the pause menu is up, so the cutscene waits for it.
+    private static float CutsceneDelta => PauseMenu.IsOpen ? 0f : Time.unscaledDeltaTime;
+
+    // Runs on real time throughout, and holds still while the game is paused.
+    //   1. The hush (Hush Seconds): bars in, the ocean falls silent, the lights stutter, a groan from the vent, and the
+    //      view turns to face it over Turn Seconds, eased, from wherever the player was looking, then creeps in.
+    //   2. The burst: the grate goes with a jolt, the first one comes out, time slows and the camera zooms in and
+    //      follows it (Cutscene Seconds).
+    //   3. Control comes back at once; time speeds back up and the view widens over Zoom Out Seconds, the bars slide
+    //      away, and SWIM! flashes up.
     private IEnumerator RevealCutscene()
     {
-        cutsceneSwimmer = player.GetComponentInParent<SwimController>();
-        cutsceneCamera = cutsceneSwimmer != null ? cutsceneSwimmer.GetComponentInChildren<Camera>() : null;
-        if (cutsceneCamera == null)
-            cutsceneCamera = Camera.main;
-        Transform target = CutsceneTarget();
+        cutsceneSwimmer = fearSwimmer;
+        cutsceneCamera = fearCamera;
         cutsceneAmbience = FindFirstObjectByType<OceanAmbience>();
+        Transform vent = grate != null ? grate : (lookTarget != null ? lookTarget : CutsceneTarget());
+        Transform focus = lookTarget != null ? lookTarget : vent;
 
         cutsceneActive = true;
         baseTimeScale = Time.timeScale;
@@ -566,67 +533,81 @@ public class ChaseSequence : MonoBehaviour
         baseFov = cutsceneCamera != null ? cutsceneCamera.fieldOfView : 60f;
         if (hideInteractPrompt != PromptHiding.Never)
             HidePrompt(true);
-        if (cutsceneSwimmer != null)
+        wasFrozen = cutsceneSwimmer.Frozen;
+        wasLookLocked = cutsceneSwimmer.LookLocked;
+        cutsceneSwimmer.Frozen = true;
+        cutsceneSwimmer.LookLocked = true;
+        playerLocked = true;
+
+        // 1. The hush and the turn.
+        if (cutsceneAmbience != null)
+            cutsceneAmbience.Hush = 1f;
+        float hush = Mathf.Max(hushSeconds, turnSeconds);
+        if (flickerLights)
         {
-            wasFrozen = cutsceneSwimmer.Frozen;
-            wasLookLocked = cutsceneSwimmer.LookLocked;
-            if (lockPlayer)
+            var lighting = FindFirstObjectByType<UnderwaterLighting>();
+            if (lighting != null)
+                lighting.FlickerFor(hush + 0.5f);
+        }
+        if (hushSound != null && vent != null)
+            SlicedOneShot.Play(hushSound, vent.position, volume, Random.Range(0.75f, 0.9f), 0f, 0.2f, 1f, 45f);
+
+        Vector2 from = cutsceneSwimmer.LookAngles;
+        for (float t = 0f; t < hush; t += CutsceneDelta)
+        {
+            bars = Mathf.Clamp01(bars + CutsceneDelta / 0.4f);
+            if (focus != null)
             {
-                cutsceneSwimmer.Frozen = true;
-                cutsceneSwimmer.LookLocked = true;
+                Vector2 to = cutsceneSwimmer.AnglesToward(focus.position);
+                float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / turnSeconds));
+                cutsceneSwimmer.SetLookAngles(Mathf.LerpAngle(from.x, to.x, k), Mathf.Lerp(from.y, to.y, k));
             }
+            if (cutsceneCamera != null)
+                cutsceneCamera.fieldOfView = Mathf.Lerp(baseFov, baseFov - 6f, Ease.InOutSine(t / hush));   // a slow creep in
+            cutsceneSwimmer.AddShake(0.12f * t / hush);   // a low rumble building
+            yield return null;
         }
 
-        // 1. The hush. Nothing has happened yet - that is the point: the ocean goes quiet, the light stutters, something
-        //    groans in the vent, and the view is drawn slowly toward it.
-        if (hushSeconds > 0f)
-        {
-            if (cutsceneAmbience != null)
-                cutsceneAmbience.Hush = 1f;
-            if (flickerLights)
-            {
-                var lighting = FindFirstObjectByType<UnderwaterLighting>();
-                if (lighting != null)
-                    lighting.FlickerFor(hushSeconds + 0.6f);
-            }
-            Transform vent = grate != null ? grate : target;
-            if (hushSound != null && vent != null)
-                SlicedOneShot.Play(hushSound, vent.position, volume, Random.Range(0.75f, 0.9f), 0f, 0.2f, 1f, 45f);
-
-            for (float t = 0f; t < hushSeconds; t += Time.unscaledDeltaTime)
-            {
-                if (target != null && cutsceneSwimmer != null)
-                    cutsceneSwimmer.PullLookToward(target.position, 0.3f, hushLookRate);
-                yield return null;
-            }
-        }
-
-        // 2. The burst: the grate goes, the first one comes out, and time slows while the camera zooms in on it.
+        // 2. The burst, and the camera follows the first one out in slow motion.
         Burst(true);
-        Time.timeScale = cutsceneTimeScale;
-        Time.fixedDeltaTime = baseFixedDelta * cutsceneTimeScale;
-
-        for (float t = 0f; t < cutsceneSeconds; t += Time.unscaledDeltaTime)
+        cutsceneSwimmer.AddShake(burstShake);
+        SetTimeScale(cutsceneTimeScale);
+        Transform first = pursuers.Length > 0 && pursuers[0] != null ? pursuers[0].transform : focus;
+        float creptFov = cutsceneCamera != null ? cutsceneCamera.fieldOfView : baseFov;
+        for (float t = 0f; t < cutsceneSeconds; t += CutsceneDelta)
         {
-            if (target != null && cutsceneSwimmer != null)
-                cutsceneSwimmer.PullLookToward(target.position, 0.3f);
+            bars = Mathf.Clamp01(bars + CutsceneDelta / 0.4f);
+            if (first != null)
+            {
+                Vector2 now = cutsceneSwimmer.LookAngles;
+                Vector2 to = cutsceneSwimmer.AnglesToward(first.position);
+                float blend = 1f - Mathf.Exp(-7f * CutsceneDelta);
+                cutsceneSwimmer.SetLookAngles(Mathf.LerpAngle(now.x, to.x, blend), Mathf.Lerp(now.y, to.y, blend));
+            }
             if (cutsceneCamera != null)
-                cutsceneCamera.fieldOfView = Mathf.Lerp(baseFov, cutsceneZoomFov, Ease.OutCubic(zoomInSeconds > 0f ? t / zoomInSeconds : 1f));
+                cutsceneCamera.fieldOfView = Mathf.Lerp(creptFov, cutsceneZoomFov, Ease.OutCubic(zoomInSeconds > 0f ? t / zoomInSeconds : 1f));
             yield return null;
         }
 
-        // 3. Time and control come back first; the view eases out over Zoom Out Seconds.
-        RestoreTimeAndPlayer();
-        if (target != null && cutsceneSwimmer != null && lookPullSeconds > 0f)
-            cutsceneSwimmer.PullLookToward(target.position, lookPullSeconds);
-        for (float t = 0f; t < zoomOutSeconds; t += Time.unscaledDeltaTime)
+        // 3. Control back; time, the view and the bars ease back.
+        RestorePlayer();
+        runTextAt = Time.unscaledTime;
+        float zoomedFov = cutsceneCamera != null ? cutsceneCamera.fieldOfView : baseFov;
+        float span = Mathf.Max(0.05f, zoomOutSeconds);
+        for (float t = 0f; t < span; t += CutsceneDelta)
         {
+            float k = Ease.InOutSine(t / span);
+            if (!PauseMenu.IsOpen)
+                SetTimeScale(Mathf.Lerp(cutsceneTimeScale, 1f, k));
             if (cutsceneCamera != null)
-                cutsceneCamera.fieldOfView = Mathf.Lerp(cutsceneZoomFov, baseFov, Ease.InOutSine(t / zoomOutSeconds));
+                cutsceneCamera.fieldOfView = Mathf.Lerp(zoomedFov, baseFov, k);
+            bars = 1f - k;
             yield return null;
         }
+        RestoreTime();
         if (cutsceneCamera != null)
             cutsceneCamera.fieldOfView = baseFov;
+        bars = 0f;
         cutsceneActive = false;
         revealRoutine = null;
     }
@@ -635,17 +616,25 @@ public class ChaseSequence : MonoBehaviour
     {
         if (lookTarget != null)
             return lookTarget;
+        if (grate != null)
+            return grate;
         if (pursuers != null && pursuers.Length > 0 && pursuers[0] != null)
             return pursuers[0].transform;
-        return grate != null ? grate : transform;
+        return transform;
     }
 
-    private void RestoreTimeAndPlayer()
+    // A share of the time scale the game had before the cutscene (1 = back to it).
+    private void SetTimeScale(float share)
     {
-        if (!cutsceneActive)
+        Time.timeScale = baseTimeScale * share;
+        Time.fixedDeltaTime = baseFixedDelta * share;
+    }
+
+    private void RestorePlayer()
+    {
+        if (!playerLocked)
             return;
-        Time.timeScale = baseTimeScale;
-        Time.fixedDeltaTime = baseFixedDelta;
+        playerLocked = false;
         if (cutsceneSwimmer != null)
         {
             cutsceneSwimmer.Frozen = wasFrozen;
@@ -655,6 +644,12 @@ public class ChaseSequence : MonoBehaviour
             cutsceneAmbience.Hush = 0f;
         if (hideInteractPrompt == PromptHiding.DuringCutscene)
             HidePrompt(false);
+    }
+
+    private void RestoreTime()
+    {
+        Time.timeScale = baseTimeScale;
+        Time.fixedDeltaTime = baseFixedDelta;
     }
 
     // The 'Press E to ...' prompt, hidden for the cutscene or the whole chase. Interaction itself keeps working.
@@ -673,7 +668,7 @@ public class ChaseSequence : MonoBehaviour
         promptOwner = null;
     }
 
-    // Cut the cutscene short (reset, disabled): everything back to normal at once.
+    // Cut the cutscene short (reset, disabled, the chase ended): everything back to normal at once.
     private void EndCutsceneNow()
     {
         if (!cutsceneActive)
@@ -681,10 +676,46 @@ public class ChaseSequence : MonoBehaviour
         if (revealRoutine != null)
             StopCoroutine(revealRoutine);
         revealRoutine = null;
-        RestoreTimeAndPlayer();
+        RestorePlayer();
+        RestoreTime();
         if (cutsceneCamera != null)
             cutsceneCamera.fieldOfView = baseFov;
+        bars = 0f;
         cutsceneActive = false;
+    }
+
+    // The letterbox bars and the SWIM! flash, over the HUD.
+    private void OnGUI()
+    {
+        bool showText = !string.IsNullOrEmpty(runText) && Time.unscaledTime - runTextAt < runTextSeconds;
+        if (Event.current.type != EventType.Repaint || (bars <= 0f && !showText) || PauseMenu.IsOpen)
+            return;
+        GUI.depth = 10;
+        Color keep = GUI.color;
+        if (letterbox && bars > 0f)
+        {
+            float height = Screen.height * letterboxSize * Ease.OutCubic(bars);
+            GUI.color = Color.black;
+            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, height), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(0f, Screen.height - height, Screen.width, height), Texture2D.whiteTexture);
+        }
+        if (showText)
+        {
+            float t = (Time.unscaledTime - runTextAt) / runTextSeconds;
+            if (runTextStyle == null)
+            {
+                runTextStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, font = GameFont.Font };
+                runTextStyle.normal.textColor = Color.white;
+            }
+            runTextStyle.fontSize = Mathf.RoundToInt(Screen.height * 0.075f * (1f + 0.25f * (1f - Ease.OutCubic(Mathf.Clamp01(t * 4f)))));
+            float alpha = Mathf.Clamp01(t * 8f) * (1f - Mathf.Clamp01((t - 0.6f) / 0.4f));
+            var rect = new Rect(0f, Screen.height * 0.3f, Screen.width, Screen.height * 0.2f);
+            GUI.color = new Color(0f, 0f, 0f, alpha * 0.6f);
+            GUI.Label(new Rect(rect.x + 3f, rect.y + 3f, rect.width, rect.height), runText, runTextStyle);
+            GUI.color = new Color(runTextColor.r, runTextColor.g, runTextColor.b, alpha);
+            GUI.Label(rect, runText, runTextStyle);
+        }
+        GUI.color = keep;
     }
 
     private void PlayAt(AudioClip clip, Vector3 position)

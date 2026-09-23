@@ -7,9 +7,12 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
-// The drag-and-click puzzle board (the GDD's stone fragment and rune puzzles): a row of slots along the top and the
-// tiles on offer below. Drag a tile into a slot or click it to send it to the next free one; click a placed tile to
-// take it back. The moment every slot holds the right tile it is solved. Everything it draws comes from a
+// The drag-and-click puzzle board (the GDD's stone fragment and rune puzzles), in one of two layouts. Row (the runes):
+// a row of slots along the top and square tiles below; drag a tile into a slot or click it to send it to the next
+// free one. Picture (the stone disc): the picture on the left and the loose pieces on the right in their own shapes;
+// drag a piece onto its place (it snaps in when dropped near enough, and only the right piece fits) or click it to
+// send it there. Either way a placed piece clicked goes back, pieces glide rather than jump, and the moment every
+// slot holds the right one it is solved. Everything it draws comes from a
 // PuzzleDefinition (board, slot and tile pictures, the tiles' art), with plain placeholders when the asset has none.
 // Built on a screen-space canvas of its own the first time it is needed; freezes the player and frees the cursor
 // while it is up; Escape or the cross closes it. PuzzleBoard.Show(puzzle, onSolved) opens it (a PuzzleStation does).
@@ -30,6 +33,8 @@ public class PuzzleBoard : MonoBehaviour
     private RectTransform root;
     private RectTransform board;
     private Text hint;
+    private Image pictureImage;
+    private Coroutine saying;
     private readonly List<PuzzleSlot> slots = new List<PuzzleSlot>();
     private PuzzleTile[] placed = new PuzzleTile[0];
     private SwimController swimmer;
@@ -169,19 +174,24 @@ public class PuzzleBoard : MonoBehaviour
 
     // ---- building it ------------------------------------------------------------------------------------------------
 
+    private static readonly Vector2 Middle = new Vector2(0.5f, 0.5f);
+
+    private bool PictureLayout => puzzle.layout == PuzzleDefinition.Layout.Picture;
+
     private void Build()
     {
         for (int i = root.childCount - 1; i >= 0; i--)
             Destroy(root.GetChild(i).gameObject);
         slots.Clear();
         placed = new PuzzleTile[puzzle.SlotCount];
+        pictureImage = null;
 
         Image backdrop = NewImage("Backdrop", root, null, new Color(0f, 0f, 0f, 0.62f));
         Stretch(backdrop.rectTransform);
 
         Image boardImage = NewImage("Board", root, puzzle.board != null ? puzzle.board : FallbackBoard, puzzle.boardTint);
         board = boardImage.rectTransform;
-        Place(board, new Vector2(0.5f, 0.5f), Vector2.zero, puzzle.boardSize);
+        Place(board, Middle, Vector2.zero, puzzle.boardSize);
         float w = puzzle.boardSize.x, h = puzzle.boardSize.y;
 
         Text title = NewText("Title", board, puzzle.title, 40, puzzle.textColor);
@@ -196,18 +206,106 @@ public class PuzzleBoard : MonoBehaviour
         cross.raycastTarget = false;
         close.gameObject.AddComponent<Button>().onClick.AddListener(Close);
 
-        // The slots along the top.
+        if (PictureLayout)
+            BuildPicture(w, h);
+        else
+            BuildRow(h);
+    }
+
+    // Row: the slots along the top, the tiles on offer in rows below, mixed up.
+    private void BuildRow(float h)
+    {
         float slotSize = puzzle.tileSize + 16f;
         float slotY = h * 0.5f - 200f;
         int count = puzzle.SlotCount;
         for (int i = 0; i < count; i++)
         {
             Image slot = NewImage("Slot" + i, board, puzzle.slot != null ? puzzle.slot : FallbackSlot, Color.white);
-            Place(slot.rectTransform, new Vector2(0.5f, 0.5f), new Vector2((i - (count - 1) * 0.5f) * (slotSize + 12f), slotY), new Vector2(slotSize, slotSize));
+            Place(slot.rectTransform, Middle, new Vector2((i - (count - 1) * 0.5f) * (slotSize + 12f), slotY), new Vector2(slotSize, slotSize));
             slots.Add(slot.gameObject.AddComponent<PuzzleSlot>().Init(i));
         }
 
-        // The tiles on offer, in rows below, mixed up.
+        List<PuzzleDefinition.Tile> order = Shuffled();
+        int columns = Mathf.Max(1, Mathf.Min(puzzle.tilesPerRow, order.Count));
+        float step = puzzle.tileSize + 24f;
+        float topY = slotY - slotSize * 0.5f - 70f - puzzle.tileSize * 0.5f;
+        for (int k = 0; k < order.Count; k++)
+        {
+            int row = k / columns, column = k % columns;
+            int inRow = Mathf.Min(columns, order.Count - row * columns);
+            var home = new Vector2((column - (inRow - 1) * 0.5f) * step, topY - row * step);
+            Image frame = NewImage("Tile_" + order[k].id, board, puzzle.tileFrame != null ? puzzle.tileFrame : FallbackTile, Color.white);
+            Place(frame.rectTransform, Middle, home, new Vector2(puzzle.tileSize, puzzle.tileSize));
+            if (order[k].art != null)
+            {
+                Image art = NewImage("Art", frame.rectTransform, order[k].art, Color.white);
+                art.preserveAspect = true;
+                art.raycastTarget = false;
+                art.rectTransform.anchorMin = Vector2.zero;
+                art.rectTransform.anchorMax = Vector2.one;
+                art.rectTransform.offsetMin = new Vector2(12f, 12f);
+                art.rectTransform.offsetMax = new Vector2(-12f, -12f);
+            }
+            else
+            {
+                Label(frame.rectTransform, order[k]);
+            }
+            frame.gameObject.AddComponent<PuzzleTile>().Init(this, order[k].id, canvasRect);
+        }
+    }
+
+    // Picture: the picture on the left with a spot for each piece (a faint silhouette of the piece that goes there);
+    // the loose pieces down the right, each in its own shape, smaller than in place and lying a little turned.
+    private void BuildPicture(float w, float h)
+    {
+        float size = puzzle.pictureSize;
+        var at = new Vector2(-w * 0.18f, -14f);
+        Image picture = NewImage("Picture", board, puzzle.picture != null ? puzzle.picture : FallbackSlot, puzzle.pictureTint);
+        picture.preserveAspect = true;
+        picture.raycastTarget = false;
+        Place(picture.rectTransform, Middle, at, new Vector2(size, size));
+        pictureImage = picture;
+
+        for (int i = 0; i < puzzle.SlotCount; i++)
+        {
+            PuzzleDefinition.Spot spot = SpotFor(i);
+            PuzzleDefinition.Tile piece = TileFor(puzzle.solution[i]);
+            Image mark = NewImage("Spot" + i, board, piece != null ? piece.art : null, new Color(0.85f, 0.9f, 0.95f, puzzle.showSilhouettes ? 0.12f : 0f));
+            mark.preserveAspect = true;
+            mark.raycastTarget = false;   // a drop goes to the nearest spot instead: the pieces' shapes overlap their boxes
+            Place(mark.rectTransform, Middle, at + spot.center * size, spot.size * size);
+            mark.rectTransform.localRotation = Quaternion.Euler(0f, 0f, spot.angle);
+            slots.Add(mark.gameObject.AddComponent<PuzzleSlot>().Init(i));
+        }
+
+        List<PuzzleDefinition.Tile> order = Shuffled();
+        float x = w * 0.5f - 230f;
+        float step = Mathf.Min(190f, (h - 380f) / Mathf.Max(1, order.Count - 1));
+        for (int k = 0; k < order.Count; k++)
+        {
+            PuzzleDefinition.Tile tile = order[k];
+            int own = SlotIndexOf(tile.id);
+            Vector2 inPlace = own >= 0 ? SpotFor(own).size * size : new Vector2(puzzle.tileSize, puzzle.tileSize);
+            var home = new Vector2(x, ((order.Count - 1) * 0.5f - k) * step);
+            Image image = NewImage("Piece_" + tile.id, board, tile.art != null ? tile.art : FallbackTile, Color.white);
+            image.preserveAspect = true;
+            Place(image.rectTransform, Middle, home, inPlace * puzzle.looseScale);
+            image.rectTransform.localRotation = Quaternion.Euler(0f, 0f, tile.looseAngle);
+            if (tile.art == null)
+                Label(image.rectTransform, tile);
+            image.gameObject.AddComponent<PuzzleTile>().Init(this, tile.id, canvasRect);
+        }
+    }
+
+    private void Label(RectTransform parent, PuzzleDefinition.Tile tile)
+    {
+        Text label = NewText("Label", parent, string.IsNullOrEmpty(tile.label) ? tile.id : tile.label, 26, puzzle.textColor);
+        Stretch(label.rectTransform);
+        label.raycastTarget = false;
+    }
+
+    private List<PuzzleDefinition.Tile> Shuffled()
+    {
         var order = new List<PuzzleDefinition.Tile>();
         foreach (PuzzleDefinition.Tile tile in puzzle.tiles)
             if (tile != null)
@@ -218,35 +316,36 @@ public class PuzzleBoard : MonoBehaviour
                 int j = UnityEngine.Random.Range(0, i + 1);
                 (order[i], order[j]) = (order[j], order[i]);
             }
-        int columns = Mathf.Max(1, Mathf.Min(puzzle.tilesPerRow, order.Count));
-        float step = puzzle.tileSize + 24f;
-        float topY = slotY - slotSize * 0.5f - 70f - puzzle.tileSize * 0.5f;
-        for (int k = 0; k < order.Count; k++)
-        {
-            int row = k / columns, column = k % columns;
-            int inRow = Mathf.Min(columns, order.Count - row * columns);
-            var home = new Vector2((column - (inRow - 1) * 0.5f) * step, topY - row * step);
-            Image frame = NewImage("Tile_" + order[k].id, board, puzzle.tileFrame != null ? puzzle.tileFrame : FallbackTile, Color.white);
-            Place(frame.rectTransform, new Vector2(0.5f, 0.5f), home, new Vector2(puzzle.tileSize, puzzle.tileSize));
-            if (order[k].art != null)
-            {
-                Image art = NewImage("Art", frame.rectTransform, order[k].art, Color.white);
-                art.preserveAspect = true;
-                art.raycastTarget = false;
-                Place(art.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(puzzle.tileSize - 24f, puzzle.tileSize - 24f));
-            }
-            else
-            {
-                Text label = NewText("Label", frame.rectTransform, string.IsNullOrEmpty(order[k].label) ? order[k].id : order[k].label, 26, puzzle.textColor);
-                Stretch(label.rectTransform);
-                label.raycastTarget = false;
-            }
-            frame.gameObject.AddComponent<PuzzleTile>().Init(this, order[k].id, home, canvasRect);
-        }
+        return order;
+    }
+
+    // Where slot i's piece goes on the picture; a spread-out stand-in when the asset has no spot for it.
+    private PuzzleDefinition.Spot SpotFor(int i)
+    {
+        if (puzzle.spots != null && i < puzzle.spots.Length && puzzle.spots[i] != null)
+            return puzzle.spots[i];
+        return new PuzzleDefinition.Spot { center = new Vector2((i - (puzzle.SlotCount - 1) * 0.5f) * 0.3f, 0f), size = new Vector2(0.25f, 0.25f) };
+    }
+
+    private PuzzleDefinition.Tile TileFor(string id)
+    {
+        foreach (PuzzleDefinition.Tile tile in puzzle.tiles)
+            if (tile != null && tile.id == id)
+                return tile;
+        return null;
+    }
+
+    private int SlotIndexOf(string id)
+    {
+        for (int i = 0; i < puzzle.SlotCount; i++)
+            if (puzzle.solution[i] == id)
+                return i;
+        return -1;
     }
 
     // ---- the tiles talk to it ----------------------------------------------------------------------------------------
 
+    // Picked up: out of its slot; a loose piece grows to its size in place and turns upright, to show how it fits.
     public void BeginDrag(PuzzleTile tile)
     {
         if (tile.Slot != null)
@@ -254,14 +353,26 @@ public class PuzzleBoard : MonoBehaviour
             placed[tile.Slot.Index] = null;
             tile.Slot = null;
         }
+        if (PictureLayout)
+        {
+            int own = SlotIndexOf(tile.Id);
+            tile.Hold(own >= 0 ? slots[own].Rect.sizeDelta : tile.HomeSize, own >= 0 ? SpotFor(own).angle : 0f);
+        }
     }
 
-    public void Dropped(PuzzleTile tile, PuzzleSlot slot)
+    public void Dropped(PuzzleTile tile, PuzzleSlot under)
     {
-        if (slot != null && Interactive)
+        PuzzleSlot slot = PictureLayout ? SpotNear(tile) : under;
+        if (slot != null && Interactive && Fits(tile, slot))
+        {
             PlaceTile(tile, slot);
+        }
         else
+        {
+            if (slot != null && Interactive)
+                Say(puzzle.wrongPieceText);
             ReturnToPool(tile);
+        }
         Check();
     }
 
@@ -277,15 +388,48 @@ public class PuzzleBoard : MonoBehaviour
         }
         else
         {
-            for (int i = 0; i < placed.Length; i++)
-                if (placed[i] == null)
-                {
-                    PlaceTile(tile, slots[i]);
-                    break;
-                }
+            int target = -1;
+            if (PictureLayout && puzzle.rightPieceOnly)
+            {
+                int own = SlotIndexOf(tile.Id);
+                if (own >= 0 && placed[own] == null)
+                    target = own;
+            }
+            else
+            {
+                for (int i = 0; i < placed.Length && target < 0; i++)
+                    if (placed[i] == null)
+                        target = i;
+            }
+            if (target >= 0)
+                PlaceTile(tile, slots[target]);
         }
         Check();
     }
+
+    // Picture layout: the spot a dropped piece landed on. Its own spot if it is near enough (so a near miss still
+    // goes in), else the nearest one within Snap Distance, else none.
+    private PuzzleSlot SpotNear(PuzzleTile tile)
+    {
+        Vector2 at = board.InverseTransformPoint(tile.Rect.position);
+        int own = SlotIndexOf(tile.Id);
+        if (own >= 0 && Vector2.Distance(at, slots[own].Rect.anchoredPosition) <= puzzle.snapDistance)
+            return slots[own];
+        PuzzleSlot best = null;
+        float bestDistance = puzzle.snapDistance;
+        foreach (PuzzleSlot slot in slots)
+        {
+            float distance = Vector2.Distance(at, slot.Rect.anchoredPosition);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = slot;
+            }
+        }
+        return best;
+    }
+
+    private bool Fits(PuzzleTile tile, PuzzleSlot slot) => !PictureLayout || !puzzle.rightPieceOnly || puzzle.solution[slot.Index] == tile.Id;
 
     private void PlaceTile(PuzzleTile tile, PuzzleSlot slot)
     {
@@ -297,18 +441,32 @@ public class PuzzleBoard : MonoBehaviour
         }
         placed[slot.Index] = tile;
         tile.Slot = slot;
-        RectTransform rect = tile.Rect;
-        rect.SetParent(slot.Rect, false);
-        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = Vector2.zero;
+        Vector2 size = PictureLayout ? slot.Rect.sizeDelta : new Vector2(puzzle.tileSize, puzzle.tileSize);
+        tile.GoTo(slot.Rect, Vector2.zero, size, 0f);
     }
 
     private void ReturnToPool(PuzzleTile tile)
     {
-        RectTransform rect = tile.Rect;
-        rect.SetParent(board, false);
-        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = tile.Home;
+        tile.GoTo(board, tile.Home, tile.HomeSize, tile.HomeAngle);
+    }
+
+    // A word in place of the hint for a moment (a wrong piece).
+    private void Say(string text)
+    {
+        if (string.IsNullOrEmpty(text) || solved)
+            return;
+        if (saying != null)
+            StopCoroutine(saying);
+        saying = StartCoroutine(SayFor(text, 1.6f));
+    }
+
+    private IEnumerator SayFor(string text, float seconds)
+    {
+        hint.text = text;
+        yield return new WaitForSecondsRealtime(seconds);
+        if (!solved)
+            hint.text = puzzle.hint;
+        saying = null;
     }
 
     private void Check()
@@ -319,16 +477,31 @@ public class PuzzleBoard : MonoBehaviour
             if (placed[i] == null || placed[i].Id != puzzle.solution[i])
                 return;
         solved = true;
+        if (saying != null)
+            StopCoroutine(saying);
+        saying = null;
         hint.text = puzzle.solvedText;
-        foreach (PuzzleSlot slot in slots)
-            if (slot.Image != null)
-                slot.Image.color = puzzle.highlight;
+        if (PictureLayout)
+        {
+            // The whole picture lights up: the disc and the pieces in it.
+            if (pictureImage != null)
+                pictureImage.color = Color.Lerp(Color.white, puzzle.highlight, 0.35f);
+            foreach (PuzzleTile tile in placed)
+                if (tile != null && tile.Image != null)
+                    tile.Image.color = Color.Lerp(Color.white, puzzle.highlight, 0.45f);
+        }
+        else
+        {
+            foreach (PuzzleSlot slot in slots)
+                if (slot.Image != null)
+                    slot.Image.color = puzzle.highlight;
+        }
         StartCoroutine(Finish());
     }
 
     private IEnumerator Finish()
     {
-        yield return new WaitForSecondsRealtime(0.9f);
+        yield return new WaitForSecondsRealtime(1.1f);
         Close();
         onSolved?.Invoke();
     }

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Puzzle_StoneTablet
   m_EditorClassIdentifier: Assembly-CSharp::PuzzleDefinition
   title: Piece the tablet together
-  hint: Drag the three fragments into the slots in the order they fit, or click them.
+  hint: Drag each fragment into its place in the stone, or click it to send it there.
     Click a placed one to take it back.
   solvedText: The tablet is whole.
   board: {fileID: 21300000, guid: 0b29bfe35c9b8c542a6c0daf1fe5f1a0, type: 3}
@@ -25,18 +25,40 @@ MonoBehaviour:
   boardSize: {x: 1280, y: 760}
   tileSize: 120
   tilesPerRow: 7
+  layout: 1
+  picture: {fileID: 21300000, guid: 2ab00ce81fa64b649e985c0b1b7cbfcb, type: 3}
+  pictureSize: 520
+  pictureTint: {r: 0.28, g: 0.3, b: 0.34, a: 1}
+  spots:
+  - center: {x: 0.1983, y: -0.042}
+    size: {x: 0.4059, y: 0.6762}
+    angle: 0
+  - center: {x: -0.1052, y: -0.2269}
+    size: {x: 0.5923, y: 0.5387}
+    angle: 0
+  - center: {x: -0.0581, y: 0.2385}
+    size: {x: 0.6624, y: 0.5157}
+    angle: 0
+  showSilhouettes: 0
+  rightPieceOnly: 1
+  looseScale: 0.62
+  snapDistance: 140
+  wrongPieceText: That piece does not fit there.
   tiles:
-  - id: left
-    art: {fileID: 21300000, guid: 0771bdf93fed76247bbe0de4c5f4b011, type: 3}
-    label: left
-  - id: middle
-    art: {fileID: 21300000, guid: 61e460af881bd52408d64791b8d5c519, type: 3}
-    label: middle
   - id: right
-    art: {fileID: 21300000, guid: c228ba7b12d4f8c4f89519f0d492f9e5, type: 3}
+    art: {fileID: 21300000, guid: 1d06779179fa445d931bdbea416bcb1e, type: 3}
     label: right
+    looseAngle: 16
+  - id: bottom
+    art: {fileID: 21300000, guid: 105682afc8914f80b68fbfb950902822, type: 3}
+    label: bottom
+    looseAngle: -12
+  - id: top
+    art: {fileID: 21300000, guid: c95b2a060f9f49318381653e1df43133, type: 3}
+    label: top
+    looseAngle: 20
   solution:
-  - left
-  - middle
   - right
+  - bottom
+  - top
   shuffle: 1

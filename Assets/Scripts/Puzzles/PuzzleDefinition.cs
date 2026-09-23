@@ -3,6 +3,8 @@ using UnityEngine;
 
 // A drag-and-click puzzle for the board (PuzzleBoard): the tiles on offer, which of them go in the slots and in what
 // order, and every picture the board draws with, so the real art is a matter of dropping sprites onto this asset.
+// Two layouts: Row (slots in a row, square tiles below: the runes) and Picture (loose pieces in their own shapes that
+// go into a picture: the stone disc).
 // The two the game ships with live in Assets/Puzzles (Tools > Out of the Depths > Create Puzzle Assets makes them
 // with placeholder art in Art/UI/Puzzle); Assets > Create > Out of the Depths > Puzzle makes another.
 [CreateAssetMenu(fileName = "Puzzle", menuName = "Out of the Depths/Puzzle")]
@@ -16,6 +18,22 @@ public class PuzzleDefinition : ScriptableObject
         [Tooltip("The picture on the tile. Empty = the label as text.")]
         public Sprite art;
         public string label = "";
+        [Tooltip("Picture layout: how the loose piece lies, in degrees; it turns upright as it goes in.")]
+        public float looseAngle;
+    }
+
+    public enum Layout { Row, Picture }
+
+    // Picture layout: where a piece sits on the picture.
+    [Serializable]
+    public class Spot
+    {
+        [Tooltip("Its middle, as shares of the picture from the picture's middle (0.25 = a quarter of the picture to the right / up).")]
+        public Vector2 center;
+        [Tooltip("Its size, as shares of the picture. The piece's picture should be cropped to the piece.")]
+        public Vector2 size = new Vector2(0.4f, 0.4f);
+        [Tooltip("Its turn in degrees.")]
+        public float angle;
     }
 
     [Header("Words")]
@@ -38,6 +56,28 @@ public class PuzzleDefinition : ScriptableObject
     public Vector2 boardSize = new Vector2(1280f, 760f);
     public float tileSize = 120f;
     public int tilesPerRow = 7;
+
+    [Header("Layout")]
+    [Tooltip("Row: slots in a row along the top, square tiles below (the runes). Picture: the pieces go into Picture on the left; the loose pieces lie on the right in their own shapes, no tile frames (the stone disc).")]
+    public Layout layout = Layout.Row;
+    [Tooltip("Picture layout: what the pieces go into.")]
+    public Sprite picture;
+    [Tooltip("Picture layout: how big the picture is drawn, in board pixels.")]
+    public float pictureSize = 520f;
+    [Tooltip("Picture layout: the colour the picture is drawn in. Dark = it reads as the empty shape to fill (for a picture of the whole finished thing, like the stone tablet); white = as drawn (a frame with a hollow).")]
+    public Color pictureTint = Color.white;
+    [Tooltip("Picture layout: where each piece goes on the picture, one per Solution entry in the same order.")]
+    public Spot[] spots = new Spot[0];
+    [Tooltip("Picture layout: a faint silhouette of the piece that goes there marks each empty spot.")]
+    public bool showSilhouettes = true;
+    [Tooltip("Picture layout: only the right piece goes into a spot; a wrong one slides back.")]
+    public bool rightPieceOnly = true;
+    [Tooltip("Picture layout: the loose pieces are drawn this much smaller than in place.")]
+    [Range(0.3f, 1f)] public float looseScale = 0.7f;
+    [Tooltip("Picture layout: how near its spot (board pixels) a dropped piece has to land to go in.")]
+    public float snapDistance = 140f;
+    [Tooltip("Picture layout: said for a moment when a piece is dropped on the wrong spot.")]
+    public string wrongPieceText = "That piece does not fit there.";
 
     [Header("Tiles")]
     public Tile[] tiles = new Tile[0];
