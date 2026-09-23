@@ -124,6 +124,28 @@ public class SwimController : MonoBehaviour
         lookPullActiveRate = rate > 0f ? rate : lookPullRate;
     }
 
+    // The view as yaw and pitch in degrees. The chase cutscene turns the camera itself with these while LookLocked
+    // keeps the mouse out; the camera feel (sway, bob, shake) still plays on top.
+    public Vector2 LookAngles => new Vector2(yaw, pitch);
+
+    public void SetLookAngles(float newYaw, float newPitch)
+    {
+        yaw = newYaw;
+        pitch = Mathf.Clamp(newPitch, minPitch, maxPitch);
+        transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+    }
+
+    // The yaw and pitch that would look straight at a point from the camera.
+    public Vector2 AnglesToward(Vector3 worldPoint)
+    {
+        Vector3 toTarget = worldPoint - cameraPivot.position;
+        if (toTarget.sqrMagnitude < 0.0001f)
+            return LookAngles;
+        float targetYaw = Mathf.Atan2(toTarget.x, toTarget.z) * Mathf.Rad2Deg;
+        float targetPitch = -Mathf.Atan2(toTarget.y, new Vector2(toTarget.x, toTarget.z).magnitude) * Mathf.Rad2Deg;
+        return new Vector2(targetYaw, Mathf.Clamp(targetPitch, minPitch, maxPitch));
+    }
+
     private void Awake()
     {
         controller = GetComponent<CharacterController>();

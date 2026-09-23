@@ -33,6 +33,9 @@ public static class ShipGreyboxBuilder
     private const float DoorTop = 3.4f;     // the door frame's top; walls continue above it
     private const float DoorGap = 2.8f;     // door + frame posts
     private static readonly Vector3 Spawn = new Vector3(-26f, 1.6f, 11.25f);
+    // The spawn checkpoint: north-west of the net by the west wall, behind the player's left shoulder as they start
+    // (facing north-east), clear of the way to the drawer and the door.
+    private static readonly Vector3 SpawnCheckpoint = new Vector3(-27.5f, 0.05f, 15.5f);
 
     private static PuzzleStation runeStation;   // the code lock in room 8, wired to the rune door once that exists
 
@@ -292,7 +295,7 @@ public static class ShipGreyboxBuilder
         MuralAt(new Vector3(-18f, 2.4f, 44.3f), new Vector2(20f, 1.6f), Vector3.forward, room);
         MuralAt(new Vector3(-18f, 2.4f, 43.7f), new Vector2(20f, 1.6f), Vector3.back, room);
         Decor("Symbol3_Wall", new Vector3(HullW + 0.3f, 2.6f, 46.5f), new Vector3(0.06f, 2f, 2f), new Color(0.2f, 0.85f, 0.35f), room);
-        GameObject nookPlate = Spawn("RespawnPlate", new Vector3(-22f, 0.05f, 46.5f), room);
+        GameObject nookPlate = Spawn("RespawnPlate", new Vector3(-12f, 0.05f, 48.8f), room);   // along the north wall, clear of the way in from the door
         if (nookPlate != null)
             nookPlate.name = "Checkpoint_Symbol3";
 
@@ -371,7 +374,7 @@ public static class ShipGreyboxBuilder
         CreateSchool("Fish_Wanderer", 3, new Vector3(15f, BasementFloor + 2.5f, 12f), room);
         Spawn("DeadFish", new Vector3(0f, BasementFloor + 1f, 30f), room, 10f);
         Spawn("DeadFish", new Vector3(-20f, BasementFloor + 1f, 15f), room, -80f);
-        GameObject plate = Spawn("RespawnPlate", new Vector3(-26f, BasementFloor + 0.05f, 36f), room);
+        GameObject plate = Spawn("RespawnPlate", new Vector3(-22.5f, BasementFloor + 0.05f, 43.2f), room);   // by the north wall, beside where the hatch drops you, not under it
         if (plate != null)
             plate.name = "Checkpoint_Basement";
     }
@@ -454,7 +457,7 @@ public static class ShipGreyboxBuilder
         Decor("Symbol2_Lock", new Vector3(-2.6f, 3.2f, 49.7f), new Vector3(0.7f, 0.7f, 0.06f), new Color(0.15f, 0.2f, 0.9f), room);
         Decor("Symbol3_Lock", new Vector3(-3.4f, 2.3f, 49.7f), new Vector3(0.7f, 0.7f, 0.06f), new Color(0.2f, 0.85f, 0.35f), room);
         // The rune puzzle: the three symbols in order, on the board; solving it unlocks the rune door (wired in the hallway).
-        GameObject codeLock = Box("CodeLock", new Vector3(-2.6f, 2.3f, 49.75f), new Vector3(0.7f, 0.7f, 0.15f), new Color(0.8f, 0.7f, 0.3f), room);
+        GameObject codeLock = Box("CodeLock", new Vector3(-2.6f, 2.3f, 49.6f), new Vector3(0.7f, 0.7f, 0.3f), new Color(0.8f, 0.7f, 0.3f), room);
         runeStation = PuzzleBuildTools.AddStation(codeLock, "Puzzle_Runes", null, 0, false, "enter the runes");
     }
 
@@ -506,6 +509,16 @@ public static class ShipGreyboxBuilder
         SetField(chase, "endSound", p => p.objectReferenceValue = Sfx("Puzzle Completed Sound effect.mp3"));
         SetField(chase, "grateSound", p => p.objectReferenceValue = Sfx("Hit impact.wav"));
         SetField(chase, "startDoor", p => p.objectReferenceValue = finalDoor);
+        // The rune door arms it; the cutscene plays once the player is in the hallway (by the divider doorway or the
+        // nook door), where the vent can be seen down its length.
+        var start = new GameObject("ChaseStart");
+        start.transform.SetParent(room, false);
+        // 1.5 m in from the divider and the nook door, so it starts once the player is through, not in the doorway.
+        start.transform.position = new Vector3((HullW + 0.25f - 6.25f) * 0.5f, Ceiling * 0.5f, (51.5f + HullN - 0.25f) * 0.5f);
+        var startBox = start.AddComponent<BoxCollider>();
+        startBox.isTrigger = true;
+        startBox.size = new Vector3(-6.25f - HullW - 0.25f, Ceiling, HullN - 0.25f - 51.5f);
+        SetField(chase, "startTrigger", p => p.objectReferenceValue = start.AddComponent<PlayerAreaTrigger>());
         GameObject pursuerPrefab = ChaseTools.EnsurePursuerPrefab();
         Vector3[] slots = { new Vector3(x - 2.2f, 3.2f, 53.1f), new Vector3(x - 1.5f, 3.2f, 53.7f), new Vector3(x - 0.8f, 3.2f, 54.3f) };
         for (int i = 0; i < slots.Length; i++)
@@ -591,7 +604,7 @@ public static class ShipGreyboxBuilder
         // South of the divider: the first fights with the trident, then the one-way exit.
         CreateSchool("Fish_Wanderer", 4, new Vector3(24f, 2.5f, 14f), room);
         Spawn("Pufferfish", new Vector3(26f, 2f, 10f), room, 160f);
-        GameObject plate = Spawn("RespawnPlate", new Vector3(24f, 0.05f, 20f), room);
+        GameObject plate = Spawn("RespawnPlate", new Vector3(27.8f, 0.05f, 20f), room);   // against the east wall, off the middle of the column
         if (plate != null)
             plate.name = "Checkpoint_Column";
     }
@@ -624,13 +637,13 @@ public static class ShipGreyboxBuilder
         }
         if (checkpoint == null)
         {
-            checkpoint = Spawn("RespawnPlate", Spawn + new Vector3(2.5f, -Spawn.y + 0.05f, 0f), parent != null ? parent : ship);
+            checkpoint = Spawn("RespawnPlate", SpawnCheckpoint, parent != null ? parent : ship);
             if (checkpoint != null)
                 checkpoint.name = "Checkpoint_Spawn";
         }
         if (checkpoint != null)
         {
-            checkpoint.transform.position = new Vector3(Spawn.x + 2.5f, 0.05f, Spawn.z);
+            checkpoint.transform.position = SpawnCheckpoint;
             var plate = checkpoint.GetComponentInChildren<Checkpoint>();
             if (plate != null)
                 SetField(plate, "startsActivated", p => p.boolValue = true);

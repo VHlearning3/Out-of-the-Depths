@@ -171,8 +171,8 @@ public static class TestArenaBuilder
     {
         Transform zone = Group("Zone_Spawn");
         Patch(zone, new Vector2(0f, -22f), new Vector2(10f, 10f), new Color(0.2f, 0.36f, 0.4f));
-        Label("WELCOME - N: fish and ship windows. NE: combat pen. E: hazard lane. SE: pickup shelf. S/E: doors. Centre: puzzles. SW: hatch and basement. W: movement course. N door: the chase. Walk up to a sign to read it. Turn around to meet the QA lead.", new Vector3(-4f, 0f, -25f), zone);
-        GameObject plate = Spawn("RespawnPlate", new Vector3(SpawnPosition.x + 2.5f, 0.05f, SpawnPosition.z), zone);   // beside the spawn, not under it: it is a pillar now
+        Label("WELCOME - N: fish and ship windows. NE: combat pen. E: hazard lane. SE: pickup shelf. S/E: doors. Centre: puzzles. SW: hatch and basement. W: movement course. N door: the chase. Walk up to a sign to read it. Turn around to meet the QA lead.", new Vector3(-4f, 3.2f, -25f), zone);
+        GameObject plate = Spawn("RespawnPlate", new Vector3(SpawnPosition.x + 3.5f, 0.05f, SpawnPosition.z - 3.5f), zone);   // behind and to the right of the spawn, off the way north
         if (plate != null)
         {
             plate.name = "Checkpoint_Spawn";
@@ -181,7 +181,7 @@ public static class TestArenaBuilder
                 SetField(checkpoint, "startsActivated", p => p.boolValue = true);
         }
         CreatePickup(new Vector3(2f, 1.2f, -19f), "Item_Dagger", zone);
-        Label("SPAWN - take the dagger (E) to be able to slash\nadmin panel = 0", new Vector3(0f, 4f, -18f), zone);
+        Label("SPAWN - take the dagger (E) to be able to slash\nadmin panel = 0", new Vector3(4.5f, 3.4f, -19f), zone);   // beside the dagger, not across the way north
     }
 
 
@@ -312,7 +312,7 @@ public static class TestArenaBuilder
         BuildFishWindows(zone, school);
         Spawn("Fish_Wanderer", new Vector3(-24f, 1.5f, 12f), zone, 240f);
         Spawn("WallFish", new Vector3(-28.5f, 2f, 22f), zone, 90f);
-        Label("FISH ROOM - open the door (it swings away from you and shuts behind you) and swim in: the pack comes in through the ship windows (pack size = Fish Spawner > Count). Leave and they swim back out.", new Vector3(-16f, 0f, 5f), zone);
+        Label("FISH ROOM - open the door (it swings away from you and shuts behind you) and swim in: the pack comes in through the ship windows (pack size = Fish Spawner > Count). Leave and they swim back out.", new Vector3(-26f, 3.4f, 5f), zone);
 
         Transform food = Group("Zone_Food");
         Spawn("DeadFish", new Vector3(-10f, 1f, 10f), food, 0f);
@@ -325,7 +325,7 @@ public static class TestArenaBuilder
             if (edible != null)
                 SetField(edible, "respawnTime", p => p.floatValue = 12f);
         }
-        Label("FOOD - E to eat (one respawns after 12 s)", new Vector3(-10f, 3.5f, 11f), food);
+        Label("FOOD - E to eat (one respawns after 12 s)", new Vector3(-9.5f, 4.6f, 11.5f), food);
     }
 
     private static void BuildCombatPen()
@@ -351,7 +351,7 @@ public static class TestArenaBuilder
         Spawn("Hazard", new Vector3(17f, 1f, -3f), zone, 0f);
         Spawn("Hazard", new Vector3(22f, 1f, 1f), zone, 0f);
 
-        GameObject plate = Spawn("RespawnPlate", new Vector3(27.5f, 0.05f, -1f), zone);
+        GameObject plate = Spawn("RespawnPlate", new Vector3(28.3f, 0.05f, -5.2f), zone);   // in the far corner of the lane, off its middle
         if (plate != null)
             plate.name = "Checkpoint_Far";
         Label("HAZARDS - checkpoint at the end", new Vector3(19f, 4.5f, 5f), zone);
@@ -376,7 +376,7 @@ public static class TestArenaBuilder
             if (items[i] == "Item_BoneKeyFragment")
                 PickupVariant(pickup, bonePiece++);   // the three pieces of the key, one each
         }
-        Label("PICKUPS - E to take, 1-5 / wheel selects a slot", new Vector3(16f, 3.5f, -19f), zone);
+        Label("PICKUPS - E to take, 1-5 / wheel selects a slot", new Vector3(18f, 3.4f, -24f), zone);   // behind the shelf, not over the pickups
     }
 
     private static void BuildPuzzles()
@@ -433,7 +433,7 @@ public static class TestArenaBuilder
         Door swing = SpawnDoor("Door_Swing", new Vector3(6f, 0f, -12f), false, false, zone);
         SetField(swing, "motion", p => p.enumValueIndex = (int)Door.Motion.Swing);
         SpawnDoor("Door_ClosesBehind", new Vector3(10f, 0f, -12f), false, true, zone);
-        Label("DOORS - left: E opens / closes (swings)\nright: slides up, then shuts and locks once you're through", new Vector3(9f, 5f, -11f), zone);
+        Label("DOORS - left: E opens / closes (swings)\nright: slides up, then shuts and locks once you're through", new Vector3(9f, 5.4f, -11f), zone);   // above the door tops
     }
 
     // A raised deck with a hatch in its roof and a "basement" inside (with a key to find), like the GDD's kellari.
@@ -779,21 +779,24 @@ public static class TestArenaBuilder
         Color rock = new Color(0.3f, 0.27f, 0.24f);
 
         // Briefing and a checkpoint in front of the final door (the door itself sits in the arena's north wall).
-        GameObject plate = Spawn("RespawnPlate", new Vector3(3f, 0.05f, 27.5f), zone);
+        GameObject plate = Spawn("RespawnPlate", new Vector3(-1.5f, 0.05f, 27.8f), zone);   // beside the door, not in front of it
         if (plate != null)
             plate.name = "Checkpoint_Chase";
         Door finalDoor = SpawnDoor("Door_Final", new Vector3(2f, 0f, 30.5f), true, true, zone);
         SetField(finalDoor, "lockBehind", p => p.boolValue = false);
         SetField(finalDoor, "openPrompt", p => p.stringValue = "open the rune door");
         // The rune lock beside it: the symbol puzzle on the board unlocks the door.
-        GameObject runeLock = Box("RuneLock", new Vector3(5.4f, 2f, 30.2f), new Vector3(0.7f, 0.7f, 0.15f), new Color(0.8f, 0.7f, 0.3f), zone);
+        // In front of the wall (it is a metre thick, faces at z 30 and 31), where it can be seen and reached.
+        GameObject runeLock = Box("RuneLock", new Vector3(5.6f, 1.6f, 29.8f), new Vector3(0.7f, 0.7f, 0.3f), new Color(0.8f, 0.7f, 0.3f), zone);
         PuzzleStation runeStation = PuzzleBuildTools.AddStation(runeLock, "Puzzle_Runes", null, 0, false, "enter the runes");
         PuzzleBuildTools.SolveUnlocks(runeStation, finalDoor);
         PuzzleBuildTools.SolveOpens(runeStation, finalDoor);   // unlocked and swung open: solving the runes starts the way to the chase
-        Label("CHASE - E on the plate first, then the rune lock beside the door (the three symbols, 1-2-3) unlocks it. Through the door the grate at the far end of the hallway behind you bursts and three chase pufferfish come out: the dagger does nothing to them, three bites and you're dead. Grab the two stone fragments (Space / Ctrl), slot them in the tablet by the far door, then take the trident at the end of the long corridor and the rubble seals it behind you.", new Vector3(6.5f, 0f, 27f), zone);
+        Label("CHASE - E on the plate first, then the rune lock beside the door (the three symbols, 1-2-3) unlocks it. Through the door the grate at the far end of the hallway behind you bursts and three chase pufferfish come out: the dagger does nothing to them, three bites and you're dead. Grab the two stone fragments (Space / Ctrl), slot them in the tablet by the far door, then take the trident at the end of the long corridor and the rubble seals it behind you.", new Vector3(10f, 3.4f, 28f), zone);
 
         // Floor and ceilings outside the arena wall: the hallway (room 9), the room after it and the long corridor.
         Box("Floor_Chase", new Vector3(12f, -0.1f, 46.5f), new Vector3(46f, 0.2f, 31f), deck, zone);
+        // The doorway through the arena wall (z 30..31): neither floor reaches under it, so it gets its own strip.
+        Box("Floor_Doorway", new Vector3(3f, -0.1f, 30.5f), new Vector3(3.2f, 0.2f, 1.1f), deck, zone);
         Box("Ceiling_Hall", new Vector3(7.5f, 4.65f, 33.25f), new Vector3(36f, 0.3f, 4.5f), hull, zone);
         Box("Ceiling_Room", new Vector3(29.75f, 4.65f, 35.25f), new Vector3(8.5f, 0.3f, 8.5f), hull, zone);
         Box("Ceiling_Corridor", new Vector3(30.25f, 4.65f, 51f), new Vector3(4.5f, 0.3f, 22.5f), hull, zone);
@@ -851,10 +854,12 @@ public static class TestArenaBuilder
 
         var start = new GameObject("ChaseStart");
         start.transform.SetParent(zone, false);
-        start.transform.position = new Vector3(3.5f, 2.4f, 33.25f);
+        // The whole hallway, from a metre in off the door's wall: the chase starts once the player is properly
+        // through the door, never while they stand in the doorway.
+        start.transform.position = new Vector3(7.75f, 2.4f, 33.55f);
         var startBox = start.AddComponent<BoxCollider>();
         startBox.isTrigger = true;
-        startBox.size = new Vector3(4f, 4.8f, 4.5f);
+        startBox.size = new Vector3(34.5f, 4.8f, 3.9f);
         SetField(chase, "startTrigger", p => p.objectReferenceValue = start.AddComponent<PlayerAreaTrigger>());
 
         // Under pressure: two stone fragments, one up by the ceiling and one on the floor, for the tablet that opens the far door.
@@ -920,10 +925,10 @@ public static class TestArenaBuilder
         GameObject trident = CreatePickup(new Vector3(30.25f, 1.7f, 57.5f), "Item_Trident", zone);
         PickupItem pickup = trident != null ? trident.GetComponentInChildren<PickupItem>() : null;
         SetField(rubble, "dropOnPickup", p => p.objectReferenceValue = pickup);
-        GameObject exitPlate = Spawn("RespawnPlate", new Vector3(30.25f, 0.05f, 60f), zone);
+        GameObject exitPlate = Spawn("RespawnPlate", new Vector3(31.8f, 0.05f, 59.3f), zone);   // against the corridor wall, off the way to the trident
         if (exitPlate != null)
             exitPlate.name = "Checkpoint_Exit";
-        Label("EXIT - E takes the trident (button mash later) and the rubble comes down behind you. Trident combat starts here.", new Vector3(30.25f, 0f, 61.2f), zone);
+        Label("EXIT - E takes the trident (button mash later) and the rubble comes down behind you. Trident combat starts here.", new Vector3(30.25f, 3.55f, 61.3f), zone);   // up by the ceiling at the end of the corridor
     }
 
     // ---- player / settings --------------------------------------------------------------------------------------
@@ -1387,7 +1392,6 @@ public static class PuzzleBuildTools
 
     private static readonly Color Parchment = new Color(0.93f, 0.87f, 0.7f);
     private static readonly Color Ink = new Color(0.2f, 0.16f, 0.12f);
-    private static readonly Color StoneGrey = new Color(0.52f, 0.52f, 0.47f);
 
     [MenuItem("Tools/Out of the Depths/Create Puzzle Assets")]
     public static void CreateAssetsMenu() => EnsureAssets(true);
@@ -1427,27 +1431,41 @@ public static class PuzzleBuildTools
         }, Ink);
         Sprite diamond = Glyph("Rune_Diamond", (u, v) => Mathf.Abs(u) + Mathf.Abs(v) <= 0.62f, Ink);
 
-        // The tablet in three pieces, the breaks jagged so they only read one way round.
-        Sprite stoneLeft = Glyph("Stone_Left", (u, v) => Mathf.Abs(v) <= 0.7f && u >= -0.85f && u <= 0.25f + 0.12f * Mathf.Sin(v * 9f), StoneGrey);
-        Sprite stoneMiddle = Glyph("Stone_Middle", (u, v) => Mathf.Abs(v) <= 0.7f && u >= -0.45f + 0.12f * Mathf.Sin(v * 9f) && u <= 0.45f + 0.12f * Mathf.Cos(v * 7f), StoneGrey);
-        Sprite stoneRight = Glyph("Stone_Right", (u, v) => Mathf.Abs(v) <= 0.7f && u >= -0.25f + 0.12f * Mathf.Cos(v * 7f) && u <= 0.85f, StoneGrey);
+        // The stone tablet (the artist's drawing of it whole, shown dark as the shape to fill) and its three pieces; the
+        // spots below are where each piece sits in that drawing.
+        Sprite stoneDisc = Art("Stone_Disc");
+        Sprite stonePiece1 = Art("Stone_Piece1");
+        Sprite stonePiece2 = Art("Stone_Piece2");
+        Sprite stonePiece3 = Art("Stone_Piece3");
 
         bool made = false;
         made |= Puzzle("Puzzle_StoneTablet", p =>
         {
             p.title = "Piece the tablet together";
-            p.hint = "Drag the three fragments into the slots in the order they fit, or click them. Click a placed one to take it back.";
+            p.hint = "Drag each fragment into its place in the stone, or click it to send it there. Click a placed one to take it back.";
             p.solvedText = "The tablet is whole.";
             p.board = board;
             p.slot = slot;
             p.tileFrame = frame;
+            p.layout = PuzzleDefinition.Layout.Picture;
+            p.picture = stoneDisc;
+            p.pictureSize = 520f;
+            p.pictureTint = new Color(0.28f, 0.3f, 0.34f);
+            p.showSilhouettes = false;
+            p.looseScale = 0.62f;
+            p.spots = new[]
+            {
+                new PuzzleDefinition.Spot { center = new Vector2(0.1983f, -0.042f), size = new Vector2(0.4059f, 0.6762f) },
+                new PuzzleDefinition.Spot { center = new Vector2(-0.1052f, -0.2269f), size = new Vector2(0.5923f, 0.5387f) },
+                new PuzzleDefinition.Spot { center = new Vector2(-0.0581f, 0.2385f), size = new Vector2(0.6624f, 0.5157f) },
+            };
             p.tiles = new[]
             {
-                new PuzzleDefinition.Tile { id = "left", art = stoneLeft, label = "left" },
-                new PuzzleDefinition.Tile { id = "middle", art = stoneMiddle, label = "middle" },
-                new PuzzleDefinition.Tile { id = "right", art = stoneRight, label = "right" },
+                new PuzzleDefinition.Tile { id = "right", art = stonePiece1, label = "right", looseAngle = 16f },
+                new PuzzleDefinition.Tile { id = "bottom", art = stonePiece2, label = "bottom", looseAngle = -12f },
+                new PuzzleDefinition.Tile { id = "top", art = stonePiece3, label = "top", looseAngle = 20f },
             };
-            p.solution = new[] { "left", "middle", "right" };
+            p.solution = new[] { "right", "bottom", "top" };
         });
         made |= Puzzle("Puzzle_Runes", p =>
         {
@@ -1524,7 +1542,10 @@ public static class PuzzleBuildTools
         return true;
     }
 
-    // A rune or piece: the shape in u, v (-1..1 across the tile) in one colour on nothing.
+    // A picture that comes with the project (the stone disc and pieces), or null if it has gone.
+    private static Sprite Art(string file) => AssetDatabase.LoadAssetAtPath<Sprite>($"{ArtFolder}/{file}.png");
+
+    // A rune: the shape in u, v (-1..1 across the tile) in one colour on nothing.
     private static Sprite Glyph(string file, System.Func<float, float, bool> inside, Color color)
     {
         return Painted(file, 128, 128, (x, y) => inside((x + 0.5f) / 64f - 1f, (y + 0.5f) / 64f - 1f) ? color : (Color?)null, 0);

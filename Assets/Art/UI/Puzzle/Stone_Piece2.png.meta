@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 61e460af881bd52408d64791b8d5c519
+guid: 105682afc8914f80b68fbfb950902822
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -3844732630570018171
-    second: Stone_Middle_0
+      213: 7328863875211374662
+    second: Stone_Left_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,7 +113,7 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Stone_Middle_0
+      name: Stone_Left_0
       rect:
         serializedVersion: 2
         x: 0
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 58a5582fa04c4aac0800000000000000
-      internalID: -3844732630570018171
+      spriteID: 640ba215dda55b560800000000000000
+      internalID: 7328863875211374662
       vertices: []
       indices: 
       edges: []

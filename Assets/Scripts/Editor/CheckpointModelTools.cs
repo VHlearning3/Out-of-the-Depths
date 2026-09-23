@@ -17,7 +17,7 @@ public static class CheckpointModelTools
     private const string ModelMaterialPath = "Assets/Art/Materials/Checkpoint.mat";
     private const string VisualName = "Visual";
     private const string LightName = "Glow";
-    private const float VisualScale = 0.7f;   // the model is about 2 x 5.4 m; this brings it to about 1.4 x 3.8
+    private const float VisualScale = 0.5f;   // the model is about 2 x 5.4 m; this brings it to about 1 x 2.7
 
     // The part of the model that floats: the first object under the Visual whose name contains one of these.
     private static readonly string[] HoverNames = { "book", "plane" };
@@ -202,10 +202,17 @@ public static class CheckpointModelTools
     // A point light in the middle of the pillar; the Checkpoint script drives its intensity and sweeps it on activation.
     private static bool EnsureLight(GameObject root)
     {
-        if (root.transform.Find(LightName) != null)
-            return false;
         Transform visual = root.transform.Find(VisualName);
         float height = visual != null ? ModelBounds(visual.gameObject).center.y : 1f;
+        Transform existing = root.transform.Find(LightName);
+        if (existing != null)
+        {
+            // Kept, but moved to the middle of the pillar when the model changed size.
+            if (Mathf.Abs(existing.localPosition.y - height) < 0.01f)
+                return false;
+            existing.localPosition = new Vector3(0f, height, 0f);
+            return true;
+        }
 
         var go = new GameObject(LightName);
         go.transform.SetParent(root.transform, false);

@@ -560,6 +560,10 @@ public class PickupItem : MonoBehaviour, IInteractable
     {
         if (QuickPickups)
             return false;
+        // Mid-chase nothing stops to be looked at: it flies straight in, and still counts as unseen, so the first pickup
+        // of that item after the chase shows the inspect view.
+        if (ChaseSequence.Active != null && ChaseSequence.Active.IsRunning)
+            return false;
         bool seenBefore = item != null && seenThisSession.Contains(item);
         if (item != null)
             seenThisSession.Add(item);

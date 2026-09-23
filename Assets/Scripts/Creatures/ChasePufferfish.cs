@@ -94,6 +94,9 @@ public class ChasePufferfish : MonoBehaviour
     private void Awake()
     {
         spawnPosition = transform.position;
+        // Hard spacing from the rest of the pack (Fish Space), on top of the soft Separation.
+        FishSpace space = GetComponent<FishSpace>() != null ? GetComponent<FishSpace>() : gameObject.AddComponent<FishSpace>();
+        space.Setup(bodyRadius, obstacleMask);
         spawnRotation = transform.rotation;
         visual = transform.childCount > 0 ? transform.GetChild(0) : null;
         if (visual != null)
