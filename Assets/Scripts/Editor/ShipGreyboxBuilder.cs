@@ -236,11 +236,16 @@ public static class ShipGreyboxBuilder
             }
         }
 
-        // The key, in a drawer in the south-east corner: E slides the drawer out and the key appears in it.
+        // The key, in one of the six drawers of the VetoLaatikko dresser by the south wall (Vili's model), a different
+        // drawer each run: E opens any drawer, and the key rides out with its drawer. The placeholder cabinet stands in
+        // if the dresser prefab is missing.
         GameObject key = CreatePickup(new Vector3(-13.4f, 0.75f, 10.3f), "Item_FirstRoomKey", room);
-        key.SetActive(false);
-        Door drawer = Drawer("Drawer_Key", new Vector3(-13.2f, 0f, 10.3f), Vector3.left, room);
-        UnityEditor.Events.UnityEventTools.AddBoolPersistentListener(drawer.onOpened, key.SetActive, true);
+        if (!Dresser("Dresser_Key", new Vector3(-15.14f, 0f, 10.58f), 0f, key, room))
+        {
+            key.SetActive(false);
+            Door drawer = Drawer("Drawer_Key", new Vector3(-13.2f, 0f, 10.3f), Vector3.left, room);
+            UnityEditor.Events.UnityEventTools.AddBoolPersistentListener(drawer.onOpened, key.SetActive, true);
+        }
 
         // The one-way door: unlocked by the key (lock box beside it), shuts and locks behind you.
         Door oneWay = DoorZ("Door_Room1_Exit", -12.25f, 24f, true, true, room);
@@ -886,6 +891,244 @@ public static class ShipGreyboxBuilder
 
     // A cabinet with one drawer that E slides out (a Door in Slide mode with a small visual). The root carries the
     // trigger and the Door; the drawer front is the Visual. slideOut is the direction it opens in.
+    private const string DresserPrefabPath = "Assets/Prefabs/VetoLaatikko.prefab";
+    private const string DresserDrawerPart = "Vetolaatikko.001";   // the model's one real drawer (its Animator slides it)
+    // The model's grid of drawers, in its own units: 2 columns 0.9144 m apart and 3 rows 0.3048 m apart.
+    private static readonly Vector2 DresserPitch = new Vector2(0.9144f, 0.3048f);
+    private const int DresserColumns = 2;
+    private const int DresserRows = 3;
+    private const float DresserSlide = 0.497f;   // how far Vili's clip pulls the drawer out
+
+    // The VetoLaatikko dresser with all six drawers opening. The model has one real drawer (Vetolaatikko.001, slid by
+    // its Animator); the other five are just fronts baked into the cabinet. So the cabinet gets a copy of its mesh with
+    // those fronts cut away and a hollow behind each (copied from the real drawer's hollow), and each gap gets a copy
+    // of the real drawer that slides by code. Every drawer: Animated Drawer (E), a collider on its front and one on its
+    // bottom, the glow. The cabinet: a solid box up to the drawer fronts (the model has no colliders). Drawer Loot hides
+    // the key in a random drawer at start. False if the prefab is missing.
+    private static bool Dresser(string name, Vector3 position, float yaw, GameObject key, Transform parent)
+    {
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(DresserPrefabPath);
+        if (prefab == null)
+        {
+            Debug.LogWarning($"Ship greybox: no dresser at {DresserPrefabPath}, the placeholder cabinet is used.");
+            return false;
+        }
+        var dresser = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent.gameObject.scene);
+        PrefabUtility.UnpackPrefabInstance(dresser, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+        dresser.transform.SetParent(parent, true);
+        dresser.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, yaw, 0f));
+        dresser.name = name;
+
+        Transform real = FindDeep(dresser.transform, DresserDrawerPart);
+        MeshFilter drawerFilter = real != null ? real.GetComponent<MeshFilter>() : null;
+        MeshFilter cabinet = null;
+        foreach (MeshFilter filter in dresser.GetComponentsInChildren<MeshFilter>())
+        {
+            if (real == null || (filter.transform != real && !filter.transform.IsChildOf(real)))
+            {
+                cabinet = filter;
+                break;
+            }
+        }
+        if (drawerFilter == null || drawerFilter.sharedMesh == null || cabinet == null || cabinet.sharedMesh == null)
+        {
+            Debug.LogWarning($"Ship greybox: the dresser has no {DresserDrawerPart} drawer or no cabinet mesh, the placeholder cabinet is used.");
+            Object.DestroyImmediate(dresser);
+            return false;
+        }
+        real.localPosition = Vector3.zero;   // shut (the prefab shows it half out)
+        Animator animator = dresser.GetComponentInChildren<Animator>();
+
+        // The real drawer's box in the cabinet mesh's space (x across, y up, z out of the front), and where the others
+        // are from it: across towards the middle, and down the rows (up, if it is a bottom drawer).
+        Bounds slot = TransformBounds(drawerFilter.sharedMesh.bounds, cabinet.transform.worldToLocalMatrix * real.localToWorldMatrix);
+        Bounds body = cabinet.sharedMesh.bounds;
+        float across = slot.center.x > body.center.x ? -1f : 1f;
+        float down = slot.center.y > body.center.y ? -1f : 1f;
+        var offsets = new List<Vector3>();
+        for (int column = 0; column < DresserColumns; column++)
+            for (int row = 0; row < DresserRows; row++)
+                if (column > 0 || row > 0)
+                    offsets.Add(new Vector3(across * DresserPitch.x * column, down * DresserPitch.y * row, 0f));
+
+        Mesh cut = CutDrawerFronts(cabinet.sharedMesh, slot, offsets);
+        if (cut != null)
+            cabinet.sharedMesh = cut;
+        else
+            offsets.Clear();   // could not read the mesh: just the one drawer
+
+        // Copies of the bare drawer first, then every drawer gets its parts (the real one slid by its Animator).
+        var copies = new List<Transform>();
+        for (int i = 0; i < offsets.Count; i++)
+        {
+            GameObject copy = Object.Instantiate(real.gameObject, real.parent);
+            copy.name = $"Vetolaatikko.{i + 2:000}";
+            copy.transform.localPosition = real.localPosition + real.parent.InverseTransformVector(cabinet.transform.TransformVector(offsets[i]));
+            copy.transform.localRotation = real.localRotation;
+            copy.transform.localScale = real.localScale;
+            copies.Add(copy.transform);
+        }
+        var drawers = new List<AnimatedDrawer> { SetUpDrawer(real, drawerFilter.sharedMesh, animator) };
+        foreach (Transform copy in copies)
+            drawers.Add(SetUpDrawer(copy, drawerFilter.sharedMesh, null));
+
+        // The cabinet, solid up to just behind the drawer fronts, so looking at a drawer finds the drawer.
+        Bounds solid = cut != null ? cut.bounds : body;
+        solid.SetMinMax(solid.min, new Vector3(solid.max.x, solid.max.y, Mathf.Min(solid.max.z, slot.max.z - 0.045f)));
+        var box = dresser.AddComponent<BoxCollider>();
+        box.center = dresser.transform.InverseTransformPoint(cabinet.transform.TransformPoint(solid.center));
+        Vector3 size = dresser.transform.InverseTransformVector(cabinet.transform.TransformVector(solid.size));
+        box.size = new Vector3(Mathf.Abs(size.x), Mathf.Abs(size.y), Mathf.Abs(size.z));
+
+        // The key: shown in the real drawer here; at start Drawer Loot moves it into a random one and hides it.
+        if (key != null)
+        {
+            key.transform.SetParent(dresser.transform, true);
+            key.transform.position = real.TransformPoint(StashPoint(drawerFilter.sharedMesh.bounds));
+            var loot = dresser.AddComponent<DrawerLoot>();
+            SetField(loot, "item", p => p.objectReferenceValue = key.transform);
+            SetField(loot, "drawers", p =>
+            {
+                p.arraySize = drawers.Count;
+                for (int i = 0; i < drawers.Count; i++)
+                    p.GetArrayElementAtIndex(i).objectReferenceValue = drawers[i];
+            });
+        }
+        return true;
+    }
+
+    // One drawer: Animated Drawer (by the Animator, or sliding by code), colliders on its front and its bottom (so E
+    // finds it, and you can look down past the front into it), the glow, and its sounds.
+    private static AnimatedDrawer SetUpDrawer(Transform part, Mesh mesh, Animator animator)
+    {
+        Bounds b = mesh.bounds;
+        var front = part.gameObject.AddComponent<BoxCollider>();
+        front.center = new Vector3(b.center.x, b.center.y, b.max.z - 0.04f);
+        front.size = new Vector3(b.size.x, b.size.y, 0.08f);
+        var bottom = part.gameObject.AddComponent<BoxCollider>();
+        bottom.center = new Vector3(b.center.x, b.min.y + 0.015f, b.center.z);
+        bottom.size = new Vector3(b.size.x, 0.03f, b.size.z);
+
+        var drawer = part.gameObject.AddComponent<AnimatedDrawer>();
+        part.gameObject.AddComponent<InteractableHighlight>();
+        const string sounds = "Assets/Sound/Doors/";
+        SetField(drawer, "animator", p => p.objectReferenceValue = animator);
+        SetField(drawer, "slide", p => p.vector3Value = new Vector3(0f, 0f, DresserSlide));
+        SetField(drawer, "stashPoint", p => p.vector3Value = StashPoint(b));
+        SetField(drawer, "openSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(sounds + "Door_Open_Wood_CC0.mp3"));
+        SetField(drawer, "closeSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(sounds + "Door_Shut_Wood_CC0.mp3"));
+        return drawer;
+    }
+
+    // The middle of a drawer, a little up from its centre.
+    private static Vector3 StashPoint(Bounds drawer) => drawer.center + Vector3.up * (drawer.extents.y * 0.15f);
+
+    // A copy of the cabinet mesh with the baked drawer fronts (panel, lip and knob, all in the front 10 cm of each
+    // drawer's outline) cut away at `offsets` from the real drawer, and a copy of the real drawer's hollow (every face
+    // inside its outline: the sides, top, bottom and back) behind each. Null if the mesh cannot be read.
+    private static Mesh CutDrawerFronts(Mesh source, Bounds slot, List<Vector3> offsets)
+    {
+        const float edge = 0.004f;        // slack round a drawer's outline
+        const float frontDepth = 0.1f;
+        Vector3[] v = source.vertices;
+        if (v == null || v.Length == 0)
+        {
+            Debug.LogWarning("Ship greybox: could not read the dresser mesh; only its one real drawer opens.");
+            return null;
+        }
+        Vector3[] n = source.normals;
+        Vector4[] tan = source.tangents;
+        Vector2[] uv = source.uv;
+        Vector2[] uv2 = source.uv2;
+        bool hasN = n != null && n.Length == v.Length;
+        bool hasT = tan != null && tan.Length == v.Length;
+        bool hasUv = uv != null && uv.Length == v.Length;
+        bool hasUv2 = uv2 != null && uv2.Length == v.Length;
+        var verts = new List<Vector3>(v);
+        var normals = hasN ? new List<Vector3>(n) : null;
+        var tangents = hasT ? new List<Vector4>(tan) : null;
+        var uvs = hasUv ? new List<Vector2>(uv) : null;
+        var uv2s = hasUv2 ? new List<Vector2>(uv2) : null;
+
+        bool Inside(Vector3 p, Vector3 offset) =>
+            Mathf.Abs(p.x - (slot.center.x + offset.x)) <= slot.extents.x + edge && Mathf.Abs(p.y - (slot.center.y + offset.y)) <= slot.extents.y + edge;
+
+        var submeshes = new List<List<int>>();
+        for (int s = 0; s < source.subMeshCount; s++)
+        {
+            int[] tris = source.GetTriangles(s);
+            var kept = new List<int>();
+            var hollow = new List<int>();
+            for (int i = 0; i + 2 < tris.Length; i += 3)
+            {
+                Vector3 a = v[tris[i]], b = v[tris[i + 1]], c = v[tris[i + 2]];
+                if (Inside(a, Vector3.zero) && Inside(b, Vector3.zero) && Inside(c, Vector3.zero))
+                    hollow.AddRange(new[] { tris[i], tris[i + 1], tris[i + 2] });
+                bool front = false;
+                if (Mathf.Min(a.z, b.z, c.z) >= slot.max.z - frontDepth)
+                    foreach (Vector3 offset in offsets)
+                        if (Inside(a, offset) && Inside(b, offset) && Inside(c, offset))
+                        {
+                            front = true;
+                            break;
+                        }
+                if (!front)
+                    kept.AddRange(new[] { tris[i], tris[i + 1], tris[i + 2] });
+            }
+            foreach (Vector3 offset in offsets)
+            {
+                foreach (int index in hollow)
+                {
+                    kept.Add(verts.Count);
+                    verts.Add(v[index] + offset);
+                    normals?.Add(n[index]);
+                    tangents?.Add(tan[index]);
+                    uvs?.Add(uv[index]);
+                    uv2s?.Add(uv2[index]);
+                }
+            }
+            submeshes.Add(kept);
+        }
+
+        var mesh = new Mesh { name = source.name + " (six drawers)" };
+        if (verts.Count > 65000)
+            mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        mesh.SetVertices(verts);
+        if (normals != null)
+            mesh.SetNormals(normals);
+        if (tangents != null)
+            mesh.SetTangents(tangents);
+        if (uvs != null)
+            mesh.SetUVs(0, uvs);
+        if (uv2s != null)
+            mesh.SetUVs(1, uv2s);
+        mesh.subMeshCount = submeshes.Count;
+        for (int s = 0; s < submeshes.Count; s++)
+            mesh.SetTriangles(submeshes[s], s);
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    // An axis-aligned box round `bounds` after a transform.
+    private static Bounds TransformBounds(Bounds bounds, Matrix4x4 matrix)
+    {
+        var result = new Bounds(matrix.MultiplyPoint3x4(bounds.center), Vector3.zero);
+        for (int i = 0; i < 8; i++)
+        {
+            Vector3 corner = bounds.center + Vector3.Scale(bounds.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+            result.Encapsulate(matrix.MultiplyPoint3x4(corner));
+        }
+        return result;
+    }
+
+    private static Transform FindDeep(Transform root, string name)
+    {
+        foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
+            if (child.name == name)
+                return child;
+        return null;
+    }
+
     private static Door Drawer(string name, Vector3 position, Vector3 slideOut, Transform parent)
     {
         Box("Cabinet", position + new Vector3(0f, 0.45f, 0f), new Vector3(1.2f, 0.9f, 0.7f), Wood * 0.9f, parent);

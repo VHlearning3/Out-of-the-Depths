@@ -109,6 +109,10 @@ public class PickupItem : MonoBehaviour, IInteractable
     [SerializeField] private bool lightWhileInspecting = true;
     [Tooltip("Keep the white outline on the item while it is held, so it separates from the background.")]
     [SerializeField] private bool outlineWhileInspecting = true;
+    [Tooltip("If something is in the way where the item would hang (looking down into a drawer, facing a wall close up), the view turns to open space at eye level while it is up and turns back once it is taken. The item also never hangs further out than the free space in front, so it is never inside the furniture.")]
+    [SerializeField] private bool clearView = true;
+    [Tooltip("How long that turn takes, each way, in seconds.")]
+    [SerializeField] private float clearViewSeconds = 0.35f;
     [Tooltip("Where it flies to, as an offset from the torso (the middle of the Character Controller) in the body local space. Zero = straight into the torso.")]
     [SerializeField] private Vector3 collectOffset = Vector3.zero;
 
@@ -155,6 +159,14 @@ public class PickupItem : MonoBehaviour, IInteractable
     private bool inspectAttackWas;
     private bool inspectCursorVisibleWas;
     private CursorLockMode inspectCursorLockWas;
+    // The Clear View turn: from, to, when it started (-1 = not turning), and the view to go back to afterwards.
+    private Vector2 viewFrom;
+    private Vector2 viewTo;
+    private float viewTurnStart = -1f;
+    private Vector2 viewRestore;
+    private bool viewTurned;
+    private Transform roomIgnore;   // the player's body, which the free-space check looks past
+    private static readonly RaycastHit[] roomHits = new RaycastHit[16];
 
     private void Awake()
     {
@@ -349,6 +361,19 @@ public class PickupItem : MonoBehaviour, IInteractable
         float turned = 0f;
         holdNow = holdDistance;
 
+        // Somewhere clear for it to hang: the view turns there first if the way ahead is blocked (Clear View).
+        bool inspecting = ShouldInspect();
+        roomIgnore = bodyRoot;
+        viewTurned = false;
+        viewTurnStart = -1f;
+        float radius = HeldRadius();
+        float roomAhead = float.MaxValue;
+        if (inspecting && clearView && eye != null)
+        {
+            roomAhead = ClearView(eye, swimmer, radius);
+            holdNow = Mathf.Clamp(roomAhead, zoomRange.x, holdDistance);
+        }
+
         // Grab: up to the eyes, into the showcase pose, growing. E (or a right click) already here skips the inspect
         // and it goes straight in from wherever it has got to.
         bool closedEarly = false;
@@ -358,6 +383,7 @@ public class PickupItem : MonoBehaviour, IInteractable
             visual.position = Vector3.Lerp(startPosition, HoldPoint(eye, startPosition), k);
             visual.rotation = Quaternion.Slerp(startRotation, Showcase(showcase, eye, 0f), k);
             visual.localScale = startScale * Mathf.Lerp(1f, holdScale, k);
+            StepView(swimmer);
             yield return null;
             if (CloseRequested(interactor))
             {
@@ -366,7 +392,7 @@ public class PickupItem : MonoBehaviour, IInteractable
             }
         }
 
-        if (ShouldInspect() && !closedEarly)
+        if (inspecting && !closedEarly)
         {
         // Hold: hang in front of the eyes, turning slowly. Left mouse held = grab it and turn it; the scroll wheel zooms;
         // E takes it (or the clock, with Wait For Interact off). Swimming and looking stop, the cursor shows, the
@@ -400,7 +426,12 @@ public class PickupItem : MonoBehaviour, IInteractable
                     if (Mathf.Abs(wheel) > 0.01f)
                         holdTarget = Mathf.Clamp(holdTarget - Mathf.Sign(wheel) * zoomStep, zoomRange.x, zoomRange.y);
                 }
-                holdNow = Mathf.Lerp(holdNow, holdTarget, 1f - Mathf.Exp(-zoomSmoothing * Time.deltaTime));
+                // Never further out than the free space ahead (checked again once the view has stopped turning).
+                StepView(swimmer);
+                if (clearView && eye != null && viewTurnStart < 0f)
+                    roomAhead = Room(eye.position, eye.forward, radius);
+                float allowed = Mathf.Min(holdTarget, Mathf.Max(zoomRange.x, roomAhead));
+                holdNow = Mathf.Lerp(holdNow, allowed, 1f - Mathf.Exp(-zoomSmoothing * Time.deltaTime));
                 if (inspectAllowed && blurBackground)
                     InspectFocus.Focus(holdNow);
                 if (eye != null && spin.sqrMagnitude > 0.01f)
@@ -434,8 +465,11 @@ public class PickupItem : MonoBehaviour, IInteractable
         // Absorb: from where it hangs straight into the torso, easing in and out, shrinking to nothing. Both ends
         // follow the player, so it stays put in the view even if you turn on the way.
         Vector3 hangOffset = visual.position - HoldPoint(eye, startPosition);
+        if (viewTurned && swimmer != null)
+            TurnView(swimmer, viewRestore);   // back to where you were looking
         for (float t = 0f; t < absorbSeconds; t += Time.deltaTime)
         {
+            StepView(swimmer);
             float k = t / absorbSeconds;
             turned += 240f * Time.deltaTime / Mathf.Max(0.01f, absorbSeconds);
             visual.position = Vector3.Lerp(HoldPoint(eye, startPosition) + hangOffset, Torso(body, bodyRoot), Ease.InOutCubic(k));
@@ -444,6 +478,12 @@ public class PickupItem : MonoBehaviour, IInteractable
             yield return null;
         }
 
+        if (viewTurned && swimmer != null)
+        {
+            swimmer.SetLookAngles(viewRestore.x, viewRestore.y);
+            viewTurned = false;
+            viewTurnStart = -1f;
+        }
         if (swimmer != null && absorbShake > 0f)
             swimmer.AddShake(absorbShake);
         if (pickedUpVfx != null)
@@ -598,6 +638,85 @@ public class PickupItem : MonoBehaviour, IInteractable
         collected = false;
         GetComponent<Collider>().enabled = true;
         return false;
+    }
+
+    // Clear View: if the item has no room to hang where you are looking, turn to where it has (the same way at eye
+    // level, else the nearest heading at eye level with room, up to right round; else wherever has the most). Returns
+    // how far out it can hang that way.
+    private float ClearView(Transform eye, SwimController swimmer, float radius)
+    {
+        float need = Mathf.Max(zoomRange.x, holdDistance * 0.6f);
+        float ahead = Room(eye.position, eye.forward, radius);
+        if (ahead >= need || swimmer == null)
+            return ahead;
+        Vector2 look = swimmer.LookAngles;
+        Vector2 best = look;
+        float bestRoom = ahead;
+        float[] turns = { 0f, 30f, -30f, 60f, -60f, 90f, -90f, 135f, -135f, 180f };
+        foreach (float turn in turns)
+        {
+            var angles = new Vector2(look.x + turn, 0f);
+            float room = Room(eye.position, Quaternion.Euler(angles.y, angles.x, 0f) * Vector3.forward, radius);
+            if (room > bestRoom + 0.05f)
+            {
+                bestRoom = room;
+                best = angles;
+            }
+            if (room >= need)
+                break;
+        }
+        if (best == look)
+            return ahead;
+        viewRestore = look;
+        viewTurned = true;
+        TurnView(swimmer, best);
+        return bestRoom;
+    }
+
+    private void TurnView(SwimController swimmer, Vector2 to)
+    {
+        if (swimmer == null)
+            return;
+        viewFrom = swimmer.LookAngles;
+        viewTo = to;
+        viewTurnStart = Time.time;
+    }
+
+    // One frame of the Clear View turn, eased.
+    private void StepView(SwimController swimmer)
+    {
+        if (swimmer == null || viewTurnStart < 0f)
+            return;
+        float k = clearViewSeconds > 0f ? Mathf.Clamp01((Time.time - viewTurnStart) / clearViewSeconds) : 1f;
+        float e = Ease.InOutCubic(k);
+        swimmer.SetLookAngles(Mathf.LerpAngle(viewFrom.x, viewTo.x, e), Mathf.Lerp(viewFrom.y, viewTo.y, e));
+        if (k >= 1f)
+            viewTurnStart = -1f;
+    }
+
+    // How far out from `from` the held item (a ball of `radius`) can go along `direction` before touching something
+    // solid, other than itself and the player; up to the far end of the zoom range.
+    private float Room(Vector3 from, Vector3 direction, float radius)
+    {
+        float reach = zoomRange.y;
+        int count = Physics.SphereCastNonAlloc(from, radius, direction, roomHits, reach, ~0, QueryTriggerInteraction.Ignore);
+        float nearest = reach;
+        for (int i = 0; i < count; i++)
+        {
+            Collider hit = roomHits[i].collider;
+            if (hit == null || hit.transform.IsChildOf(transform) || PlayerBody.Is(hit) || (roomIgnore != null && hit.transform.IsChildOf(roomIgnore)))
+                continue;
+            nearest = Mathf.Min(nearest, roomHits[i].distance);
+        }
+        return Mathf.Max(0f, nearest - 0.05f);
+    }
+
+    // About how big the item is while held, as a ball.
+    private float HeldRadius()
+    {
+        Bounds bounds = RendererBounds(visual, out bool any);
+        float half = any ? Mathf.Max(bounds.extents.x, bounds.extents.y, bounds.extents.z) : 0.15f;
+        return Mathf.Clamp(half * holdScale * 0.8f, 0.05f, 0.4f);
     }
 
     // A point in front of the eyes, at Hold Distance. With no camera, just above where the item was.
