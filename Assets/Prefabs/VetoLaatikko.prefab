@@ -50,8 +50,16 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -5030338049380358208, guid: 9af0f4c7b13d3884f8cb574747a14077, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0
+      value: 0.53
       objectReference: {fileID: 0}
+    - target: {fileID: -1771461688725691865, guid: 9af0f4c7b13d3884f8cb574747a14077, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 23bd863624231cf43a3da38340ae7266, type: 2}
+    - target: {fileID: -815427811647022847, guid: 9af0f4c7b13d3884f8cb574747a14077, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 23bd863624231cf43a3da38340ae7266, type: 2}
     - target: {fileID: 919132149155446097, guid: 9af0f4c7b13d3884f8cb574747a14077, type: 3}
       propertyPath: m_Name
       value: VetoLaatikko
