@@ -641,9 +641,8 @@ public static class ShipGreyboxBuilder
     }
 
     // Room 7 (yellow): the box room, the whole south strip (x -12.25..19.75, z 8.5..21.5) up against room 1's wall.
-    // Push the two crates (Pushable Box: E puts your hands on one, W pushes and S pulls it along the room) onto the two
-    // pressure plates; with both plates down the closet in the south-east corner opens. The closet holds the last
-    // bone fragment.
+    // The closet in the south-east corner holds the last bone fragment. Its puzzle (box pushing) is being made by a
+    // teammate; until then the closet door simply opens with E.
     private static void BuildBoxRoom()
     {
         Transform room = Group("Room_7_BoxRoom");
@@ -653,37 +652,10 @@ public static class ShipGreyboxBuilder
         // The closet: x 15..19.75, z 8.5..12.5, its door in its north wall.
         WallZ("Closet_W", 15f, 8.5f, 12.5f, room);
         WallX("Closet_N", 12.5f, 15f, 19.75f, room, 16f, 16f + DoorGap);
-        Door closet = DoorX("Door_Closet", 12.5f, 16f, true, false, room);
+        DoorX("Door_Closet", 12.5f, 16f, false, false, room);   // unlocked until the box puzzle is in
         Box("OpenChest", new Vector3(17.4f, 0.4f, 10f), new Vector3(1.4f, 0.8f, 0.9f), Wood, room);
         PickupVariant(CreatePickup(new Vector3(17.4f, 1.1f, 10f), "Item_BoneKeyFragment", room), 2);
 
-        // Two plates, each needing the other; the crates start 7 m west of them, in line, so a straight push east lands
-        // each one on its plate.
-        var plates = new PressurePlate[2];
-        float[] rows = { 11f, 15f };
-        for (int i = 0; i < 2; i++)
-        {
-            GameObject plate = Decor("PressurePlate", new Vector3(9f, 0.04f, rows[i]), new Vector3(1.6f, 0.08f, 1.6f), new Color(0.9f, 0.75f, 0.2f), room);
-            plates[i] = plate.AddComponent<PressurePlate>();
-            SetField(plates[i], "pressSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Doors/Door_MetalClunk_Grinnell_CC0.mp3"));
-        }
-        for (int i = 0; i < 2; i++)
-        {
-            PressurePlate other = plates[1 - i];
-            SetField(plates[i], "alsoNeeds", p =>
-            {
-                p.arraySize = 1;
-                p.GetArrayElementAtIndex(0).objectReferenceValue = other;
-            });
-        }
-        UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(plates[0].onAllPressed, closet.Open);
-        foreach (float z in rows)
-        {
-            GameObject crate = Box("PushBox", new Vector3(2f, 0.6f, z), new Vector3(1.2f, 1.2f, 1.2f), Wood, room);
-            crate.AddComponent<InteractableHighlight>();   // lights up when you look at it: E puts your hands on it
-            var push = crate.AddComponent<PushableBox>();
-            SetField(push, "slideSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Doors/Door_MetalScrapeLoop_Toddcircle_CC0.mp3"));
-        }
         CreateSchool("Fish_Wanderer", 3, new Vector3(-5f, 2.5f, 15f), room);
     }
 
@@ -948,7 +920,6 @@ public static class ShipGreyboxBuilder
             ("Seaweed", SeaweedSpot + Vector3.up, SeaweedSpot + new Vector3(-1.2f, 4.6f, -2f)),
             ("StoneTablet", new Vector3(13.5f, 1.2f, 34.25f), new Vector3(13.5f, 4.6f, 32.3f)),
             ("Chest", new Vector3(16f, 1f, 44f), new Vector3(16f, 4.6f, 42.2f)),
-            ("PressurePlates", new Vector3(9f, 0f, 13f), new Vector3(8.5f, 4.6f, 13f)),
             ("CodeLock", new Vector3(-2.6f, 2.3f, 49.5f), new Vector3(-2.6f, 4.6f, 46.8f)),
             ("HallwayTablet", new Vector3(-7f, 1.8f, 58.1f), new Vector3(-7f, 4.6f, 55.6f)),
             ("Trident", new Vector3(24f, 1.8f, 28.75f), new Vector3(24f, 4.6f, 26.8f)),

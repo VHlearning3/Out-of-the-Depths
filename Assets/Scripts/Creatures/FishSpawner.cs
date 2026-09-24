@@ -246,25 +246,6 @@ public class FishSpawner : MonoBehaviour
         return activeOpenings[index];
     }
 
-    private Transform NearestOpening(Vector3 position)
-    {
-        if (activeOpenings.Count == 0)
-            CollectOpenings();
-
-        Transform best = activeOpenings[0];
-        float bestDistance = float.MaxValue;
-        foreach (Transform opening in activeOpenings)
-        {
-            float distance = (opening.position - position).sqrMagnitude;
-            if (distance < bestDistance)
-            {
-                bestDistance = distance;
-                best = opening;
-            }
-        }
-        return best;
-    }
-
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = new Color(1f, 0.8f, 0.3f, 0.8f);
