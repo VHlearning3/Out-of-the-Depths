@@ -330,7 +330,7 @@ public static class ShipGreyboxBuilder
         // windows as its children, to have fish come in there too.
         Transform windows = Group("Windows");
         GameObject windowPrefab = EnsureFishWindowPrefab();
-        foreach (float z in new[] { 10.75f, 21.5f, 25f })                     // room 1, west hull
+        foreach (float z in new[] { 10.75f, 18f, 24.5f })                      // room 1, west hull (portholes 3.2 m across: kept apart)
             Window(windowPrefab, new Vector3(HullW + WallT * 0.5f, 3f, z), 90f, windows);
         foreach (float x in new[] { -20.25f, -13f, -1f, 4f, 9f, 22f })          // north hull: hallway, room 9b, column
             Window(windowPrefab, new Vector3(x, 3f, HullN - WallT * 0.5f), 180f, windows);
@@ -886,9 +886,9 @@ public static class ShipGreyboxBuilder
             ("Room5", 11f, 44f), ("Room6", 13.4f, 30f), ("Room7", 3.75f, 15f), ("Room8", -2.25f, 44f),
             ("Hallway_W", -17f, 54.25f), ("Hallway_E", 7.5f, 54.25f), ("Column_S", 24.4f, 15f), ("Column_N", 24.4f, 45f),
         })
-            RoomLight("Light_" + name, new Vector3(x, Ceiling - 1.9f, z), fill, 0.85f, 20f, lights);
+            RoomLight("Light_" + name, new Vector3(x, Ceiling - 1.9f, z), fill, 1.6f, 20f, lights);
         foreach (var (name, x, z) in new[] { ("Basement_SW", -15f, 12f), ("Basement_SE", 15f, 12f), ("Basement_NW", -15f, 32f), ("Basement_NE", 15f, 32f) })
-            RoomLight("Light_" + name, new Vector3(x, BasementCeiling - 2.4f, z), below, 1f, 20f, lights);
+            RoomLight("Light_" + name, new Vector3(x, BasementCeiling - 2.4f, z), below, 1.6f, 20f, lights);
 
         Transform water = Group("WaterLight");
         water.SetParent(lights, false);

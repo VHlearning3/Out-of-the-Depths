@@ -235,11 +235,11 @@ public static class TestArenaBuilder
         light.type = LightType.Spot;
         light.spotAngle = 55f;
         light.range = 10f;
-        light.intensity = 4f;
+        light.intensity = 7f;
         light.color = new Color(1f, 0.95f, 0.85f);
     }
 
-    // DogPhoto.mat: URP Lit with the photo as base map plus a faint emissive copy so it reads in dim water.
+    // DogPhoto.mat: URP Lit with the photo as base map plus an emissive copy so it reads brightly in the dim water.
     private static Material EnsurePhotoMaterial()
     {
         var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(PhotoTexturePath);
@@ -266,7 +266,7 @@ public static class TestArenaBuilder
         material.SetFloat("_Smoothness", 0.35f);
         material.EnableKeyword("_EMISSION");
         material.SetTexture("_EmissionMap", texture);
-        material.SetColor("_EmissionColor", Color.white * 0.35f);
+        material.SetColor("_EmissionColor", Color.white * 0.9f);
         EditorUtility.SetDirty(material);
         return material;
     }
@@ -1274,7 +1274,10 @@ public static class TestArenaBuilder
     {
         var existing = AssetDatabase.LoadAssetAtPath<GameObject>(FishWindowPrefabPath);
         if (existing != null)
-            return existing;
+        {
+            UseWindowModel();
+            return AssetDatabase.LoadAssetAtPath<GameObject>(FishWindowPrefabPath);
+        }
 
         var root = new GameObject("FishWindow_Placeholder");
         root.AddComponent<FishWindow>();
@@ -1288,9 +1291,150 @@ public static class TestArenaBuilder
         RimPiece(root, "Jamb_L", new Vector3(-halfW - t * 0.5f, 0f, 0.1f), new Vector3(t, WindowHeight, 0.3f), rim);
         RimPiece(root, "Jamb_R", new Vector3(halfW + t * 0.5f, 0f, 0.1f), new Vector3(t, WindowHeight, 0.3f), rim);
 
-        GameObject prefab = SavePrefab(root, FishWindowPrefabPath);
+        SavePrefab(root, FishWindowPrefabPath);
         Debug.Log("Created " + FishWindowPrefabPath);
-        return prefab;
+        UseWindowModel();
+        return AssetDatabase.LoadAssetAtPath<GameObject>(FishWindowPrefabPath);
+    }
+
+    // The porthole (Art/Models/environment/window: a round frame round glass with a hole broken in it). Put on the
+    // Fish Window prefab once, in place of the placeholder rim: turned to face along the window's arrow, glass to the
+    // outside, its middle on the window's origin, scaled so the square hole cut in the wall hides behind the frame's
+    // ring. The frame and the glass get colliders (solid to swim into, and what Fish Window measures its passage
+    // against, so fish only come through the broken hole), plus an invisible Player Blocker over the whole opening so
+    // the player cannot squeeze out through the hole. Already done, or no model yet: nothing happens.
+    private const string WindowModelPath = "Assets/Art/Models/environment/window/window.obj";
+    private const float WindowModelScale = 1.1f;
+    private const float WindowModelMiddle = 2.2f;   // height of the porthole's middle in the model, in its units
+    // The porthole ring, in model units: its inside edge (the flat sides of the octagon) and its outside edge.
+    private const float WindowRingInner = 1.11f;
+    private const float WindowRingOuter = 1.442f;
+    // The wall cut: just bigger than the ring's opening so its edges hide behind the ring; its corners, which stick out
+    // past the ring, are filled in by Fish Window (Frame Edge).
+    private static readonly Vector2 WindowCut = Vector2.one * (WindowRingInner * WindowModelScale * 2f + 0.1f);
+    private const string WindowGlassPath = "Assets/Art/Materials/WindowGlass.mat";
+    private const string WindowFramePath = "Assets/Art/Materials/WindowFrame.mat";
+
+    private static void UseWindowModel()
+    {
+        var model = AssetDatabase.LoadAssetAtPath<GameObject>(WindowModelPath);
+        if (model == null)
+            return;
+        GameObject root = PrefabUtility.LoadPrefabContents(FishWindowPrefabPath);
+        try
+        {
+            Transform existing = root.transform.Find("Model");
+            GameObject porthole;
+            if (existing != null)
+            {
+                porthole = existing.gameObject;
+            }
+            else
+            {
+                foreach (string rim in new[] { "Sill", "Lintel", "Jamb_L", "Jamb_R" })
+                {
+                    Transform piece = root.transform.Find(rim);
+                    if (piece != null)
+                        Object.DestroyImmediate(piece.gameObject);
+                }
+                porthole = Object.Instantiate(model, root.transform);
+                porthole.name = "Model";
+                porthole.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);   // the model's thickness (x) along the arrow
+                porthole.transform.localScale = Vector3.one * WindowModelScale;
+                porthole.transform.localPosition = new Vector3(0f, -WindowModelMiddle * WindowModelScale, 0f);
+                foreach (MeshFilter filter in porthole.GetComponentsInChildren<MeshFilter>())
+                    if (filter.sharedMesh != null)
+                        filter.gameObject.AddComponent<MeshCollider>().sharedMesh = filter.sharedMesh;
+            }
+
+            // The glass is the smallest part (its own slot when the model is one mesh with a slot per material, as the
+            // .obj imports; else its own mesh); it gets the see-through material, everything else the dark metal.
+            Mesh smallest = null;
+            foreach (MeshFilter filter in porthole.GetComponentsInChildren<MeshFilter>())
+                if (filter.sharedMesh != null && (smallest == null || filter.sharedMesh.vertexCount < smallest.vertexCount))
+                    smallest = filter.sharedMesh;
+            foreach (MeshRenderer renderer in porthole.GetComponentsInChildren<MeshRenderer>())
+            {
+                Mesh mesh = renderer.GetComponent<MeshFilter>() != null ? renderer.GetComponent<MeshFilter>().sharedMesh : null;
+                if (mesh == null)
+                    continue;
+                var materials = new Material[mesh.subMeshCount];
+                int glassSlot = -1;
+                if (mesh.subMeshCount > 1)
+                {
+                    glassSlot = 0;
+                    for (int i = 1; i < mesh.subMeshCount; i++)
+                        if (mesh.GetIndexCount(i) < mesh.GetIndexCount(glassSlot))
+                            glassSlot = i;
+                }
+                else if (mesh == smallest && porthole.GetComponentsInChildren<MeshFilter>().Length > 1)
+                {
+                    glassSlot = 0;
+                }
+                for (int i = 0; i < materials.Length; i++)
+                    materials[i] = i == glassSlot ? WindowGlassMaterial() : WindowFrameMaterial();
+                renderer.sharedMaterials = materials;
+            }
+
+            Transform blockerTransform = root.transform.Find(FishWindow.PlayerBlockerName);
+            GameObject blocker = blockerTransform != null ? blockerTransform.gameObject : new GameObject(FishWindow.PlayerBlockerName);
+            blocker.transform.SetParent(root.transform, false);
+            BoxCollider box = blocker.GetComponent<BoxCollider>();
+            if (box == null)
+                box = blocker.AddComponent<BoxCollider>();
+            box.size = new Vector3(WindowCut.x, WindowCut.y, 0.15f);
+            box.center = new Vector3(0f, 0f, -0.1f);
+
+            var window = root.GetComponent<FishWindow>();
+            if (window != null)
+            {
+                var so = new SerializedObject(window);
+                so.FindProperty("holeSize").vector2Value = WindowCut;
+                so.FindProperty("frameEdge").floatValue = WindowRingOuter * WindowModelScale;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            PrefabUtility.SaveAsPrefabAsset(root, FishWindowPrefabPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
+
+    // WindowGlass.mat: URP Lit, see-through sea green and glossy (the model's own glass colour), saved once.
+    private static Material WindowGlassMaterial()
+    {
+        var material = AssetDatabase.LoadAssetAtPath<Material>(WindowGlassPath);
+        if (material != null)
+            return material;
+        material = new Material(Shader.Find("Universal Render Pipeline/Lit")) { name = "WindowGlass" };
+        material.SetColor("_BaseColor", new Color(0.1f, 0.75f, 0.72f, 0.25f));
+        material.SetFloat("_Smoothness", 0.92f);
+        material.SetFloat("_Surface", 1f);   // transparent
+        material.SetFloat("_Blend", 0f);     // alpha
+        material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        material.SetFloat("_ZWrite", 0f);
+        material.SetFloat("_Cull", (float)UnityEngine.Rendering.CullMode.Off);
+        material.SetOverrideTag("RenderType", "Transparent");
+        material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        AssetDatabase.CreateAsset(material, WindowGlassPath);
+        return material;
+    }
+
+    // WindowFrame.mat: URP Lit, dark worn metal, saved once.
+    private static Material WindowFrameMaterial()
+    {
+        var material = AssetDatabase.LoadAssetAtPath<Material>(WindowFramePath);
+        if (material != null)
+            return material;
+        material = new Material(Shader.Find("Universal Render Pipeline/Lit")) { name = "WindowFrame" };
+        material.SetColor("_BaseColor", new Color(0.08f, 0.085f, 0.09f));
+        material.SetFloat("_Metallic", 0.6f);
+        material.SetFloat("_Smoothness", 0.45f);
+        AssetDatabase.CreateAsset(material, WindowFramePath);
+        return material;
     }
 
     internal static void RimPiece(GameObject parent, string name, Vector3 localPosition, Vector3 size, Color color)

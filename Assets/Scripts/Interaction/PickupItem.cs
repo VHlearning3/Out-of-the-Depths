@@ -116,12 +116,17 @@ public class PickupItem : MonoBehaviour, IInteractable
     [Tooltip("Where it flies to, as an offset from the torso (the middle of the Character Controller) in the body local space. Zero = straight into the torso.")]
     [SerializeField] private Vector3 collectOffset = Vector3.zero;
 
+    [Header("Stand out")]
+    [Tooltip("A soft glow and a small pulsing light round it, coloured by the kind of item (Pickup Beacon, added at start), so it stands out in the murk.")]
+    [SerializeField] private bool beacon = true;
+
     [Header("Events")]
     public UnityEvent onPickedUp = new UnityEvent();
 
     public ItemDefinition Item => item;
     public int Amount => amount;
     public string Prompt => item != null ? "pick up " + item.DisplayName : "pick up";
+    public bool Collected => collected;   // on its way into the inventory (or already in it)
 
     // For a pickup made at runtime (the bone key the tying minigame hands over): another item, its model swapped in
     // for whatever the prefab showed. Call before Interact.
@@ -193,6 +198,8 @@ public class PickupItem : MonoBehaviour, IInteractable
             visualRestRotation = visual.localRotation;
         }
         phase = Random.value * 10f;
+        if (beacon && GetComponent<PickupBeacon>() == null)
+            gameObject.AddComponent<PickupBeacon>();
     }
 
     private static Transform FirstChild(Transform root) => root.childCount > 0 ? root.GetChild(0) : null;
