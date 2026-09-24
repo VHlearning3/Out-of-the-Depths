@@ -25,4 +25,4 @@ MonoBehaviour:
   heldGrip: 0.2
   heldTipAxis: {x: 0, y: 0, z: 1}
   heldRotation: {x: -8, y: -6, z: 0}
-  heldFitVersion: 2
+  heldFitVersion: 3

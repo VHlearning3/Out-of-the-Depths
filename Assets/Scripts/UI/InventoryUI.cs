@@ -4,7 +4,8 @@ using UnityEngine.UI;
 // Bottom-of-screen hotbar from the GDD: one rounded slot per inventory slot, with the item's icon (or a two- or
 // three-letter monogram of its name), a count badge and a small key number; the selected slot gets the accent rim,
 // pops a little, and the item's full name reads under the bar. Everything is built at runtime from generated
-// sprites, so it needs no art; drop your own into Slot Fill / Slot Rim to replace the generated ones.
+// sprites, so it needs no art; drop your own into Slot Fill / Slot Rim to replace the generated ones. The weapon slots
+// (Player Inventory's Weapon Slots, at the end) stand a little apart with a warm rim and a faint blade while empty.
 public class InventoryUI : MonoBehaviour
 {
     [Header("References")]
@@ -22,6 +23,10 @@ public class InventoryUI : MonoBehaviour
     [SerializeField] private bool generatedLook = true;
     [SerializeField] private float slotSize = 58f;
     [SerializeField] private float spacing = 6f;
+    [Tooltip("Extra gap between the item slots and the weapon slots.")]
+    [SerializeField] private float groupGap = 18f;
+    [Tooltip("Rim of a weapon slot that is not selected.")]
+    [SerializeField] private Color weaponRimColor = new Color(0.95f, 0.72f, 0.35f, 0.4f);
     [Tooltip("Slot background.")]
     [SerializeField] private Color slotColor = new Color(0.02f, 0.05f, 0.08f, 0.72f);
     [Tooltip("Rim and badge colour of the selected slot.")]
@@ -45,6 +50,7 @@ public class InventoryUI : MonoBehaviour
     private Text nameLabel;
     private int selected;
     private Font font;
+    private Sprite bladeSprite;
 
     private void OnEnable()
     {
@@ -91,7 +97,10 @@ public class InventoryUI : MonoBehaviour
         Sprite rimSprite = slotRim != null ? slotRim : generatedLook ? RoundedSprite(true) : null;
 
         float step = slotSize + spacing;
-        float startX = -(n - 1) * step * 0.5f;
+        int weapons = inventory.WeaponSlots;
+        float gap = weapons > 0 && weapons < n ? groupGap : 0f;
+        float startX = -((n - 1) * step + gap) * 0.5f;
+        bladeSprite = weapons > 0 ? BladeSprite() : null;
         int monogramSize = Mathf.RoundToInt(slotSize * 0.36f);
         int smallSize = Mathf.Max(8, Mathf.RoundToInt(slotSize * 0.18f));
 
@@ -99,7 +108,7 @@ public class InventoryUI : MonoBehaviour
         {
             RectTransform slot = MakeRect("Slot " + (i + 1), parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
             slot.sizeDelta = new Vector2(slotSize, slotSize);
-            slot.anchoredPosition = new Vector2(startX + i * step, 0f);
+            slot.anchoredPosition = new Vector2(startX + i * step + (inventory.IsWeaponSlot(i) ? gap : 0f), 0f);
             slots[i] = slot;
 
             fills[i] = MakeImage("Fill", slot, fillSprite, slotColor);
@@ -135,7 +144,7 @@ public class InventoryUI : MonoBehaviour
 
         // The selected item's full name, under the bar.
         RectTransform label = MakeRect("SelectedName", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
-        label.sizeDelta = new Vector2(n * step + 200f, fontSize + 8f);
+        label.sizeDelta = new Vector2(n * step + gap + 200f, fontSize + 8f);
         label.anchoredPosition = new Vector2(0f, -(slotSize * 0.5f + fontSize * 0.5f + 12f));
         nameLabel = label.gameObject.AddComponent<Text>();
         nameLabel.font = font;
@@ -200,8 +209,10 @@ public class InventoryUI : MonoBehaviour
         {
             PlayerInventory.Slot slot = inventory.GetSlot(i);
             bool hasIcon = !slot.IsEmpty && slot.item.Icon != null;
-            icons[i].enabled = hasIcon;
-            icons[i].sprite = hasIcon ? slot.item.Icon : null;
+            bool emptyWeaponSlot = slot.IsEmpty && inventory.IsWeaponSlot(i) && bladeSprite != null;
+            icons[i].enabled = hasIcon || emptyWeaponSlot;
+            icons[i].sprite = hasIcon ? slot.item.Icon : emptyWeaponSlot ? bladeSprite : null;
+            icons[i].color = hasIcon ? Color.white : new Color(weaponRimColor.r, weaponRimColor.g, weaponRimColor.b, 0.3f);
             monograms[i].text = slot.IsEmpty || hasIcon ? string.Empty : Monogram(slot.item.DisplayName);
             bool stacked = slot.count > 1;
             badges[i].enabled = stacked;
@@ -219,7 +230,7 @@ public class InventoryUI : MonoBehaviour
         selected = index;
         for (int i = 0; i < slots.Length; i++)
             if (rims[i] != null)
-                rims[i].color = i == index ? selectedColor : rimColor;
+                rims[i].color = i == index ? selectedColor : inventory.IsWeaponSlot(i) ? weaponRimColor : rimColor;
         UpdateNameLabel();
     }
 
@@ -263,6 +274,39 @@ public class InventoryUI : MonoBehaviour
             float size = Mathf.Lerp(slots[i].localScale.x, target, blend);
             slots[i].localScale = new Vector3(size, size, 1f);
         }
+    }
+
+    // A plain blade for an empty weapon slot, drawn at a slant: a tapering blade, a cross guard and a grip.
+    private static Sprite BladeSprite()
+    {
+        const int size = 64;
+        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+        var pixels = new Color32[size * size];
+        Vector2 tip = new Vector2(52f, 52f), hilt = new Vector2(22f, 22f), pommel = new Vector2(11f, 11f);
+        Vector2 across = new Vector2(-1f, 1f).normalized;
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                var p = new Vector2(x + 0.5f, y + 0.5f);
+                float a = 0f;
+                float t;
+                float blade = Segment(p, hilt, tip, out t);
+                a = Mathf.Max(a, Mathf.Clamp01(Mathf.Lerp(4.5f, 0.8f, t) - blade));
+                a = Mathf.Max(a, Mathf.Clamp01(2.6f - Segment(p, hilt - across * 9f, hilt + across * 9f, out _)));
+                a = Mathf.Max(a, Mathf.Clamp01(2.4f - Segment(p, pommel, hilt, out _)));
+                pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(a * 255f));
+            }
+        tex.SetPixels32(pixels);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+    }
+
+    // Distance from p to the segment a-b, and how far along it (0..1) the nearest point is.
+    private static float Segment(Vector2 p, Vector2 a, Vector2 b, out float along)
+    {
+        Vector2 ab = b - a;
+        along = Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude);
+        return Vector2.Distance(p, a + ab * along);
     }
 
     // A rounded square, 64 px, with sliced borders so it can stretch: either the solid fill or just a 2 px rim.

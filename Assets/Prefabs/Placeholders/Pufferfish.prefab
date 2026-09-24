@@ -180,8 +180,8 @@ MonoBehaviour:
   disabledWhileDead:
   - {fileID: 900900026}
   visual: {fileID: 900900031}
-  deathFlipDuration: 0.5
-  deathFloatSpeed: 0.25
+  deathFlipDuration: 0.9
+  deathFloatSpeed: 0.35
   deathDriftSpin: 10
   deathDriftSway: 0.12
   deathVariation: 0.45

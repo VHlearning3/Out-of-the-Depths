@@ -4,7 +4,8 @@ using UnityEngine.Events;
 using UnityEngine.InputSystem;
 
 // Hotbar inventory from the GDD: keys, puzzle pieces and weapons stack into numbered slots shown at the bottom of the
-// screen, selected with 1-5 or the mouse wheel. Collectibles (pearls, shells) don't take a slot: they're just counted.
+// screen, selected with 1-5 or the mouse wheel. The last Weapon Slots (4 and 5) hold weapons only, and weapons go nowhere else;
+// the rest hold everything else. Collectibles (pearls, shells) don't take a slot: they're just counted.
 // Puzzles check Has() and spend with Remove(); they don't need the item selected.
 public class PlayerInventory : MonoBehaviour
 {
@@ -18,6 +19,8 @@ public class PlayerInventory : MonoBehaviour
 
     [Header("Slots")]
     [SerializeField, Range(1, 9)] private int slotCount = 5;
+    [Tooltip("How many of the slots, at the end of the bar, are for weapons only (the dagger, the trident). 0 = any slot takes anything.")]
+    [SerializeField, Range(0, 4)] private int weaponSlots = 2;
     [Tooltip("Number keys 1..slotCount and the mouse wheel change the selected slot.")]
     [SerializeField] private bool selectWithInput = true;
 
@@ -30,6 +33,14 @@ public class PlayerInventory : MonoBehaviour
     private readonly Dictionary<ItemDefinition, int> collectibles = new Dictionary<ItemDefinition, int>();
 
     public int SlotCount => slotCount;
+    public int WeaponSlots => Mathf.Clamp(weaponSlots, 0, slotCount - 1);
+
+    // A weapon slot (one of the last Weapon Slots).
+    public bool IsWeaponSlot(int index) => index >= slotCount - WeaponSlots;
+
+    // Whether this slot takes this item: weapons only in weapon slots, everything else only in the others.
+    public bool Fits(int index, ItemDefinition item) =>
+        WeaponSlots == 0 || item == null || IsWeaponSlot(index) == (item.Kind == ItemDefinition.Category.Weapon);
     // While something else owns the number keys and the wheel (a pickup being inspected), 1-5 and scrolling do nothing.
     public bool InputBlocked { get; set; }
 
@@ -82,7 +93,8 @@ public class PlayerInventory : MonoBehaviour
             {
                 if (keyboard[(Key)((int)Key.Digit1 + i)].wasPressedThisFrame)
                 {
-                    Select(i);
+                    if (!GetSlot(i).IsEmpty)   // an empty slot (the trident's, before you have it) has nothing to hold
+                        Select(i);
                     break;
                 }
             }
@@ -93,9 +105,24 @@ public class PlayerInventory : MonoBehaviour
         {
             float scroll = mouse.scroll.ReadValue().y;
             if (scroll > 0.01f)
-                Select((SelectedIndex - 1 + slotCount) % slotCount);
+                SelectNextFilled(-1);
             else if (scroll < -0.01f)
-                Select((SelectedIndex + 1) % slotCount);
+                SelectNextFilled(1);
+        }
+    }
+
+    // The wheel: on to the next slot that holds something, that way round, skipping the empty ones. Nothing held
+    // anywhere else = it stays put.
+    private void SelectNextFilled(int step)
+    {
+        for (int k = 1; k < slotCount; k++)
+        {
+            int index = ((SelectedIndex + step * k) % slotCount + slotCount) % slotCount;
+            if (!GetSlot(index).IsEmpty)
+            {
+                Select(index);
+                return;
+            }
         }
     }
 
@@ -154,8 +181,11 @@ public class PlayerInventory : MonoBehaviour
 
         EnsureSlots();
         int space = 0;
-        foreach (Slot slot in slots)
+        for (int i = 0; i < slots.Length; i++)
         {
+            Slot slot = slots[i];
+            if (!Fits(i, item))
+                continue;
             if (slot.item == item)
                 space += Mathf.Max(0, item.MaxStack - slot.count);
             else if (slot.IsEmpty)
@@ -179,11 +209,12 @@ public class PlayerInventory : MonoBehaviour
 
         EnsureSlots();
         int remaining = amount;
-        foreach (Slot slot in slots)
+        for (int i = 0; i < slots.Length; i++)
         {
+            Slot slot = slots[i];
             if (remaining == 0)
                 break;
-            if (slot.item != item || slot.count >= item.MaxStack)
+            if (!Fits(i, item) || slot.item != item || slot.count >= item.MaxStack)
                 continue;
 
             int add = Mathf.Min(remaining, item.MaxStack - slot.count);
@@ -191,11 +222,12 @@ public class PlayerInventory : MonoBehaviour
             remaining -= add;
         }
 
-        foreach (Slot slot in slots)
+        for (int i = 0; i < slots.Length; i++)
         {
+            Slot slot = slots[i];
             if (remaining == 0)
                 break;
-            if (!slot.IsEmpty)
+            if (!slot.IsEmpty || !Fits(i, item))
                 continue;
 
             int add = Mathf.Min(remaining, item.MaxStack);

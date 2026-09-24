@@ -311,7 +311,12 @@ public class PickupItem : MonoBehaviour, IInteractable
 
         int space = inventory.SpaceFor(item, amount);
         if (space == 0)
+        {
+            // Its kind of slot is full (weapons have their own slots at the end of the bar): say so.
+            bool weapon = item.Kind == ItemDefinition.Category.Weapon;
+            HintPopup.Show($"No room for the {item.DisplayName}: your {(weapon ? "weapon" : "item")} slots are full.", 2.5f);
             return;
+        }
 
         // Room for only part of a stack: hand that part over now, the rest stays here for later.
         if (space < amount)
