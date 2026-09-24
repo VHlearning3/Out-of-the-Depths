@@ -189,7 +189,7 @@ public class Checkpoint : MonoBehaviour, IInteractable
         death.SetRespawnPoint(respawnPoint != null ? respawnPoint : RespawnAnchor(player));
 
         if (activateSound != null)
-            AudioSource.PlayClipAtPoint(activateSound, transform.position, activateVolume);
+            SoundVariety.PlayAt(activateSound, transform.position, activateVolume);
 
         if (activateVfx != null)
         {

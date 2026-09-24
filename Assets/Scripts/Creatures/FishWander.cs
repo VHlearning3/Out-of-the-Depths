@@ -45,6 +45,15 @@ public class FishWander : MonoBehaviour
 
     public LayerMask ObstacleMask => obstacleMask;
     public float BodyRadius => bodyRadius;
+
+    // The fish was made bigger or smaller (Fish Controller's random size): its body for steering and spacing follows.
+    public void ScaleBody(float factor)
+    {
+        bodyRadius *= factor;
+        FishSpace space = GetComponent<FishSpace>();
+        if (space != null)
+            space.Setup(bodyRadius, obstacleMask);
+    }
     public float LookAhead => lookAhead;
     public bool IsEntering => entering;
 

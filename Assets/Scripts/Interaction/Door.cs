@@ -10,7 +10,7 @@ using UnityEngine.Serialization;
 // little bounce when it lands shut. Sound: an unlatch clunk as it starts, a grinding loop that follows its speed, a
 // thud at each end (again, quieter, on every bounce) and a rattle when it's locked - all 3D, muffled like underwater.
 // Swap the Visual mesh freely; this object is the hinge for swing doors.
-public class Door : MonoBehaviour, IInteractable
+public class Door : MonoBehaviour, IInteractable, IPromptTone
 {
     public enum Motion { Slide, Swing }
 
@@ -78,6 +78,8 @@ public class Door : MonoBehaviour, IInteractable
     [SerializeField] private AudioClip closeStopSound;
     [Tooltip("The rattle when someone tries it while it's locked.")]
     [SerializeField] private AudioClip lockedSound;
+    [Tooltip("The tip shown when someone tries it while it is locked: what opens it.")]
+    [SerializeField] private string lockedHint = "It's locked. Something nearby must open it.";
     [Tooltip("A long creak / groan that starts with the move and rings on after the door has stopped. The creepy part.")]
     [SerializeField] private AudioClip groanSound;
     [Tooltip("Random pitch range for the groan, so no two doors sound alike.")]
@@ -99,6 +101,7 @@ public class Door : MonoBehaviour, IInteractable
     public bool IsOpen { get; private set; }
     public bool IsLocked => locked;
     public string Prompt => locked ? openPrompt + " (locked)" : IsOpen ? closePrompt : openPrompt;
+    public PromptTone Tone => locked ? PromptTone.Blocked : PromptTone.Normal;
 
     private Vector3 closedPosition;
     private Quaternion closedRotation;
@@ -152,7 +155,7 @@ public class Door : MonoBehaviour, IInteractable
     private void Play(AudioClip clip, float scale = 1f)
     {
         if (clip != null && oneShot != null)
-            oneShot.PlayOneShot(clip, volume * scale);
+            SoundVariety.OneShot(oneShot, clip, volume * scale, pitch);
     }
 
     public void Interact(GameObject interactor)
@@ -163,6 +166,7 @@ public class Door : MonoBehaviour, IInteractable
         if (locked)
         {
             Play(lockedSound);
+            HintPopup.Show(lockedBehind ? "It won't open from this side." : lockedHint, 2.5f);
             return;
         }
 
@@ -179,8 +183,23 @@ public class Door : MonoBehaviour, IInteractable
     public void Open() => SetOpen(true);
     public void Close() => SetOpen(false);
     public void Toggle() => SetOpen(!IsOpen);
-    public void Unlock() => locked = false;
+    public void Unlock()
+    {
+        locked = false;
+        lockedBehind = false;
+    }
+
+    private bool lockedBehind;   // shut and locked behind the player (a one-way door), not locked by a puzzle
     public void Lock() => locked = true;
+
+    // Locked, and trying it says why (a chase sealing the player in).
+    public void Lock(string hint)
+    {
+        locked = true;
+        lockedBehind = false;
+        if (!string.IsNullOrEmpty(hint))
+            lockedHint = hint;
+    }
 
     public void SetOpen(bool open)
     {
@@ -342,6 +361,7 @@ public class Door : MonoBehaviour, IInteractable
             if (!wentThrough)
                 return;
             locked = true;
+            lockedBehind = true;
         }
 
         Close();

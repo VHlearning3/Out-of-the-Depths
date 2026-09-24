@@ -25,7 +25,9 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
         Switch,
         Slider,
         Stepper,
-        Button
+        Button,
+        HudSize,
+        HudAutoHide
     }
 
     [Serializable]
@@ -91,6 +93,7 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
     {
         if (NeedsDefaultRows)
             FillDefaultRows();
+        AddHudSizeRow();
         if (projectQuality < 0)
         {
             projectQuality = QualitySettings.GetQualityLevel();
@@ -242,6 +245,19 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
                 break;
             }
 
+            case RowType.HudSize:
+            {
+                float size = UIScale.Hud;
+                float now = MenuGUI.SliderRow(row.label, size, UIScale.Min, UIScale.Max, Mathf.RoundToInt(size * 100f) + "%");
+                if (!Mathf.Approximately(now, size))
+                    UIScale.Set(Mathf.Round(now * 20f) / 20f);   // in 5% steps
+                break;
+            }
+
+            case RowType.HudAutoHide:
+                HudAutoHide.Enabled = MenuGUI.SwitchRow(row.label, HudAutoHide.Enabled);
+                break;
+
             case RowType.ResetToDefaults:
                 if (MenuGUI.ButtonRow(row.label, row.buttonText))
                     ResetToDefaults();
@@ -349,6 +365,9 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
     private void ResetToDefaults()
     {
         GameAudio.ResetMaster();
+        UIScale.Reset();
+        PlayerPrefs.DeleteKey(HudAutoHide.PrefsKey);
+        HudAutoHide.Enabled = true;
         if (swimmer != null && defaultSensitivity > 0f)
             swimmer.MouseSensitivity = defaultSensitivity;
         PlayerPrefs.DeleteKey(SensitivityKey);
@@ -371,6 +390,21 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
     // ---- the default page -----------------------------------------------------------------------------------------
 
     // The page as it ships. Reset on the component, its context menu or the button under the list put it back.
+    // Pages saved before the HUD size / auto hide existed get their rows, under the mouse sensitivity (or at the end).
+    private void AddHudSizeRow()
+    {
+        if (!rows.Exists(r => r.type == RowType.HudSize))
+        {
+            int at = rows.FindIndex(r => r.type == RowType.MouseSensitivity);
+            rows.Insert(at >= 0 ? at + 1 : rows.Count, new Row { type = RowType.HudSize, label = "HUD size" });
+        }
+        if (!rows.Exists(r => r.type == RowType.HudAutoHide))
+        {
+            int at = rows.FindIndex(r => r.type == RowType.HudSize);
+            rows.Insert(at + 1, new Row { type = RowType.HudAutoHide, label = "Hide HUD when not needed" });
+        }
+    }
+
     [ContextMenu("Fill with the default rows")]
     public void FillDefaultRows()
     {
@@ -383,6 +417,8 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
         rows.Add(new Row { type = RowType.MasterVolume, label = "Master volume" });
         rows.Add(new Row { type = RowType.Heading, label = "Controls" });
         rows.Add(new Row { type = RowType.MouseSensitivity, label = "Mouse sensitivity", min = 0.03f, max = 0.4f });
+        rows.Add(new Row { type = RowType.HudSize, label = "HUD size" });
+        rows.Add(new Row { type = RowType.HudAutoHide, label = "Hide HUD when not needed" });
         rows.Add(new Row { type = RowType.ResetToDefaults, label = "Everything above", buttonText = "Reset to defaults" });
         rows.Add(new Row { type = RowType.Note, label = "Resolution and fullscreen take effect straight away and are remembered by the game on its own." });
         rowsFilled = true;

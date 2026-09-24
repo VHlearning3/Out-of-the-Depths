@@ -407,6 +407,7 @@ public static class ShipGreyboxBuilder
 
         // The one-way door: unlocked by the key (lock box beside it), shuts and locks behind you.
         Door oneWay = DoorZ("Door_Room1_Exit", -12.25f, 24f, true, true, room);
+        SetField(oneWay, "lockedHint", p => p.stringValue = "Locked. The lock box beside it takes the key hidden in this room.");
         GameObject lockBox = Box("Lock_FirstRoomKey", new Vector3(-12.6f, 1.3f, 23.4f), new Vector3(0.25f, 0.5f, 0.5f), new Color(0.8f, 0.7f, 0.3f), room);
         OpenOnFilled(Socket(lockBox, "Item_FirstRoomKey", 1, true, "unlock with", null, null), oneWay);
 
@@ -425,6 +426,7 @@ public static class ShipGreyboxBuilder
         WallX("R2_S", 19.75f, -12.25f, 7f, room);                                   // room 7 below, no door
         WallXBig("R2_N", 38.25f, -12.25f, 19.75f, room, -5.05f, -5.05f + DoubleDoorGap);   // rooms 3, 8, 5 above: only the symbol room's big double door
         DoubleDoor toSymbol = SpawnDoubleDoor("Door_SymbolRoom", new Vector3(-2.25f, 0f, 38.25f), 0f, true, room);
+        SetField(toSymbol, "lockedHint", p => p.stringValue = "Locked. The bone key goes in the lock plate: tie the three bone fragments together at the seaweed.");
         WallZ("R2_E", 7f, 19.75f, 38.25f, room, 29f, 29f + DoorGap);               // room 6 east (and the stub down to its south wall)
         DoorZ("Door_StoneRoom", 7f, 29f, false, false, room);
         DoorZ("Door_FishRoom", -12.25f, 30f, false, false, room);                  // in room 1's east wall, north of room 1
@@ -433,7 +435,7 @@ public static class ShipGreyboxBuilder
             Box("Pillar", corner + Vector3.up * (Ceiling * 0.5f), new Vector3(1.5f, Ceiling, 1.5f), Prop, room);
         // On the floor, above the deck grid (which is 3 cm up), so the two never fight.
         Decor("Symbol2_Floor", new Vector3(-2.5f, 0.055f, 29.25f), new Vector3(2.4f, 0.02f, 2.4f), new Color(0.15f, 0.2f, 0.9f), room);
-        CreatePickup(new Vector3(-6.75f, 0.8f, 22f), "Item_StoneFragment", room);
+        CreatePickup(new Vector3(-6.75f, 0.8f, 22f), "Item_StoneFragment", room).name = "Pickup_StoneFragment_Pedestal_MiddleRoom";   // one of the three for the pedestal
 
         // The bone key goes into the lock plate in the middle of the double door.
         OpenOnFilled(Socket(toSymbol.LockPlate, "Item_BoneKey", 1, true, "unlock with", null, null), toSymbol);
@@ -506,8 +508,8 @@ public static class ShipGreyboxBuilder
         if (nookPlate != null)
             nookPlate.name = "Checkpoint_Symbol3";
 
-        // The dagger, just inside from the middle room.
-        CreatePickup(new Vector3(-15f, 0.8f, 31f), "Item_Dagger", room);
+        // The dagger, a few steps from the hatch, just outside the wall of fish it is for.
+        CreatePickup(new Vector3(-23.3f, 0.9f, 39.4f), "Item_Dagger", room);
 
         // The hatch: the 2 x 2 hole in the deck, covered by the trapdoor; symbol 1 is painted on the basement floor right under it (nothing sits in the hole itself).
         SpawnTrapdoor("Hatch_Basement", new Vector3(HatchFish.xMin, 0f, HatchFish.yMin), room);
@@ -619,7 +621,7 @@ public static class ShipGreyboxBuilder
         Carcass(CellarGround(-24.6f, 5f), 90f, room, 0.9f, 7f);     // 6 m, beside the symbol key
 
         CreatePickup(CellarGround(-19f, 5.5f) + Vector3.up * 0.8f, "Item_SymbolKey", room);
-        CreatePickup(CellarGround(19f, 24.5f) + Vector3.up * 0.8f, "Item_StoneFragment", room);     // past the middle skeleton's east end
+        CreatePickup(CellarGround(19f, 24.5f) + Vector3.up * 0.8f, "Item_StoneFragment", room).name = "Pickup_StoneFragment_Pedestal_Basement";     // past the middle skeleton's east end
         CreatePickup(CellarGround(14f, 5.6f) + Vector3.up * 0.8f, "Item_BoneKeyFragment", room);    // past the big skeleton's east end
         CreatePickup(CellarGround(10f, 15f) + Vector3.up * 0.8f, "Item_Pearl", room);
         CreatePickup(CellarGround(-24f, 30f) + Vector3.up * 0.8f, "Item_Pearl", room);
@@ -1012,6 +1014,7 @@ public static class ShipGreyboxBuilder
         GameObject chest = Box("Chest", new Vector3(16f, 0.5f, 44f), new Vector3(1.8f, 1f, 1.1f), Wood, room);
         Decor("ChestLid", new Vector3(16f, 1.06f, 44f), new Vector3(1.9f, 0.12f, 1.2f), Wood * 0.8f, room);
         GameObject stone = CreatePickup(new Vector3(15.5f, 1.4f, 44f), "Item_StoneFragment", room);
+        stone.name = "Pickup_StoneFragment_Pedestal_Chest";
         GameObject bone = CreatePickup(new Vector3(16.5f, 1.4f, 44f), "Item_BoneKeyFragment", room);
         PickupVariant(bone, 1);   // the second piece of the key (the basement has the first, the box room the third)
         stone.SetActive(false);
@@ -1029,6 +1032,7 @@ public static class ShipGreyboxBuilder
         Deck(room, 7f, 21.5f, 19.75f, 38.25f, 0f, Room6Blue);
         WallX("R6_S", 21.5f, 7f, 19.75f, room, 10.5f, 10.5f + DoorGap);
         Door toBoxRoom = DoorX("Door_BoxRoom", 21.5f, 10.5f, true, false, room);
+        SetField(toBoxRoom, "lockedHint", p => p.stringValue = "Locked. Piece the stone tablet together at the pedestal to open it.");
 
         GameObject pedestal = Box("Pedestal", new Vector3(13.5f, 0.6f, 34.25f), new Vector3(1.2f, 1.2f, 1.2f), Prop, room);
         PuzzleStation tablet = PuzzleBuildTools.AddStation(pedestal, "Puzzle_StoneTablet", "Item_StoneFragment", 3, true, "piece the tablet together");
@@ -1083,6 +1087,7 @@ public static class ShipGreyboxBuilder
         WallX("Z50", 50f, HullW, 19.75f, room, -25f, -25f + DoorGap, -0.5f, -0.5f + DoorGap);
         DoorX("Door_Nook", 50f, -25f, false, false, room);
         finalDoor = DoorX("Door_Final", 50f, -0.5f, true, true, room);   // locked until the rune puzzle at the code lock is solved
+        SetField(finalDoor, "lockedHint", p => p.stringValue = "Locked. Enter the three symbols on the rune lock beside it.");
         SetField(finalDoor, "lockBehind", p => p.boolValue = false);
         SetField(finalDoor, "openPrompt", p => p.stringValue = "open the rune door");
         if (runeStation != null)
@@ -1148,8 +1153,8 @@ public static class ShipGreyboxBuilder
         SetField(chase, "grate", p => p.objectReferenceValue = grate.transform);
 
         // Under pressure: two stone fragments, high and low, for the tablet by the hallway's east end.
-        CreatePickup(new Vector3(-20f, 4.2f, 52.5f), "Item_StoneFragment", room);
-        CreatePickup(new Vector3(-12f, 0.6f, 56f), "Item_StoneFragment", room);
+        CreatePickup(new Vector3(-20f, 4.2f, 52.5f), "Item_StoneFragment", room).name = "Pickup_StoneFragment_ChaseTablet_High";   // not for the pedestal: the hallway tablet
+        CreatePickup(new Vector3(-12f, 0.6f, 56f), "Item_StoneFragment", room).name = "Pickup_StoneFragment_ChaseTablet_Low";
         GameObject tablet = Box("RuneTablet", new Vector3(-7f, 1.8f, HullN - 0.35f), new Vector3(1.1f, 1.3f, 0.2f), Stone, room);
         var slotted = new GameObject[2];
         for (int i = 0; i < slotted.Length; i++)
@@ -1170,6 +1175,7 @@ public static class ShipGreyboxBuilder
         Deck(room, 19.75f, HullS, HullE, HullN, 0f, new Color(0.28f, 0.3f, 0.3f));
         WallZ("Column_W", 19.75f, HullS, HullN, room, 51f, 51f + DoorGap);
         columnDoor = DoorZ("Door_Column", 19.75f, 51f, true, false, room);
+        SetField(columnDoor, "lockedHint", p => p.stringValue = "Locked. Put two stone fragments into the tablet at the end of the hallway.");
         if (hallwayTablet != null)
             OpenOnFilled(hallwayTablet, columnDoor);
         WallX("Column_Div", 23.75f, 19.75f, HullE, room, 23f, 23f + DoorGap);
@@ -1268,8 +1274,7 @@ public static class ShipGreyboxBuilder
 
     // The lighting, in layers: a dim cool fill in every room and along the basement so nothing is pitch black; the
     // water light, a cool beam slanting in through every window and the sun falling through the roof holes (each with
-    // a faint shaft); warm spots on what matters (the dresser, the seaweed, the pedestals, the locks); and glowing
-    // algae on the basement floor.
+    // a faint shaft); warm spots on what matters (the dresser, the seaweed, the pedestals, the locks).
     private static void BuildLights()
     {
         Transform lights = Group("Lights");
@@ -1321,12 +1326,6 @@ public static class ShipGreyboxBuilder
             ("Trident", new Vector3(24f, 1.8f, 28.75f), new Vector3(24f, 4.6f, 26.8f)),
         })
             Accent(name, target, from, accents);
-
-        Transform algae = Group("GlowAlgae");
-        algae.SetParent(lights, false);
-        var random = new System.Random(11);
-        foreach (var (x, z) in new[] { (-26f, 4f), (-6f, 14f), (12f, 24f), (25f, 40f), (-18f, 27f), (3f, 7f), (20f, 12f), (-10f, 40f) })
-            Algae(CellarGround(x, z), random, algae);
     }
 
     // Collectibles tucked away round the ship, for the counter in the corner: high corners you have to swim up to,

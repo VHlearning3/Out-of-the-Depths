@@ -2,7 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // A HUD meter: give it the Fill rect (a bar) or a Filled Image (any shape, e.g. the fish-shaped hunger gauge) and an
-// optional label, then call SetValue(current, max).
+// optional label, then call SetValue(current, max). With Auto Hide it fades away while it is not needed: it shows
+// while the value is under Show Below, and for a few seconds after it jumps (a bite, eating, a dash).
 public class StatBarUI : MonoBehaviour
 {
     [SerializeField] private RectTransform fillRect;
@@ -12,6 +13,18 @@ public class StatBarUI : MonoBehaviour
     [Tooltip("How quickly the bar visually catches up to its real value. 0 = instant.")]
     [SerializeField] private float smoothSpeed = 8f;
 
+    [Header("Auto hide")]
+    [Tooltip("Fade the meter away while it is not needed (the Settings page can turn this off for the whole HUD).")]
+    [SerializeField] private bool autoHide = true;
+    [Tooltip("Always shown while the value is under this fraction of the max.")]
+    [SerializeField, Range(0f, 1f)] private float showBelow = 0.5f;
+    [Tooltip("A change bigger than this fraction of the max at once (not the slow drain) shows it...")]
+    [SerializeField, Range(0f, 0.5f)] private float jumpToShow = 0.015f;
+    [Tooltip("...for this many seconds.")]
+    [SerializeField] private float showSeconds = 3f;
+
+    private HudAutoHide fade;
+
     private float targetPct = 1f;
     private float currentPct = 1f;
 
@@ -19,11 +32,19 @@ public class StatBarUI : MonoBehaviour
     {
         if (fillRect == null && fillImage == null)
             Debug.LogError($"{name}: StatBarUI has neither a Fill Rect nor a Fill Image assigned, the meter will not update.", this);
+        if (autoHide)
+        {
+            fade = HudAutoHide.On(this, showSeconds);
+            fade.Needed = () => targetPct < showBelow;
+        }
     }
 
     public void SetValue(float current, float max)
     {
+        float was = targetPct;
         targetPct = max > 0f ? Mathf.Clamp01(current / max) : 0f;
+        if (fade != null && Mathf.Abs(targetPct - was) > jumpToShow)
+            fade.Wake();
 
         if (valueLabel != null)
             valueLabel.text = $"{current:0}/{max:0}";

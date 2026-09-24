@@ -41,7 +41,7 @@ public class HintPopup : MonoBehaviour
 
         float alpha = Mathf.Clamp01(age / FadeIn) * Mathf.Clamp01((seconds - age) / FadeOut);
         float rise = 1f - Mathf.Clamp01(age / FadeIn);
-        float scale = Screen.height / 1080f;
+        float scale = Screen.height / 1080f * UIScale.Hud;
         if (white == null)
         {
             white = new Texture2D(1, 1) { hideFlags = HideFlags.DontSave };

@@ -2,8 +2,8 @@ using UnityEditor;
 using UnityEngine;
 
 // The lighting pieces both scene builders use, so the ship and the test arena look alike: plain fill lights, spot
-// beams (the water light slanting in through windows, warm accents on what matters), faint light shafts, glowing
-// algae, and the high sun with the ocean surface overhead. Materials it needs are saved once under Art.
+// beams (the water light slanting in through windows, warm accents on what matters), faint light shafts, and
+// the high sun with the ocean surface overhead. Materials it needs are saved once under Art.
 internal static class LightingTools
 {
     // The sun: high, so looking up you see it (through the ship's roof holes, over the arena's open top) and its
@@ -11,11 +11,9 @@ internal static class LightingTools
     internal static readonly Quaternion SunRotation = Quaternion.Euler(68f, -30f, 0f);
 
     internal static readonly Color WaterBeam = new Color(0.5f, 0.85f, 1f);
-    internal static readonly Color WaterShaft = new Color(0.5f, 0.85f, 1f, 0.14f);
+    internal static readonly Color WaterShaft = new Color(0.5f, 0.85f, 1f, 0.26f);
     internal static readonly Color AccentColor = new Color(1f, 0.88f, 0.7f);
-    internal static readonly Color AlgaeColor = new Color(0.3f, 1f, 0.75f);
 
-    internal const string AlgaeMaterialPath = "Assets/Art/Materials/GlowAlgae.mat";
     private const string ShaftMaterialPath = "Assets/Art/Materials/LightShaft.mat";
     private const string ShaftTexturePath = "Assets/Art/Textures/LightShaft.png";
 
@@ -57,8 +55,8 @@ internal static class LightingTools
     internal static void WindowBeam(Transform window, bool shadows, Transform parent)
     {
         Vector3 into = (window.forward * Mathf.Cos(35f * Mathf.Deg2Rad) + Vector3.down * Mathf.Sin(35f * Mathf.Deg2Rad)).normalized;
-        BeamLight("Beam_" + window.name, window.position - into * 2f, into, 50f, 2.6f, 11f, shadows, WaterBeam, parent);
-        Shaft("Shaft_" + window.name, window.position - into * 0.3f, into, 5f, 1.2f, WaterShaft, parent);
+        BeamLight("Beam_" + window.name, window.position - into * 2f, into, 58f, 5.5f, 15f, shadows, WaterBeam, parent);
+        Shaft("Shaft_" + window.name, window.position - into * 0.3f, into, 6.5f, 1.7f, WaterShaft, parent);
     }
 
     // A faint shaft of light: two crossed quads from `start` along `direction`, bright at the start and fading out
@@ -87,31 +85,6 @@ internal static class LightingTools
         shaft.AddComponent<RendererTint>().Tint = color;
     }
 
-    // A patch of glowing algae on the floor at `floor`: a few glowing blobs and a small green light over them.
-    internal static void Algae(Vector3 floor, System.Random random, Transform parent)
-    {
-        float Range(float a, float b) => a + (float)random.NextDouble() * (b - a);
-        Material glow = EnsureGlowMaterial(AlgaeMaterialPath, new Color(0.25f, 1f, 0.7f));
-        var cluster = new GameObject("Algae");
-        cluster.transform.SetParent(parent, false);
-        cluster.transform.position = floor;
-        int blobs = 4 + random.Next(3);
-        for (int i = 0; i < blobs; i++)
-        {
-            float r = Range(0.06f, 0.18f);
-            GameObject blob = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            Object.DestroyImmediate(blob.GetComponent<Collider>());
-            blob.name = "Glow";
-            blob.transform.SetParent(cluster.transform, false);
-            blob.transform.position = floor + new Vector3(Range(-0.7f, 0.7f), 0.03f + r * 0.6f, Range(-0.7f, 0.7f));
-            blob.transform.localScale = new Vector3(r * 2f, r * 1.4f, r * 2f);
-            var renderer = blob.GetComponent<MeshRenderer>();
-            renderer.sharedMaterial = glow;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        }
-        RoomLight("AlgaeLight", floor + Vector3.up * 0.5f, AlgaeColor, 1.4f, 5f, cluster.transform);
-    }
-
     // The sun turned high (Sun Rotation) with soft shadows, and the ocean surface overhead under `parent` (Ocean
     // Surface: the shimmering underside of the surface and the sun's glow).
     internal static void SunAndSurface(Transform parent)
@@ -138,22 +111,6 @@ internal static class LightingTools
             so.FindProperty("sun").objectReferenceValue = sun;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
-    }
-
-    // A URP Lit material that glows (emission, which the bloom picks up), saved once.
-    internal static Material EnsureGlowMaterial(string path, Color glow)
-    {
-        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
-        if (material != null)
-            return material;
-        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-        material = new Material(shader) { name = System.IO.Path.GetFileNameWithoutExtension(path) };
-        material.SetColor("_BaseColor", glow * 0.6f);
-        material.EnableKeyword("_EMISSION");
-        material.SetColor("_EmissionColor", glow * 3f);
-        material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
-        AssetDatabase.CreateAsset(material, path);
-        return material;
     }
 
     // LightShaft.mat: a URP particle material, additive, with a soft streak (LightShaft.png: bright near the start,

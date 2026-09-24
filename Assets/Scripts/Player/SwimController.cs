@@ -59,6 +59,8 @@ public class SwimController : MonoBehaviour
     [SerializeField] private float shakeDecay = 2.5f;
     [Tooltip("How hard a look pull (the chase reveal) drags the view toward its target, per second. The mouse can still fight it.")]
     [SerializeField] private float lookPullRate = 5f;
+    [Tooltip("The eyes never get closer than this, in metres, to a wall, floor or ceiling (the camera sits above the body, so without it they would poke through a ceiling you swim up against and you would see through it). 0 = off.")]
+    [SerializeField] private float cameraClearance = 0.2f;
 
     private CharacterController controller;
     private InputAction moveAction;
@@ -291,7 +293,7 @@ public class SwimController : MonoBehaviour
         }
         AddShake(dashShake);
         if (dashSound != null)
-            AudioSource.PlayClipAtPoint(dashSound, transform.position, dashVolume);
+            SoundVariety.PlayAt(dashSound, transform.position, dashVolume);
     }
 
     private void HandleSwim()
@@ -392,6 +394,36 @@ public class SwimController : MonoBehaviour
         cameraPivot.localRotation = Quaternion.Euler(pitch + shakePitch, 0f, currentRoll + sway + shakeRoll);
 
         float bob = Mathf.Sin(bobPhase * Mathf.PI * 2f) * bobAmplitude * (1f + panic);
-        cameraPivot.localPosition = cameraPivotRestLocalPosition + Vector3.up * bob + Random.insideUnitSphere * (0.08f * jolt);
+        cameraPivot.localPosition = OutOfWalls(cameraPivotRestLocalPosition + Vector3.up * bob + Random.insideUnitSphere * (0.08f * jolt));
+    }
+
+    private readonly RaycastHit[] cameraHits = new RaycastHit[16];
+
+    // Where the eyes can go: from the middle of the body out to where they want to be, stopping Camera Clearance short
+    // of anything solid in the way (static geometry: walls, floors, ceilings, doors; not triggers, fish or pickups).
+    private Vector3 OutOfWalls(Vector3 local)
+    {
+        Transform parent = cameraPivot.parent;
+        if (cameraClearance <= 0f || parent == null || controller == null)
+            return local;
+        Vector3 from = transform.TransformPoint(controller.center);
+        Vector3 to = parent.TransformPoint(local);
+        Vector3 offset = to - from;
+        float length = offset.magnitude;
+        if (length < 1e-4f)
+            return local;
+        Vector3 direction = offset / length;
+        int count = Physics.SphereCastNonAlloc(from, cameraClearance, direction, cameraHits, length, ~0, QueryTriggerInteraction.Ignore);
+        float allowed = length;
+        for (int i = 0; i < count; i++)
+        {
+            Collider hit = cameraHits[i].collider;
+            if (hit == null || hit.attachedRigidbody != null || PlayerBody.Is(hit) || hit.transform.IsChildOf(transform))
+                continue;
+            if (cameraHits[i].distance <= 0f && cameraHits[i].point == Vector3.zero)
+                continue;   // already touching at the start: the body is against it, the eyes stay where they are
+            allowed = Mathf.Min(allowed, cameraHits[i].distance);
+        }
+        return allowed >= length ? local : parent.InverseTransformPoint(from + direction * allowed);
     }
 }

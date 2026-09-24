@@ -7,7 +7,7 @@ using UnityEngine.Events;
 // each Placed Visual then glides from your hand to its spot and settles; onFilled fires once the last one has landed.
 // The prompt tells the player what to do: hold the item, or what is still needed.
 [RequireComponent(typeof(Collider))]
-public class ItemSocket : MonoBehaviour, IInteractable
+public class ItemSocket : MonoBehaviour, IInteractable, IPromptTone
 {
     [Header("Needs")]
     [SerializeField] private ItemDefinition requiredItem;
@@ -46,6 +46,8 @@ public class ItemSocket : MonoBehaviour, IInteractable
     public UnityEvent onFilled = new UnityEvent();
 
     public int Placed { get; private set; }
+    public ItemDefinition RequiredItem => requiredItem;
+    public int RequiredAmount => requiredAmount;
     public bool IsFilled => Placed >= requiredAmount;
 
     public string Prompt
@@ -62,8 +64,20 @@ public class ItemSocket : MonoBehaviour, IInteractable
             if (inventory == null || inventory.Count(requiredItem) == 0)
                 return $"needs {name} {count}";
             if (requireHeld && inventory.SelectedItem != requiredItem)
-                return $"hold the {name} to {verb} it  (1-5 / wheel)";
+                return $"hold the {name} to {verb} it  (1-3 / wheel)";
             return $"{verb} {name} {count}";
+        }
+    }
+
+    // Red while you have none of what it needs, green once it is in your hotbar.
+    public PromptTone Tone
+    {
+        get
+        {
+            if (placing || IsFilled || requiredItem == null)
+                return PromptTone.Normal;
+            PlayerInventory inventory = PlayerInventoryInScene();
+            return inventory != null && inventory.Count(requiredItem) > 0 ? PromptTone.Ready : PromptTone.Blocked;
         }
     }
 
@@ -109,10 +123,19 @@ public class ItemSocket : MonoBehaviour, IInteractable
         playerInventory = inventory;
 
         // You place what is in your hand: the prompt already says to select it if it is somewhere else.
-        if (requireHeld && inventory.SelectedItem != requiredItem)
+        int missing = requiredAmount - Placed;
+        if (inventory.Count(requiredItem) <= 0)
+        {
+            HintPopup.Show($"You need {Things(missing, requiredItem.DisplayName)} for this.", 2.5f);
             return;
+        }
+        if (requireHeld && inventory.SelectedItem != requiredItem)
+        {
+            HintPopup.Show($"Hold the {requiredItem.DisplayName} to {verb} it: pick it with 1-3 or the mouse wheel.", 2.5f);
+            return;
+        }
 
-        int place = Mathf.Min(requiredAmount - Placed, inventory.Count(requiredItem));
+        int place = Mathf.Min(missing, inventory.Count(requiredItem));
         if (place <= 0)
             return;
 
@@ -123,6 +146,9 @@ public class ItemSocket : MonoBehaviour, IInteractable
         Placed += place;
         StartCoroutine(PlacePieces(first, place, HandPoint(interactor), HandRotation(interactor), inventory));
     }
+
+    // "a stone fragment", "3 stone fragments".
+    public static string Things(int count, string name) => count <= 1 ? "a " + name : count + " " + name + "s";
 
     // Where the held item sits: just in front of and below the camera, a little to the right, like in a hand.
     private static Vector3 HandPoint(GameObject interactor)
@@ -210,6 +236,6 @@ public class ItemSocket : MonoBehaviour, IInteractable
     private void Play(AudioClip clip)
     {
         if (clip != null)
-            AudioSource.PlayClipAtPoint(clip, transform.position, volume);
+            SoundVariety.PlayAt(clip, transform.position, volume);
     }
 }

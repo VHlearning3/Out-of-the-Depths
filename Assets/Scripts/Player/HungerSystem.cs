@@ -114,7 +114,7 @@ public class HungerSystem : MonoBehaviour
             warningFired = true;
             onHungerWarning.Invoke();
             if (warningSound != null)
-                audioSource.PlayOneShot(warningSound, warningVolume);
+                SoundVariety.OneShot(audioSource, warningSound, warningVolume);
         }
         else if (!IsLow)
         {

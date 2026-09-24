@@ -84,7 +84,7 @@ public class FishAggression : MonoBehaviour
         nextAttackTime = Time.time + attackCooldown;
         target.ApplyDamage(damage);
         if (attackSound != null)
-            AudioSource.PlayClipAtPoint(attackSound, transform.position, attackVolume);
+            SoundVariety.PlayAt(attackSound, transform.position, attackVolume);
     }
 
     private void SetChasing(bool chasing)

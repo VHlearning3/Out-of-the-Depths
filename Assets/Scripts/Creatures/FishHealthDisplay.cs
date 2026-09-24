@@ -108,7 +108,7 @@ public class FishHealthDisplay : MonoBehaviour
             numberStyle.normal.textColor = Color.white;
             numberStyle.font = GameFont.Font;
         }
-        float scale = Screen.height / 1080f * Mathf.Clamp(6f / screen.z, 0.6f, 1.4f);   // a touch bigger up close
+        float scale = Screen.height / 1080f * UIScale.Hud * Mathf.Clamp(6f / screen.z, 0.6f, 1.4f);   // a touch bigger up close
         var at = new Vector2(screen.x, Screen.height - screen.y);
         Color keep = GUI.color;
         for (int i = popups.Count - 1; i >= 0; i--)

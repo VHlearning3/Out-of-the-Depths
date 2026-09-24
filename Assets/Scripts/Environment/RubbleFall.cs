@@ -40,6 +40,8 @@ public class RubbleFall : MonoBehaviour
     public UnityEvent onDropped = new UnityEvent();
 
     public bool Dropped { get; private set; }
+    public PickupItem DropOnPickup => dropOnPickup;
+    public Collider Blocker => blocker;
 
     private Vector3[] landedPositions;
     private Quaternion[] landedRotations;
@@ -179,6 +181,6 @@ public class RubbleFall : MonoBehaviour
     private void Play(AudioClip clip, Vector3 at)
     {
         if (clip != null)
-            AudioSource.PlayClipAtPoint(clip, at, volume);
+            SoundVariety.PlayAt(clip, at, volume);
     }
 }

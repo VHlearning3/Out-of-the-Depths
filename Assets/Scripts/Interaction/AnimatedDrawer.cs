@@ -31,13 +31,38 @@ public class AnimatedDrawer : MonoBehaviour, IInteractable
     [SerializeField] private AudioClip openSound;
     [SerializeField] private AudioClip closeSound;
     [SerializeField, Range(0f, 1f)] private float volume = 0.6f;
+    [Tooltip("Opened with something stashed in it (the key): it stays open and E takes what is inside; once that is taken the drawer is done (no more E). Off = it opens and closes like the empty ones.")]
+    [SerializeField] private bool keepOpenWhileFull = true;
 
     [Header("Events")]
     public UnityEvent onOpened = new UnityEvent();
     public UnityEvent onClosed = new UnityEvent();
 
     public bool IsOpen { get; private set; }
-    public string Prompt => IsOpen ? closePrompt : openPrompt;
+    public string Prompt
+    {
+        get
+        {
+            PickupItem inside = IsOpen && keepOpenWhileFull ? Inside() : null;
+            return inside != null ? inside.Prompt : IsOpen ? closePrompt : openPrompt;
+        }
+    }
+
+    private bool openedFull;   // it was opened with something in it: done once that is taken
+
+    // Something stashed in it that is still there to take.
+    private PickupItem Inside()
+    {
+        foreach (Transform thing in stashed)
+        {
+            if (thing == null || !thing.gameObject.activeInHierarchy)
+                continue;
+            var pickup = thing.GetComponent<PickupItem>();
+            if (pickup != null && !pickup.Collected)
+                return pickup;
+        }
+        return null;
+    }
     public Transform Part => drawer != null ? drawer : transform;
 
     private readonly List<Transform> stashed = new List<Transform>();
@@ -56,7 +81,16 @@ public class AnimatedDrawer : MonoBehaviour, IInteractable
 
     public void Interact(GameObject who)
     {
-        if (Time.time < busyUntil || (IsOpen && !canClose))
+        if (Time.time < busyUntil)
+            return;
+        // Open with something in it: E takes it out (much easier than aiming at a key inside a drawer).
+        PickupItem inside = IsOpen && keepOpenWhileFull ? Inside() : null;
+        if (inside != null)
+        {
+            inside.Interact(who);
+            return;
+        }
+        if (IsOpen && (!canClose || openedFull))
             return;
         SetOpen(!IsOpen);
     }
@@ -77,6 +111,8 @@ public class AnimatedDrawer : MonoBehaviour, IInteractable
         {
             hideAt = -1f;
             ShowStashed();
+            if (keepOpenWhileFull && Inside() != null)
+                openedFull = true;
         }
         else
         {
@@ -84,7 +120,7 @@ public class AnimatedDrawer : MonoBehaviour, IInteractable
         }
         AudioClip clip = open ? openSound : closeSound;
         if (clip != null)
-            AudioSource.PlayClipAtPoint(clip, transform.position, volume);
+            SoundVariety.PlayAt(clip, transform.position, volume);
         (open ? onOpened : onClosed).Invoke();
     }
 
@@ -101,6 +137,12 @@ public class AnimatedDrawer : MonoBehaviour, IInteractable
 
     private void Update()
     {
+        // Opened with something in it and that has been taken: the drawer is done, it stays open and E ignores it.
+        if (openedFull && Time.time >= busyUntil && Inside() == null)
+        {
+            openedFull = false;
+            enabled = false;   // nothing for E here any more (the interactor skips a switched-off one)
+        }
         if (hideAt >= 0f && Time.time >= hideAt)
         {
             hideAt = -1f;

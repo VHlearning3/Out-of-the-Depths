@@ -3,7 +3,8 @@ using UnityEngine;
 
 // Makes a pickup stand out in the murk: a soft glow behind it that shows through the fog (the Sun Glow shader, sized
 // to the item and breathing slowly) and a small pulsing light that lights up what it lies on. The colour says what
-// kind of thing it is: keys gold, puzzle pieces sea green, weapons ice blue, pearls and shells pearly pink.
+// kind of thing it is: keys gold, puzzle pieces sea green, weapons ice blue, pearls and shells pearly pink. Weapons
+// (the dagger, the trident) glow bigger and brighter than the rest (Weapon Boost).
 // Pickup Item adds one to itself at start (its Beacon switch). The glow and light live outside the pickup, so the
 // outline, the highlight and the model fitting never see them; they follow it, and go when it is picked up, hidden
 // (a shut drawer) or gone.
@@ -20,6 +21,8 @@ public class PickupBeacon : MonoBehaviour
     [SerializeField] private float lightRange = 2.5f;
     [Tooltip("Seconds per pulse.")]
     [SerializeField] private float pulseSeconds = 2.2f;
+    [Tooltip("Weapons: the glow's size and strength and the light's brightness and reach are multiplied by this.")]
+    [SerializeField] private float weaponBoost = 1.8f;
 
     private static readonly Dictionary<ItemDefinition.Category, Material> materials = new Dictionary<ItemDefinition.Category, Material>();
     private static Transform holder;   // every beacon goes under one "Pickup Beacons" object, not loose in the scene
@@ -31,6 +34,7 @@ public class PickupBeacon : MonoBehaviour
     private Vector3 centre;     // the item's middle, in the pickup's space
     private float size;
     private float phase;
+    private float boost = 1f;
 
     public static Color ColourFor(ItemDefinition item)
     {
@@ -63,6 +67,8 @@ public class PickupBeacon : MonoBehaviour
         }
         centre = transform.InverseTransformPoint(bounds.center);
         size = Mathf.Max(minGlowSize, Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z) * glowScale);
+        boost = pickup.Item != null && pickup.Item.Kind == ItemDefinition.Category.Weapon ? Mathf.Max(1f, weaponBoost) : 1f;
+        size *= boost;
 
         Color colour = ColourFor(pickup.Item);
         if (holder == null)
@@ -70,7 +76,7 @@ public class PickupBeacon : MonoBehaviour
         beacon = new GameObject("Beacon (" + name + ")").transform;
         beacon.SetParent(holder, false);
 
-        Material material = MaterialFor(pickup.Item, colour);
+        Material material = MaterialFor(pickup.Item, colour, boost);
         if (material != null)
         {
             GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
@@ -89,7 +95,7 @@ public class PickupBeacon : MonoBehaviour
         glowLight = lightObject.AddComponent<Light>();
         glowLight.type = LightType.Point;
         glowLight.color = colour;
-        glowLight.range = lightRange;
+        glowLight.range = lightRange * boost;
         glowLight.shadows = LightShadows.None;
 
         beacon.gameObject.SetActive(isActiveAndEnabled);
@@ -127,7 +133,7 @@ public class PickupBeacon : MonoBehaviour
         Vector3 middle = transform.TransformPoint(centre);
         beacon.position = middle;
         float pulse = 0.5f + 0.5f * Mathf.Sin((Time.time + phase) * Mathf.PI * 2f / Mathf.Max(0.1f, pulseSeconds));
-        glowLight.intensity = lightIntensity * (0.5f + 0.5f * pulse);
+        glowLight.intensity = lightIntensity * boost * (0.5f + 0.5f * pulse);
 
         Camera camera = Camera.main;
         if (glow != null && camera != null)
@@ -143,7 +149,7 @@ public class PickupBeacon : MonoBehaviour
     }
 
     // One glow material per kind of item, shared by every pickup of that kind.
-    private Material MaterialFor(ItemDefinition item, Color colour)
+    private Material MaterialFor(ItemDefinition item, Color colour, float boost)
     {
         ItemDefinition.Category kind = item != null ? item.Kind : ItemDefinition.Category.PuzzlePiece;
         if (materials.TryGetValue(kind, out Material material) && material != null)
@@ -153,9 +159,9 @@ public class PickupBeacon : MonoBehaviour
             return null;
         material = new Material(shader) { name = "PickupGlow " + kind };
         material.SetColor("_Color", colour);
-        material.SetFloat("_Core", 0.35f * glowStrength);
+        material.SetFloat("_Core", 0.35f * glowStrength * boost);
         material.SetFloat("_CoreSize", 0.25f);
-        material.SetFloat("_Halo", 0.55f * glowStrength);
+        material.SetFloat("_Halo", 0.55f * glowStrength * boost);
         material.SetFloat("_Shimmer", 0.35f);
         materials[kind] = material;
         return material;

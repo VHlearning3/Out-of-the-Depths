@@ -48,7 +48,7 @@ public class DashIndicator : MonoBehaviour
             return;
 
         EnsureDot();
-        float scale = Screen.height / 1080f;
+        float scale = Screen.height / 1080f * UIScale.Hud;
         var centre = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
         float r = radius * scale;
         float size = dotSize * scale;

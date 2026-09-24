@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // Tools > Out of the Depths > Apply GDD HUD Layout: arranges the HUD like the GDD mock-up - fish-shaped hunger gauge
-// top-left (health under it), collectible counter + settings top-right, "(E) eat" keycap prompt bottom-centre,
+// top-left (health under it), collectible counter top-right, "(E) eat" keycap prompt bottom-centre,
 // inventory slots bottom-right. Only moves and creates, never deletes, so it is safe to re-run. The arena builder runs it.
 public static class HudLayoutTools
 {
@@ -33,7 +33,6 @@ public static class HudLayoutTools
         LayoutInventory(root);
         LayoutPrompt(root, white, font);
         EnsureCollectibleCounter(root, white, font, inventory);
-        EnsureSettingsButton(root, white, font);
 
         EditorSceneManager.MarkSceneDirty(hud.scene);
         Debug.Log("GDD HUD layout applied.");
@@ -185,26 +184,7 @@ public static class HudLayoutTools
         if (counterUi != null && inventory != null)
             SetReference(counterUi, "inventory", inventory);
 
-        Place(counter, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-(Margin + 56f), -Margin), new Vector2(140f, 40f));
-    }
-
-    // Placeholder for the gear: a Button with nothing wired yet (gameplay keeps the cursor locked until a pause menu exists).
-    private static void EnsureSettingsButton(RectTransform root, Sprite white, Font font)
-    {
-        RectTransform button = Child(root, "SettingsButton");
-        if (button == null)
-        {
-            button = NewRect("SettingsButton", root);
-            var image = button.gameObject.AddComponent<Image>();
-            image.sprite = white;
-            image.color = new Color(1f, 1f, 1f, 0.85f);
-            button.gameObject.AddComponent<Button>();
-            Text glyph = NewText("≡", button, font, 26, TextAnchor.MiddleCenter);
-            glyph.color = new Color(0.1f, 0.12f, 0.15f);
-            Stretch(glyph.rectTransform);
-        }
-
-        Place(button, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-Margin, -Margin), new Vector2(40f, 40f));
+        Place(counter, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-Margin, -Margin), new Vector2(140f, 40f));
     }
 
     // ---- helpers ------------------------------------------------------------------------------------------------

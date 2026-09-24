@@ -32,6 +32,8 @@ public class EdibleFish : MonoBehaviour, IInteractable
     {
         fishCollider = GetComponent<Collider>();
         renderers = GetComponentsInChildren<Renderer>();
+        if (GetComponent<FishController>() == null)
+            FishColors.Paint(gameObject, FishColors.Food);   // testing colour: a dead fish lying about to eat
     }
 
     public void Interact(GameObject interactor)
@@ -47,7 +49,7 @@ public class EdibleFish : MonoBehaviour, IInteractable
         hunger.Eat(hungerRestoreAmount);
 
         if (eatSound != null)
-            AudioSource.PlayClipAtPoint(eatSound, transform.position, eatVolume);
+            SoundVariety.PlayAt(eatSound, transform.position, eatVolume);
 
         if (consumedVfx != null)
             Instantiate(consumedVfx, transform.position, transform.rotation);

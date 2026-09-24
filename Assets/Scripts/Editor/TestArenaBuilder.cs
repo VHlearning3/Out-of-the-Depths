@@ -394,6 +394,9 @@ public static class TestArenaBuilder
         Door doorStone = SpawnDoor("Door_Stone", new Vector3(-5.2f, 0f, 14f), true, false, zone);
         Door doorBone = SpawnDoor("Door_BoneKey", new Vector3(-1f, 0f, 14f), true, false, zone);
         Door doorRunes = SpawnDoor("Door_Runes", new Vector3(3.2f, 0f, 14f), true, false, zone);
+        SetField(doorStone, "lockedHint", p => p.stringValue = "Locked. Piece the stone tablet together at the pedestal to open it.");
+        SetField(doorBone, "lockedHint", p => p.stringValue = "Locked. It takes the bone key: tie the three bone fragments together at the seaweed.");
+        SetField(doorRunes, "lockedHint", p => p.stringValue = "Locked. Enter the three symbols on the rune lock beside it.");
 
         // Pedestal: with the 3 stone fragments on you, E opens the puzzle board; piecing the tablet together opens the left door.
         GameObject pedestal = Box("Pedestal", new Vector3(0f, 0.6f, 6f), new Vector3(1.2f, 1.2f, 1.2f), PropColor, zone);
@@ -1194,7 +1197,7 @@ public static class TestArenaBuilder
 
     // The ship's look in the arena (Lighting Tools): the high sun and the ocean surface overhead (the arena is open to
     // the sky, so you see them looking up), the water light through the fish room windows, a cool fill down the roofed
-    // chase corridor, warm accents on the puzzles and the pickup shelf, and glowing algae in the corners.
+    // chase corridor, and warm accents on the puzzles and the pickup shelf.
     private static void BuildLighting()
     {
         Transform lights = Group("Lights");
@@ -1217,10 +1220,6 @@ public static class TestArenaBuilder
             ("PickupShelf", new Vector3(18f, 1.25f, -20f), new Vector3(18f, 5.5f, -17f)),
         })
             Accent(name, target, from, lights);
-
-        var random = new System.Random(5);
-        foreach (var (x, z) in new[] { (-28f, -28f), (27f, -27f), (28f, 28f), (-28f, 28f), (-27f, 0f), (5f, 25f) })
-            Algae(new Vector3(x, 0f, z), random, lights);
     }
 
     // Ship windows onto open water: the FishWindow prefabs cut their own holes in the north wall; a dark seabed and a few

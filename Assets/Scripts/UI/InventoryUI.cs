@@ -6,6 +6,8 @@ using UnityEngine.UI;
 // pops a little, and the item's full name reads under the bar. Everything is built at runtime from generated
 // sprites, so it needs no art; drop your own into Slot Fill / Slot Rim to replace the generated ones. The weapon slots
 // (Player Inventory's Weapon Slots, at the end) stand a little apart with a warm rim and a faint blade while empty.
+// With Auto Hide the bar fades away while it is not needed: it shows for a few seconds after you switch slots or get or
+// lose something, and while you look at something that wants an item (the red / green prompts).
 public class InventoryUI : MonoBehaviour
 {
     [Header("References")]
@@ -40,6 +42,12 @@ public class InventoryUI : MonoBehaviour
     [Tooltip("How faint an empty slot is.")]
     [SerializeField, Range(0f, 1f)] private float emptyAlpha = 0.45f;
 
+    [Header("Auto hide")]
+    [Tooltip("Fade the hotbar away while it is not needed (the Settings page can turn this off for the whole HUD).")]
+    [SerializeField] private bool autoHide = true;
+    [Tooltip("How long it stays up after you switch slots or the inventory changes.")]
+    [SerializeField] private float showSeconds = 3f;
+
     private RectTransform[] slots;
     private Image[] fills;
     private Image[] rims;
@@ -51,6 +59,8 @@ public class InventoryUI : MonoBehaviour
     private int selected;
     private Font font;
     private Sprite bladeSprite;
+    private HudAutoHide fade;
+    private PlayerInteractor interactor;
 
     private void OnEnable()
     {
@@ -79,6 +89,15 @@ public class InventoryUI : MonoBehaviour
         font = GameFont.Font;
         Build();
         Refresh();
+        if (autoHide)
+        {
+            fade = HudAutoHide.On(this, showSeconds);
+            interactor = inventory.GetComponentInParent<PlayerInteractor>();
+            if (interactor == null)
+                interactor = FindFirstObjectByType<PlayerInteractor>();
+            // Looking at a lock or socket that wants an item: the hotbar shows what you have.
+            fade.Needed = () => interactor != null && interactor.CurrentTarget is IPromptTone toned && toned.Tone != PromptTone.Normal;
+        }
     }
 
     private void Build()
@@ -220,6 +239,7 @@ public class InventoryUI : MonoBehaviour
             fills[i].color = slot.IsEmpty ? new Color(slotColor.r, slotColor.g, slotColor.b, slotColor.a * emptyAlpha) : slotColor;
         }
         UpdateNameLabel();
+        fade?.Wake();
     }
 
     private void OnSelectionChanged(int index)
@@ -232,6 +252,7 @@ public class InventoryUI : MonoBehaviour
             if (rims[i] != null)
                 rims[i].color = i == index ? selectedColor : inventory.IsWeaponSlot(i) ? weaponRimColor : rimColor;
         UpdateNameLabel();
+        fade?.Wake();
     }
 
     private void UpdateNameLabel()

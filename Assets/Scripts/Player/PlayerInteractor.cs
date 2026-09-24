@@ -11,18 +11,20 @@ public class PlayerInteractor : MonoBehaviour
     [SerializeField] private Transform interactOrigin;
 
     [Header("Interaction")]
-    [SerializeField] private float interactRange = 2.5f;
+    [SerializeField] private float interactRange = 2.2f;
     [SerializeField] private LayerMask interactableMask = ~0;
-    [Tooltip("How much the target has to be in front of the camera. 0 = anywhere around you, 1 = dead centre.")]
-    [SerializeField, Range(0f, 1f)] private float minLookAlignment = 0.3f;
-    [Tooltip("Only what you can actually see: a wall (anything solid that is not part of the thing itself) between your eyes and it rules it out.")]
-    [SerializeField] private bool needsLineOfSight = true;
+    [Tooltip("If the reticle is just off something small (a key on the floor), a beam this wide, in metres, round the line of sight still finds it. 0 = only exactly what the dot is on.")]
+    [SerializeField] private float aimAssist = 0.15f;
 
     [Header("Prompt")]
     [SerializeField] private Text promptLabel;
     [SerializeField] private string promptFormat = "Press E to {0}";
     [Tooltip("Optional: shown only while there is a target, e.g. the keycap + label group.")]
     [SerializeField] private GameObject promptRoot;
+    [Tooltip("Prompt text colour on a lock you cannot open yet, or something that needs an item you do not have.")]
+    [SerializeField] private Color blockedColor = new Color(1f, 0.36f, 0.32f);
+    [Tooltip("Prompt text colour once you have the item it needs in your hotbar.")]
+    [SerializeField] private Color readyColor = new Color(0.4f, 1f, 0.45f);
 
     [Header("Outline")]
     [Tooltip("A white outline around whatever you are looking at (the inverted-hull shader in Resources/Shaders).")]
@@ -57,8 +59,8 @@ public class PlayerInteractor : MonoBehaviour
     private InputAction interactAction;
     private GameObject currentTargetObject;
     private string hint;
-    private readonly Collider[] overlapResults = new Collider[16];
-    private readonly RaycastHit[] sightHits = new RaycastHit[16];
+    private Color promptColor = Color.white;   // the label's own colour, for everything else
+    private readonly RaycastHit[] rayHits = new RaycastHit[32];
     private Material outlineMaterial;
     // The outline material, for anything else that wants the same rim (a pickup being inspected).
     public Material OutlineMaterial => outlineMaterial;
@@ -66,6 +68,8 @@ public class PlayerInteractor : MonoBehaviour
     private void Awake()
     {
         interactAction = inputActions.FindActionMap("Player").FindAction("Interact");
+        if (promptLabel != null)
+            promptColor = promptLabel.color;
         SetupOutline();
     }
 
@@ -103,70 +107,60 @@ public class PlayerInteractor : MonoBehaviour
         CurrentTarget?.Interact(gameObject);
     }
 
-    // Nothing solid between the eyes and the nearest point of the target, other than the target's own parts (a door's
-    // leaf, a box's lid) and the player.
-    private bool InSight(Vector3 origin, Collider target, Component interactable)
+    // What the reticle (the dot in the middle of the screen) is on: a ray straight out of the camera through it, and
+    // the first thing it reaches within Interact Range. Something solid that is not interactable (a wall, the floor,
+    // a ceiling) stops it, so nothing behind it can be used; triggers that are not interactable (room volumes, live
+    // fish) are looked straight through. If the ray itself finds nothing, a beam Aim Assist wide round it tries again,
+    // for small things the dot is just off.
+    private void FindTarget(out IInteractable best, out GameObject bestObject)
     {
-        Vector3 point = target is MeshCollider mesh && !mesh.convex ? target.bounds.ClosestPoint(origin) : target.ClosestPoint(origin);
-        Vector3 delta = point - origin;
-        float distance = delta.magnitude;
-        if (distance < 0.05f)
-            return true;   // right on it (or inside it)
-        int count = Physics.RaycastNonAlloc(origin, delta / distance, sightHits, distance - 0.02f, ~0, QueryTriggerInteraction.Ignore);
-        for (int i = 0; i < count; i++)
-        {
-            Collider hit = sightHits[i].collider;
-            if (hit == target || PlayerBody.Is(hit) || hit.transform.IsChildOf(transform))
-                continue;
-            // Part of the thing itself: inside it, the object it sits on (a lock on its box), or the same interactable.
-            if (hit.transform.IsChildOf(interactable.transform) || interactable.transform.IsChildOf(hit.transform) || ReferenceEquals(hit.GetComponentInParent<IInteractable>(), interactable))
-                continue;
-            // Something the target sits inside (a key in a drawer, an item in its box): that is its container, not a wall.
-            if (hit.bounds.Contains(point))
-                continue;
-            return false;
-        }
-        return true;
+        Camera eye = Camera.main;
+        Transform from = eye != null ? eye.transform : interactOrigin != null ? interactOrigin : transform;
+        var ray = new Ray(from.position, from.forward);
+        if (!FirstAlong(ray, 0f, out best, out bestObject) && aimAssist > 0f)
+            FirstAlong(ray, aimAssist, out best, out bestObject);
     }
 
-    private void FindTarget(out IInteractable best, out GameObject bestObject)
+    // The first usable interactable along the ray (or beam), unless something solid comes first.
+    private bool FirstAlong(Ray ray, float radius, out IInteractable best, out GameObject bestObject)
     {
         best = null;
         bestObject = null;
-        float bestScore = float.MinValue;
+        int count = radius > 0f
+            ? Physics.SphereCastNonAlloc(ray, radius, rayHits, interactRange, interactableMask, QueryTriggerInteraction.Collide)
+            : Physics.RaycastNonAlloc(ray, rayHits, interactRange, interactableMask, QueryTriggerInteraction.Collide);
 
-        Vector3 origin = interactOrigin != null ? interactOrigin.position : transform.position;
-        Vector3 forward = interactOrigin != null ? interactOrigin.forward : transform.forward;
+        // Nearest first (a short insertion sort: there are only ever a few).
+        for (int i = 1; i < count; i++)
+        {
+            RaycastHit hit = rayHits[i];
+            int j = i - 1;
+            while (j >= 0 && rayHits[j].distance > hit.distance)
+            {
+                rayHits[j + 1] = rayHits[j];
+                j--;
+            }
+            rayHits[j + 1] = hit;
+        }
 
-        // Include triggers explicitly: checkpoint plates and other "walk-through" interactables use trigger colliders.
-        int count = Physics.OverlapSphereNonAlloc(origin, interactRange, overlapResults, interactableMask, QueryTriggerInteraction.Collide);
         for (int i = 0; i < count; i++)
         {
-            var interactable = overlapResults[i].GetComponentInParent<IInteractable>();
-            if (interactable == null)
+            Collider hit = rayHits[i].collider;
+            if (hit == null || PlayerBody.Is(hit) || hit.transform.IsChildOf(transform))
                 continue;
-
-            // A disabled interactable (e.g. a fish that is still alive) is not a valid target.
-            if (interactable is Behaviour behaviour && !behaviour.isActiveAndEnabled)
-                continue;
-
-            Vector3 toTarget = overlapResults[i].bounds.center - origin;
-            float distance = toTarget.magnitude;
-            float alignment = distance > 0.001f ? Vector3.Dot(forward, toTarget / distance) : 1f;
-            if (alignment < minLookAlignment)
-                continue;
-            if (needsLineOfSight && !InSight(origin, overlapResults[i], (Component)interactable))
-                continue;
-
-            // Prefer what you're looking at, then what's closest.
-            float score = alignment * 2f - distance / interactRange;
-            if (score <= bestScore)
-                continue;
-
-            bestScore = score;
-            best = interactable;
-            bestObject = ((Component)interactable).gameObject;
+            var interactable = hit.GetComponentInParent<IInteractable>();
+            // A switched-off interactable (a fish that is still alive, a drawer that is done) is not a target.
+            bool usable = interactable != null && !(interactable is Behaviour behaviour && !behaviour.isActiveAndEnabled);
+            if (usable)
+            {
+                best = interactable;
+                bestObject = ((Component)interactable).gameObject;
+                return true;
+            }
+            if (!hit.isTrigger)
+                return false;   // a wall, the floor: nothing behind it counts
         }
+        return false;
     }
 
     private void SetTarget(IInteractable target, GameObject targetObject)
@@ -201,7 +195,11 @@ public class PlayerInteractor : MonoBehaviour
     {
         string text = promptHidden ? string.Empty : CurrentTarget != null ? string.Format(promptFormat, CurrentTarget.Prompt) : (hint ?? string.Empty);
         if (promptLabel != null)
+        {
             promptLabel.text = text;
+            PromptTone tone = !promptHidden && CurrentTarget is IPromptTone toned ? toned.Tone : PromptTone.Normal;
+            promptLabel.color = tone == PromptTone.Blocked ? blockedColor : tone == PromptTone.Ready ? readyColor : promptColor;
+        }
         if (promptRoot != null)
             promptRoot.SetActive(text.Length > 0);
     }

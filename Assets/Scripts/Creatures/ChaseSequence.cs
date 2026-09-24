@@ -109,6 +109,22 @@ public class ChaseSequence : MonoBehaviour
     [Tooltip("Extra degrees of field of view at full danger: the view widens as panic sets in. 0 = none.")]
     [SerializeField] private float fovBoost = 8f;
 
+    [Header("Sealed in")]
+    [Tooltip("When the chase starts the Start Door slams shut behind the player and stays locked until Unseal When is filled, so there is no way back out before the fragments are in. Dying opens it again.")]
+    [SerializeField] private bool sealStartDoor = true;
+    [Tooltip("The socket that opens it again (the stone tablet the fragments go into). Empty = the Item Socket on the object named RuneTablet; with none at all it opens when the chase ends.")]
+    [SerializeField] private ItemSocket unsealWhen;
+    [Tooltip("What trying the sealed door says.")]
+    [SerializeField] private string sealedHint = "It slammed shut behind you. Put the stone fragments in the tablet at the end of the hallway to open it.";
+
+    [Header("The end (the trident and the rubble)")]
+    [Tooltip("Once the player is this close to the pickup that drops End Rubble (the trident), the pack slows down...")]
+    [SerializeField] private float endSlowRadius = 12f;
+    [Tooltip("...to this share of its speed by the time the player is at it.")]
+    [SerializeField, Range(0f, 1f)] private float endSlowSpeed = 0.3f;
+    [Tooltip("And once the player is past the rubble line, the pack will not cross it: it stays this far short of the rubble's middle (metres), so it is still behind the rubble when it falls.")]
+    [SerializeField] private float holdBehindRubble = 2f;
+
     [Header("Events")]
     public UnityEvent onStarted = new UnityEvent();
     public UnityEvent onEnded = new UnityEvent();
@@ -121,6 +137,7 @@ public class ChaseSequence : MonoBehaviour
     // The start door is open and the chase starts as soon as the player is in the start trigger.
     public bool IsArmed { get; private set; }
     public bool InCutscene => cutsceneActive;
+    public RubbleFall EndRubble => endRubble;
     public float Danger01 { get; private set; }
     // The hunting pursuer closest to the player right now (the HUD marker points at it), or null.
     public Transform NearestPursuer { get; private set; }
@@ -157,6 +174,8 @@ public class ChaseSequence : MonoBehaviour
 
     private void Awake()
     {
+        if (GetComponent<ChaseGuide>() == null)
+            gameObject.AddComponent<ChaseGuide>();   // the on-screen steps and marker: what to do next
         if (pursuers == null || pursuers.Length == 0)
             pursuers = GetComponentsInChildren<ChasePufferfish>(true);
         if (grate != null)
@@ -275,7 +294,45 @@ public class ChaseSequence : MonoBehaviour
         {
             Burst(true);
         }
+        Seal();
         onStarted.Invoke();
+    }
+
+    private bool sealedIn;
+    private ItemSocket sealSocket;
+
+    // The start door shuts and locks behind the player until the tablet is filled (Sealed In).
+    private void Seal()
+    {
+        if (!sealStartDoor || startDoor == null || sealedIn)
+            return;
+        if (unsealWhen == null)
+            foreach (ItemSocket socket in FindObjectsByType<ItemSocket>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (socket.name == "RuneTablet")
+                {
+                    unsealWhen = socket;
+                    break;
+                }
+        if (unsealWhen != null && unsealWhen.IsFilled)
+            return;   // the fragments are in already (a restart): nothing to keep the player in for
+        sealedIn = true;
+        startDoor.Close();
+        startDoor.Lock(sealedHint);
+        sealSocket = unsealWhen;
+        if (sealSocket != null)
+            sealSocket.onFilled.AddListener(Unseal);
+    }
+
+    private void Unseal()
+    {
+        if (!sealedIn)
+            return;
+        sealedIn = false;
+        if (startDoor != null)
+            startDoor.Unlock();
+        if (sealSocket != null)
+            sealSocket.onFilled.RemoveListener(Unseal);
+        sealSocket = null;
     }
 
     // The moment it all kicks off: the start sound, the grate flying, the pack released (the first one at once if firstNow).
@@ -306,6 +363,7 @@ public class ChaseSequence : MonoBehaviour
         NearestPursuer = null;
         StopTension(false);
         HidePrompt(false);
+        Unseal();
         Play(endSound);
         onEnded.Invoke();
     }
@@ -318,6 +376,13 @@ public class ChaseSequence : MonoBehaviour
         StopReleasing();
         IsRunning = false;
         IsFinished = false;
+        if (sealedIn)
+        {
+            // Starting over (the player died): the door opens again as it was when the chase began.
+            Unseal();
+            if (startDoor != null)
+                startDoor.Open();
+        }
         IsArmed = startDoor != null && startDoor.IsOpen && startTrigger != null;
         Danger01 = 0f;
         NearestPursuer = null;
@@ -387,6 +452,48 @@ public class ChaseSequence : MonoBehaviour
 
     // ---- while it runs --------------------------------------------------------------------------------------------
 
+    // Near the end the pack slows as the player closes on the trident, and once the player is over the rubble line it
+    // stays behind it (Chase Pufferfish Hold Behind), so taking the trident brings the rubble down between them.
+    private void HoldAtTheEnd()
+    {
+        PickupItem trident = endRubble != null ? endRubble.DropOnPickup : null;
+        if (trident == null || endRubble.Dropped || player == null)
+        {
+            ReleaseHold();
+            return;
+        }
+        Vector3 playerAt = player.transform.position;
+        float toTrident = Vector3.Distance(playerAt, trident.transform.position);
+        float limit = Mathf.Lerp(endSlowSpeed, 1f, Mathf.InverseLerp(endSlowRadius * 0.3f, endSlowRadius, toTrident));
+
+        Vector3 line = endRubble.Blocker != null ? endRubble.Blocker.transform.position : endRubble.transform.position;   // (its bounds are empty until it drops)
+        Vector3 away = trident.transform.position - line;
+        away.y = 0f;
+        bool past = away.sqrMagnitude > 0.01f && Vector3.Dot(playerAt - line, away) > 0f;
+        foreach (ChasePufferfish fish in pursuers)
+        {
+            if (fish == null)
+                continue;
+            fish.SpeedLimit = limit;
+            if (past)
+                fish.HoldBehind(line, away, holdBehindRubble);
+            else
+                fish.StopHolding();
+        }
+    }
+
+    private void ReleaseHold()
+    {
+        if (pursuers == null)
+            return;
+        foreach (ChasePufferfish fish in pursuers)
+            if (fish != null)
+            {
+                fish.SpeedLimit = 1f;
+                fish.StopHolding();
+            }
+    }
+
     private void Update()
     {
         // The start trigger (after the start door, if there is one): once the player's middle is inside it.
@@ -407,6 +514,8 @@ public class ChaseSequence : MonoBehaviour
             }
             return;
         }
+
+        HoldAtTheEnd();
 
         float nearest = float.PositiveInfinity;
         Transform nearestFish = null;
@@ -721,7 +830,7 @@ public class ChaseSequence : MonoBehaviour
     private void PlayAt(AudioClip clip, Vector3 position)
     {
         if (clip != null)
-            AudioSource.PlayClipAtPoint(clip, position, volume);
+            SoundVariety.PlayAt(clip, position, volume);
     }
 
     // Scene view: the pack's start points and what starts / ends the chase.
@@ -751,6 +860,6 @@ public class ChaseSequence : MonoBehaviour
     private void Play(AudioClip clip)
     {
         if (clip != null && player != null)
-            AudioSource.PlayClipAtPoint(clip, player.transform.position, volume);
+            SoundVariety.PlayAt(clip, player.transform.position, volume);
     }
 }

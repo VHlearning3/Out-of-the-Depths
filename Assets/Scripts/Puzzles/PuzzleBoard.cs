@@ -24,6 +24,10 @@ public class PuzzleBoard : MonoBehaviour
     private static Sprite fallbackTile;
 
     public static bool IsOpen => instance != null && instance.open;
+    // Testing (admin page switch, on for now): a row puzzle (the runes) shows its answer: the order written under the
+    // title, a faint picture of the right tile in each slot and the slot number on each tile that belongs.
+    public static bool ShowAnswer { get; set; } = true;
+    private static readonly Color AnswerColor = new Color(0.75f, 0.1f, 0.5f);
 
     private PuzzleDefinition puzzle;
     private Action onSolved;
@@ -223,7 +227,11 @@ public class PuzzleBoard : MonoBehaviour
             Image slot = NewImage("Slot" + i, board, puzzle.slot != null ? puzzle.slot : FallbackSlot, Color.white);
             Place(slot.rectTransform, Middle, new Vector2((i - (count - 1) * 0.5f) * (slotSize + 12f), slotY), new Vector2(slotSize, slotSize));
             slots.Add(slot.gameObject.AddComponent<PuzzleSlot>().Init(i));
+            if (ShowAnswer)
+                AnswerGhost(slot.rectTransform, TileFor(puzzle.solution[i]));
         }
+        if (ShowAnswer)
+            AnswerLine(slotY + slotSize * 0.5f + 26f);
 
         List<PuzzleDefinition.Tile> order = Shuffled();
         int columns = Mathf.Max(1, Mathf.Min(puzzle.tilesPerRow, order.Count));
@@ -250,8 +258,65 @@ public class PuzzleBoard : MonoBehaviour
             {
                 Label(frame.rectTransform, order[k]);
             }
+            if (ShowAnswer)
+                AnswerBadge(frame.rectTransform, order[k].id);
             frame.gameObject.AddComponent<PuzzleTile>().Init(this, order[k].id, canvasRect);
         }
+    }
+
+    // ---- the answer, for testing (Show Answer) ----
+
+    // "Answer (testing): triangle > square > spiral", just above the slots.
+    private void AnswerLine(float y)
+    {
+        var names = new List<string>();
+        foreach (string id in puzzle.solution)
+            names.Add(System.Text.RegularExpressions.Regex.Replace(id ?? "", @"(\p{L})(\d)", "$1 $2"));   // "symbol1" reads "symbol 1"
+        Text line = NewText("Answer", board, "Answer (testing):  " + string.Join("  >  ", names), 24, AnswerColor);
+        line.fontStyle = FontStyle.Bold;
+        line.raycastTarget = false;
+        Place(line.rectTransform, Middle, new Vector2(0f, y), new Vector2(puzzle.boardSize.x - 200f, 34f));
+    }
+
+    // A faint picture of the tile that goes in this slot (or its name).
+    private void AnswerGhost(RectTransform slot, PuzzleDefinition.Tile tile)
+    {
+        if (tile == null)
+            return;
+        if (tile.art != null)
+        {
+            Image ghost = NewImage("Answer", slot, tile.art, new Color(1f, 1f, 1f, 0.28f));
+            ghost.preserveAspect = true;
+            ghost.raycastTarget = false;
+            ghost.rectTransform.anchorMin = Vector2.zero;
+            ghost.rectTransform.anchorMax = Vector2.one;
+            ghost.rectTransform.offsetMin = new Vector2(20f, 20f);
+            ghost.rectTransform.offsetMax = new Vector2(-20f, -20f);
+        }
+        else
+        {
+            Text name = NewText("Answer", slot, string.IsNullOrEmpty(tile.label) ? tile.id : tile.label, 20, new Color(AnswerColor.r, AnswerColor.g, AnswerColor.b, 0.5f));
+            Stretch(name.rectTransform);
+            name.raycastTarget = false;
+        }
+    }
+
+    // The slot number(s) a tile goes in, in its top-left corner; nothing on tiles that are not part of the answer.
+    private void AnswerBadge(RectTransform tile, string id)
+    {
+        var at = new List<string>();
+        for (int i = 0; i < puzzle.SlotCount; i++)
+            if (puzzle.solution[i] == id)
+                at.Add((i + 1).ToString());
+        if (at.Count == 0)
+            return;
+        Text badge = NewText("AnswerNumber", tile, string.Join(",", at), 30, AnswerColor);
+        badge.fontStyle = FontStyle.Bold;
+        badge.alignment = TextAnchor.UpperLeft;
+        badge.raycastTarget = false;
+        Stretch(badge.rectTransform);
+        badge.rectTransform.offsetMin = new Vector2(10f, 0f);
+        badge.rectTransform.offsetMax = new Vector2(0f, -4f);
     }
 
     // Picture: the picture on the left with a spot for each piece (a faint silhouette of the piece that goes there);

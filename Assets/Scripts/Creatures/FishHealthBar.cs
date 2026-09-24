@@ -109,7 +109,7 @@ public class FishHealthBar : MonoBehaviour
         if (Event.current.type != EventType.Repaint || alpha <= 0f || target == null)
             return;
         EnsureDrawing();
-        float scale = Screen.height / 1080f;
+        float scale = Screen.height / 1080f * UIScale.Hud;
         float width = size.x * scale, height = Mathf.Max(4f, size.y * scale);
         var bar = new Rect((Screen.width - width) * 0.5f, top * scale, width, height);
         Color keep = GUI.color;

@@ -1004,6 +1004,12 @@ public class Seaweed : MonoBehaviour
             float snake = length * Rand(0.04f, 0.1f);
             float snakePhase = Rand(0f, Mathf.PI * 2f);
             Vector3 root = Centreline(h, shape, amp, phase);
+            // Never higher than the top of the stalk: the builders fit each plant under a ceiling, and a leaf that
+            // reached past it would poke through into the room above.
+            float headroom = shape.height - root.y;
+            if (headroom < 0.25f)
+                continue;
+            length = Mathf.Min(length, headroom);
 
             var path = new List<Vector3>();
             var across = new List<Vector3>();
