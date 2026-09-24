@@ -27,7 +27,8 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
         Stepper,
         Button,
         HudSize,
-        HudAutoHide
+        HudAutoHide,
+        DirectionIndicators
     }
 
     [Serializable]
@@ -258,6 +259,10 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
                 HudAutoHide.Enabled = MenuGUI.SwitchRow(row.label, HudAutoHide.Enabled);
                 break;
 
+            case RowType.DirectionIndicators:
+                DirectionIndicators.Enabled = MenuGUI.SwitchRow(row.label, DirectionIndicators.Enabled);
+                break;
+
             case RowType.ResetToDefaults:
                 if (MenuGUI.ButtonRow(row.label, row.buttonText))
                     ResetToDefaults();
@@ -368,6 +373,8 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
         UIScale.Reset();
         PlayerPrefs.DeleteKey(HudAutoHide.PrefsKey);
         HudAutoHide.Enabled = true;
+        PlayerPrefs.DeleteKey(DirectionIndicators.PrefsKey);
+        DirectionIndicators.Enabled = true;
         if (swimmer != null && defaultSensitivity > 0f)
             swimmer.MouseSensitivity = defaultSensitivity;
         PlayerPrefs.DeleteKey(SensitivityKey);
@@ -403,6 +410,11 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
             int at = rows.FindIndex(r => r.type == RowType.HudSize);
             rows.Insert(at + 1, new Row { type = RowType.HudAutoHide, label = "Hide HUD when not needed" });
         }
+        if (!rows.Exists(r => r.type == RowType.DirectionIndicators))
+        {
+            int at = rows.FindIndex(r => r.type == RowType.HudAutoHide);
+            rows.Insert(at + 1, new Row { type = RowType.DirectionIndicators, label = "Direction indicators" });
+        }
     }
 
     [ContextMenu("Fill with the default rows")]
@@ -419,6 +431,7 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
         rows.Add(new Row { type = RowType.MouseSensitivity, label = "Mouse sensitivity", min = 0.03f, max = 0.4f });
         rows.Add(new Row { type = RowType.HudSize, label = "HUD size" });
         rows.Add(new Row { type = RowType.HudAutoHide, label = "Hide HUD when not needed" });
+        rows.Add(new Row { type = RowType.DirectionIndicators, label = "Direction indicators" });
         rows.Add(new Row { type = RowType.ResetToDefaults, label = "Everything above", buttonText = "Reset to defaults" });
         rows.Add(new Row { type = RowType.Note, label = "Resolution and fullscreen take effect straight away and are remembered by the game on its own." });
         rowsFilled = true;

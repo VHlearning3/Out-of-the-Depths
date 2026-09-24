@@ -25,6 +25,8 @@ public class PlayerInteractor : MonoBehaviour
     [SerializeField] private Color blockedColor = new Color(1f, 0.36f, 0.32f);
     [Tooltip("Prompt text colour once you have the item it needs in your hotbar.")]
     [SerializeField] private Color readyColor = new Color(0.4f, 1f, 0.45f);
+    [Tooltip("Dress the keycap prompt in the HUD style while its keycap is the plain white placeholder: a dark rounded pill, a light keycap showing the key Interact is really bound to (Keybindings), and the text in the HUD colours.")]
+    [SerializeField] private bool styledPrompt = true;
 
     [Header("Outline")]
     [Tooltip("A white outline around whatever you are looking at (the inverted-hull shader in Resources/Shaders).")]
@@ -70,7 +72,115 @@ public class PlayerInteractor : MonoBehaviour
         interactAction = inputActions.FindActionMap("Player").FindAction("Interact");
         if (promptLabel != null)
             promptColor = promptLabel.color;
+        if (styledPrompt)
+            StylePrompt();
         SetupOutline();
+        RefreshPrompt();   // hidden until there is something to say (it starts shown in the scene)
+    }
+
+    // ---- The prompt's look ---------------------------------------------------------------------------------------------
+
+    private Text keyLabel;
+    private LayoutElement keyElement;
+
+    private void StylePrompt()
+    {
+        if (promptRoot == null)
+            return;
+        Transform keycap = promptRoot.transform.Find("Keycap");
+        Image keyImage = keycap != null ? keycap.GetComponent<Image>() : null;
+        if (keyImage == null || !(keyImage.sprite == null || keyImage.sprite.name.StartsWith("UI_White")))
+            return;
+
+        keyImage.sprite = HudStyle.Rounded;
+        keyImage.type = Image.Type.Sliced;
+        keyImage.pixelsPerUnitMultiplier = 2f;   // 6 px corners
+        keyImage.color = HudStyle.KeyCap;
+        keyElement = keycap.GetComponent<LayoutElement>();
+        if (keyElement != null)
+        {
+            keyElement.preferredWidth = 30f;
+            keyElement.preferredHeight = 30f;
+        }
+        keyLabel = keycap.GetComponentInChildren<Text>();
+        if (keyLabel != null)
+        {
+            keyLabel.color = HudStyle.KeyInk;
+            keyLabel.fontSize = 18;
+            keyLabel.fontStyle = FontStyle.Normal;
+            keyLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
+        }
+
+        // The pill behind keycap and text, and its hairline rim.
+        var back = promptRoot.GetComponent<Image>();
+        if (back == null)
+            back = promptRoot.AddComponent<Image>();
+        back.sprite = HudStyle.Pill;
+        back.type = Image.Type.Sliced;
+        back.color = HudStyle.Ink;
+        back.raycastTarget = false;
+        var rimObject = new GameObject("Rim", typeof(RectTransform));
+        rimObject.transform.SetParent(promptRoot.transform, false);
+        rimObject.transform.SetAsFirstSibling();
+        rimObject.AddComponent<LayoutElement>().ignoreLayout = true;
+        var rim = rimObject.AddComponent<Image>();
+        rim.sprite = HudStyle.PillRim;
+        rim.type = Image.Type.Sliced;
+        rim.color = HudStyle.Rim;
+        rim.raycastTarget = false;
+        var rimRect = rim.rectTransform;
+        rimRect.anchorMin = Vector2.zero;
+        rimRect.anchorMax = Vector2.one;
+        rimRect.offsetMin = Vector2.zero;
+        rimRect.offsetMax = Vector2.zero;
+
+        var layout = promptRoot.GetComponent<HorizontalLayoutGroup>();
+        if (layout != null)
+        {
+            layout.padding = new RectOffset(7, 18, 6, 6);
+            layout.spacing = 10f;
+        }
+        if (promptLabel != null)
+        {
+            promptLabel.fontSize = 20;
+            promptColor = HudStyle.Text;
+            promptLabel.color = promptColor;
+            if (promptLabel.GetComponent<Shadow>() == null)
+            {
+                var shadow = promptLabel.gameObject.AddComponent<Shadow>();
+                shadow.effectColor = new Color(0f, 0f, 0f, 0.5f);
+                shadow.effectDistance = new Vector2(1f, -1.5f);
+            }
+        }
+        blockedColor = HudStyle.Blocked;
+        readyColor = HudStyle.Ready;
+        RefreshKey();
+    }
+
+    // The keycap shows the key Interact is bound to (the first keyboard or mouse binding), so a rebind shows too.
+    private void RefreshKey()
+    {
+        if (keyLabel == null || interactAction == null)
+            return;
+        string key = "E";
+        for (int i = 0; i < interactAction.bindings.Count; i++)
+        {
+            InputBinding binding = interactAction.bindings[i];
+            string path = binding.effectivePath;
+            if (binding.isComposite || binding.isPartOfComposite || string.IsNullOrEmpty(path) || !(path.StartsWith("<Keyboard>") || path.StartsWith("<Mouse>")))
+                continue;
+            string shown = interactAction.GetBindingDisplayString(i, InputBinding.DisplayStringOptions.DontIncludeInteractions);
+            if (!string.IsNullOrEmpty(shown))
+            {
+                key = shown.ToUpperInvariant();
+                break;
+            }
+        }
+        if (keyLabel.text == key)
+            return;
+        keyLabel.text = key;
+        if (keyElement != null)
+            keyElement.preferredWidth = Mathf.Max(30f, keyLabel.preferredWidth + 16f);
     }
 
     private void OnEnable()
@@ -170,6 +280,8 @@ public class PlayerInteractor : MonoBehaviour
         CurrentTarget = target;
         currentTargetObject = targetObject;
         NotifyTargeted(currentTargetObject, true);
+        if (target != null)
+            RefreshKey();
         if (outlineMaterial != null)
             OutlineHull.Show(currentTargetObject, outlineMaterial);
 
@@ -201,7 +313,7 @@ public class PlayerInteractor : MonoBehaviour
             promptLabel.color = tone == PromptTone.Blocked ? blockedColor : tone == PromptTone.Ready ? readyColor : promptColor;
         }
         if (promptRoot != null)
-            promptRoot.SetActive(text.Length > 0);
+            promptRoot.SetActive(!string.IsNullOrWhiteSpace(text));   // never a keycap with nothing beside it
     }
 
     // The outline material, from the shader in Resources/Shaders. Tweak the fields above in Play mode and it follows.

@@ -30,10 +30,6 @@ public class FishHealthBar : MonoBehaviour
     private float shown;        // the fill as drawn, easing to the real health
     private float trailing;     // the pale chunk behind it, draining after a hit
     private float alpha;
-    private Texture2D rounded;
-    private GUIStyle nameStyle;
-    private GUIStyle valueStyle;
-    private GUIStyle frameStyle;
 
     public static void Ensure()
     {
@@ -104,73 +100,35 @@ public class FishHealthBar : MonoBehaviour
         return best != null && bestDistance <= wall ? best : null;
     }
 
+    // In the HUD style (HudStyle): the name on the left above a slim rounded bar, the health on the right, a dark pill
+    // with a hairline rim behind the fill and the pale chunk. Under the chase's objective card when that is up.
     private void OnGUI()
     {
         if (Event.current.type != EventType.Repaint || alpha <= 0f || target == null)
             return;
-        EnsureDrawing();
-        float scale = Screen.height / 1080f * UIScale.Hud;
-        float width = size.x * scale, height = Mathf.Max(4f, size.y * scale);
-        var bar = new Rect((Screen.width - width) * 0.5f, top * scale, width, height);
-        Color keep = GUI.color;
+        float scale = HudStyle.Scale;
+        float width = size.x * 0.7f * scale, height = Mathf.Max(5f, size.y * 0.7f * scale);
+        float y = Mathf.Max(top * scale + 30f * scale, ChaseGuide.CardBottom + 40f * scale);
+        var bar = new Rect((Screen.width - width) * 0.5f, y, width, height);
 
         // The name above the bar on the left, the health on the right.
-        nameStyle.fontSize = Mathf.RoundToInt(20f * scale);
-        valueStyle.fontSize = Mathf.RoundToInt(15f * scale);
-        var label = new Rect(bar.x, bar.y - 28f * scale, bar.width, 24f * scale);
-        GUI.color = new Color(0f, 0f, 0f, 0.6f * alpha);
-        GUI.Label(new Rect(label.x + 2f, label.y + 2f, label.width, label.height), target.Name, nameStyle);
-        GUI.color = new Color(nameColor.r, nameColor.g, nameColor.b, alpha);
-        GUI.Label(label, target.Name, nameStyle);
-        GUI.color = new Color(nameColor.r, nameColor.g, nameColor.b, 0.75f * alpha);
-        GUI.Label(label, Mathf.CeilToInt(target.Health.CurrentHealth) + " / " + Mathf.CeilToInt(target.Health.MaxHealth), valueStyle);
+        GUIStyle nameStyle = HudStyle.Label(Mathf.Max(9, Mathf.RoundToInt(16f * scale)), TextAnchor.LowerLeft);
+        GUIStyle valueStyle = HudStyle.Label(Mathf.Max(8, Mathf.RoundToInt(12f * scale)), TextAnchor.LowerRight);
+        var label = new Rect(bar.x, bar.y - 26f * scale, bar.width, 22f * scale);
+        HudStyle.Write(label, target.Name, nameStyle, nameColor, alpha);
+        HudStyle.Write(label, Mathf.CeilToInt(target.Health.CurrentHealth) + " / " + Mathf.CeilToInt(target.Health.MaxHealth), valueStyle, HudStyle.Muted, alpha);
 
-        // The frame, the lost chunk, the fill.
-        float pad = Mathf.Max(2f, 3f * scale);
+        // The pill, the lost chunk, the fill.
+        float pad = Mathf.Max(2f, 2.5f * scale);
         var frame = new Rect(bar.x - pad, bar.y - pad, bar.width + pad * 2f, bar.height + pad * 2f);
-        GUI.color = new Color(frameColor.r, frameColor.g, frameColor.b, frameColor.a * alpha);
-        GUI.Box(frame, GUIContent.none, frameStyle);   // 9-sliced: the corners stay round on a long thin bar
+        HudStyle.Panel(frame, frame.height * 0.5f, new Color(frameColor.r, frameColor.g, frameColor.b, Mathf.Max(frameColor.a, 0.72f)), HudStyle.Rim, alpha);
+        float radius = bar.height * 0.5f;
         if (trailing > shown)
-        {
-            GUI.color = new Color(lostColor.r, lostColor.g, lostColor.b, lostColor.a * alpha);
-            GUI.DrawTexture(new Rect(bar.x + bar.width * shown, bar.y, bar.width * (trailing - shown), bar.height), Texture2D.whiteTexture);
-        }
+            HudStyle.Fill(new Rect(bar.x, bar.y, Mathf.Max(bar.height, bar.width * trailing), bar.height), radius, new Color(lostColor.r, lostColor.g, lostColor.b, lostColor.a * alpha * 0.8f));
         if (shown > 0f)
         {
             Color fill = Color.Lerp(lowColor, fullColor, shown);
-            GUI.color = new Color(fill.r, fill.g, fill.b, alpha);
-            GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * shown, bar.height), Texture2D.whiteTexture);
-        }
-        GUI.color = keep;
-    }
-
-    private void EnsureDrawing()
-    {
-        if (rounded == null)
-        {
-            const int size = 32;
-            const float radius = 8f;
-            rounded = new Texture2D(size, size, TextureFormat.RGBA32, false) { hideFlags = HideFlags.DontSave, wrapMode = TextureWrapMode.Clamp };
-            var pixels = new Color32[size * size];
-            float half = size * 0.5f;
-            for (int y = 0; y < size; y++)
-                for (int x = 0; x < size; x++)
-                {
-                    float px = Mathf.Abs(x + 0.5f - half) - (half - radius);
-                    float py = Mathf.Abs(y + 0.5f - half) - (half - radius);
-                    float d = new Vector2(Mathf.Max(px, 0f), Mathf.Max(py, 0f)).magnitude + Mathf.Min(Mathf.Max(px, py), 0f) - radius;
-                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(0.5f - d) * 255f));
-                }
-            rounded.SetPixels32(pixels);
-            rounded.Apply();
-            frameStyle = new GUIStyle { border = new RectOffset(9, 9, 9, 9) };
-            frameStyle.normal.background = rounded;
-        }
-        if (nameStyle == null)
-        {
-            nameStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.LowerLeft, fontStyle = FontStyle.Bold, wordWrap = false, clipping = TextClipping.Overflow, font = GameFont.Font };
-            nameStyle.normal.textColor = Color.white;
-            valueStyle = new GUIStyle(nameStyle) { alignment = TextAnchor.LowerRight, fontStyle = FontStyle.Normal };
+            HudStyle.Fill(new Rect(bar.x, bar.y, Mathf.Max(bar.height, bar.width * shown), bar.height), radius, new Color(fill.r, fill.g, fill.b, alpha));
         }
     }
 }

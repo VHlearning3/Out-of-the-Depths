@@ -309,6 +309,15 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
         string state = chase.IsRunning ? "running" : chase.IsFinished ? "over (rubble down)" : "waiting";
         GUILayout.Label($"{chase.name}: {state}   danger {chase.Danger01:0.00}", noteStyle);
         GUILayout.BeginHorizontal();
+        if (MenuGUI.Button("Go to its start") && chase.StartSpot(out Vector3 spot, out Vector3 vent))
+        {
+            Teleport(spot);
+            if (swimmer != null)
+            {
+                Vector2 look = swimmer.AnglesToward(vent);
+                swimmer.SetLookAngles(look.x, look.y);
+            }
+        }
         if (MenuGUI.Button("Start")) chase.Begin();
         if (MenuGUI.Button("End (pack leaves)")) chase.End();
         if (MenuGUI.Button("Reset")) chase.ResetChase();

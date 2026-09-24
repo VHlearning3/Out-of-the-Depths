@@ -15,17 +15,17 @@ public class HudAutoHide : MonoBehaviour
     private const float FadeInSpeed = 6f;     // alpha per second
     private const float FadeOutSpeed = 1.5f;
 
-    private static bool? enabled;
+    private static bool? setting;
     public static bool Enabled
     {
         get
         {
-            enabled ??= PlayerPrefs.GetInt(PrefsKey, 1) == 1;
-            return enabled.Value;
+            setting ??= PlayerPrefs.GetInt(PrefsKey, 1) == 1;
+            return setting.Value;
         }
         set
         {
-            enabled = value;
+            setting = value;
             PlayerPrefs.SetInt(PrefsKey, value ? 1 : 0);
         }
     }

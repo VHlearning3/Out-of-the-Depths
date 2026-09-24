@@ -43,8 +43,24 @@ public class DoubleDoor : MonoBehaviour, IInteractable, IPromptTone
     public bool IsOpen { get; private set; }
     public bool IsLocked => locked;
     public GameObject LockPlate => lockPlate;
-    public string Prompt => locked ? openPrompt + " (locked)" : IsOpen ? closePrompt : openPrompt;
-    public PromptTone Tone => locked ? PromptTone.Blocked : PromptTone.Normal;
+    // While locked, the whole door stands in for its lock plate: the doorway's trigger is what the reticle finds, so
+    // the plate's socket would never be reached on its own. Its prompt and colour show, and E with the key uses it.
+    public string Prompt => LockSocket != null ? LockSocket.Prompt : locked ? openPrompt + " (locked)" : IsOpen ? closePrompt : openPrompt;
+    public PromptTone Tone => LockSocket != null ? LockSocket.Tone : locked ? PromptTone.Blocked : PromptTone.Normal;
+
+    // The lock plate's Item Socket while the door is locked and the key is not in yet, else null.
+    private ItemSocket LockSocket
+    {
+        get
+        {
+            if (!locked || lockPlate == null)
+                return null;
+            if (lockSocket == null)
+                lockSocket = lockPlate.GetComponent<ItemSocket>();
+            return lockSocket != null && lockSocket.isActiveAndEnabled && !lockSocket.IsFilled ? lockSocket : null;
+        }
+    }
+    private ItemSocket lockSocket;
 
     private Quaternion leftRest = Quaternion.identity;
     private Quaternion rightRest = Quaternion.identity;
@@ -63,6 +79,17 @@ public class DoubleDoor : MonoBehaviour, IInteractable, IPromptTone
 
     public void Interact(GameObject interactor)
     {
+        ItemSocket socket = LockSocket;
+        if (socket != null && socket.RequiredItem != null)
+        {
+            // Carrying the key: it goes into the lock plate (which opens the door through its On Filled).
+            var inventory = interactor != null ? interactor.GetComponentInParent<PlayerInventory>() : null;
+            if (inventory != null && inventory.Count(socket.RequiredItem) > 0)
+            {
+                socket.Interact(interactor);
+                return;
+            }
+        }
         if (locked)
         {
             Play(lockedSound);

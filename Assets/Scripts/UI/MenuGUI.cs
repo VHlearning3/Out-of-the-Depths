@@ -222,10 +222,54 @@ public static class MenuGUI
     public static float SliderRow(string label, float value, float min, float max, string shown)
     {
         BeginRow(label);
-        value = GUILayout.HorizontalSlider(value, min, max, GUILayout.Width(240f));
+        // The track, then the part up to the knob filled in the accent (so the value reads at a glance), then the
+        // slider itself with no track of its own on top.
+        GUIStyle track = GUI.skin.horizontalSlider;
+        GUIStyle thumb = GUI.skin.horizontalSliderThumb;
+        float height = track.fixedHeight > 0f ? track.fixedHeight : 20f;
+        Rect rect = GUILayoutUtility.GetRect(240f, 240f, height, height, track, GUILayout.Width(240f));
+        if (Event.current.type == EventType.Repaint)
+        {
+            float knob = thumb.fixedWidth > 0f ? thumb.fixedWidth : 18f;
+            float x = rect.x + knob * 0.5f + (rect.width - knob) * Mathf.InverseLerp(min, max, value);
+            float middle = rect.y + knob * 0.5f;   // where the knob's middle sits
+            DrawBar(new Rect(rect.x, middle - 3f, rect.width, 6f), new Color(1f, 1f, 1f, 0.12f));
+            if (x - rect.x > 4f)
+                DrawBar(new Rect(rect.x, middle - 3f, x - rect.x, 6f), new Color(Accent.r, Accent.g, Accent.b, 0.85f));
+        }
+        value = GUI.HorizontalSlider(rect, value, min, max, GUIStyle.none, thumb);   // no track of its own: the bars above are it
         GUILayout.Label(shown, ValueStyle ?? GUI.skin.label, GUILayout.Width(64f));
         EndRow();
         return value;
+    }
+
+    // The accent the slider fill is drawn in (the pause menu theme's, set by the Pause Menu).
+    public static Color Accent = new Color(0.35f, 0.85f, 0.95f);
+    private static Texture2D barCap;
+
+    // A thin bar with round ends in `color` (times the current GUI colour): half a disc, a stretch, half a disc.
+    private static void DrawBar(Rect rect, Color color)
+    {
+        if (barCap == null)
+        {
+            const int size = 32;
+            barCap = new Texture2D(size, size, TextureFormat.RGBA32, false) { hideFlags = HideFlags.DontSave, wrapMode = TextureWrapMode.Clamp };
+            var pixels = new Color[size * size];
+            float half = size * 0.5f;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                    pixels[y * size + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(half - new Vector2(x + 0.5f - half, y + 0.5f - half).magnitude));
+            barCap.SetPixels(pixels);
+            barCap.Apply();
+        }
+        Color keep = GUI.color;
+        GUI.color = keep * color;
+        float h = rect.height, r = h * 0.5f;
+        GUI.DrawTextureWithTexCoords(new Rect(rect.x, rect.y, r, h), barCap, new Rect(0f, 0f, 0.5f, 1f));
+        if (rect.width > h)
+            GUI.DrawTexture(new Rect(rect.x + r, rect.y, rect.width - h, h), Texture2D.whiteTexture);
+        GUI.DrawTextureWithTexCoords(new Rect(rect.xMax - r, rect.y, r, h), barCap, new Rect(0.5f, 0f, 0.5f, 1f));
+        GUI.color = keep;
     }
 
     // Label on the left, a value with < and > either side on the right. Returns the new index, wrapping round.

@@ -1042,6 +1042,7 @@ public class PauseMenu : MonoBehaviour
         MenuGUI.SwitchTrackOn = switchOn;
         MenuGUI.SwitchGlow = switchGlow;
         MenuGUI.SwitchKnob = knob;
+        MenuGUI.Accent = T.accent;
     }
 
     private static int Px(float value) => Mathf.RoundToInt(value);

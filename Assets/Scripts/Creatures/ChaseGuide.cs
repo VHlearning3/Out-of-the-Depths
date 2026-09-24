@@ -1,10 +1,11 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Tells the player what to do while the chase runs, one step at a time: a banner under the top of the screen ("Grab
-// the 2 stone fragments  1/2", "Put them in the stone tablet", "The door is open - swim through!", "Grab the
-// trident") and a marker on the thing to go for, with how far it is; when it is off screen or behind, an arrow at the
-// edge of the screen points the way. Gold, so it never reads as the red danger marker.
+// Tells the player what to do while the chase runs, one step at a time, without shouting: a small card at the top of
+// the screen (a gold "OBJECTIVE" label, the step - "Grab the stone fragments", "Put them in the stone tablet", "Swim
+// through the open door", "Grab the trident" - a line on how, and pips for the fragments), and the Direction
+// Indicators' gold marker on the thing to go for, with how far it is; when that is off screen or behind you, a small
+// chevron round the middle of the screen points the way. A new step slides in with a brief gold glow.
 // Finds its steps by itself from the chase's own wiring, so a scene needs nothing extra: the stone tablet (the Item
 // Socket on the object named Tablet Name), the fragments for it (the pickups of the item it wants nearest to it), the
 // door it opens (its On Filled), and the trident (the pickup that drops the chase's End Rubble). Chase Sequence adds
@@ -14,9 +15,13 @@ public class ChaseGuide : MonoBehaviour
 {
     [Tooltip("The object with the Item Socket the fragments go into.")]
     [SerializeField] private string tabletName = "RuneTablet";
-    [SerializeField] private Color color = new Color(1f, 0.82f, 0.35f);
+    [SerializeField] private Color color = new Color(1f, 0.8f, 0.42f);
     [Tooltip("The door step ends once the player is this close to the door (then the trident is the goal).")]
     [SerializeField] private float throughDoorDistance = 2.5f;
+
+    // The bottom of the objective card on screen (GUI pixels) while it shows, else 0, so other HUD at the top of the
+    // screen (the fish health bar) can sit under it.
+    public static float CardBottom { get; private set; }
 
     private ChaseSequence chase;
     private bool found;
@@ -28,27 +33,23 @@ public class ChaseGuide : MonoBehaviour
     private PlayerInventory inventory;
     private bool pastDoor;
 
-    private string step;
+    private string title;
+    private string detail;
+    private int have, need;       // pips (the fragments), need 0 = none
     private Vector3 target;
     private bool hasTarget;
-    private float stepChangedAt;
-
-    private Texture2D white;
-    private Texture2D arrow;
-    private Texture2D diamond;
-    private GUIStyle bannerStyle;
-    private GUIStyle distanceStyle;
+    private float stepChangedAt = -10f;
+    private float shown;
 
     private void Awake()
     {
         chase = GetComponent<ChaseSequence>();
     }
 
-    private void OnDestroy()
+    private void OnDisable()
     {
-        foreach (Texture2D tex in new[] { white, arrow, diamond })
-            if (tex != null)
-                Destroy(tex);
+        CardBottom = 0f;
+        DirectionIndicators.Clear(this);
     }
 
     // The chase's pieces, looked up once (the first time the chase runs).
@@ -94,7 +95,9 @@ public class ChaseGuide : MonoBehaviour
         bool running = chase != null && chase.IsRunning && !chase.InCutscene;
         if (!running)
         {
-            step = null;
+            shown = Mathf.MoveTowards(shown, 0f, Time.unscaledDeltaTime / 0.3f);
+            if (shown <= 0f)
+                title = null;
             if (chase == null || !chase.IsRunning)
                 pastDoor = false;   // died and it starts over: the door is a step again
             return;
@@ -102,31 +105,39 @@ public class ChaseGuide : MonoBehaviour
         if (!found)
             Find();
 
-        string was = step;
+        string was = title;
         Choose();
-        if (step != was)
+        if (title != was)
             stepChangedAt = Time.unscaledTime;
+        shown = Mathf.MoveTowards(shown, title != null ? 1f : 0f, Time.unscaledDeltaTime / 0.3f);
+        if (hasTarget)
+            DirectionIndicators.Point(this, target);
     }
 
     // What to do right now and where.
     private void Choose()
     {
-        step = null;
+        title = detail = null;
+        need = 0;
         hasTarget = false;
         if (tablet != null && !tablet.IsFilled)
         {
-            int need = tablet.RequiredAmount - tablet.Placed;
-            int have = inventory != null && tablet.RequiredItem != null ? inventory.Count(tablet.RequiredItem) : 0;
-            if (have < need)
+            string name = Plural(tablet.RequiredItem.DisplayName);
+            int missing = tablet.RequiredAmount - tablet.Placed;
+            int held = inventory != null && tablet.RequiredItem != null ? inventory.Count(tablet.RequiredItem) : 0;
+            if (held < missing)
             {
                 PickupItem next = NearestLeft();
-                string name = tablet.RequiredItem.DisplayName;
-                step = $"Grab the {tablet.RequiredAmount} {name}s   {tablet.Placed + have} / {tablet.RequiredAmount}";
+                title = $"Grab the {name}";
+                detail = "Follow the gold marker, keep moving";
+                have = tablet.Placed + held;
+                need = tablet.RequiredAmount;
                 if (next != null)
                     Aim(next.transform.position);
                 return;
             }
-            step = $"Put the {tablet.RequiredItem.DisplayName}s in the stone tablet: hold them (1-3) and press E on it";
+            title = $"Put the {name} in the stone tablet";
+            detail = tablet.RequireHeld ? "Hold them (1-3) and press E on it" : "Swim up to it and press E";
             Aim(tablet.transform.position);
             return;
         }
@@ -138,15 +149,19 @@ public class ChaseGuide : MonoBehaviour
                     pastDoor = true;
                 else
                 {
-                    step = "The door is open - swim through it!";
+                    title = "Swim through the open door";
+                    detail = "Keep going, the swarm is right behind you";
                     Aim(door.transform.position + Vector3.up * 1.4f);
                     return;
                 }
             }
-            step = $"Grab the {(trident.Item != null ? trident.Item.DisplayName : "trident")} at the end of the corridor";
+            title = $"Grab the {(trident.Item != null ? trident.Item.DisplayName : "trident")}";
+            detail = "At the end of the corridor";
             Aim(trident.transform.position);
         }
     }
+
+    private static string Plural(string name) => string.IsNullOrEmpty(name) ? "pieces" : name.EndsWith("s") ? name : name + "s";
 
     private PickupItem NearestLeft()
     {
@@ -172,127 +187,61 @@ public class ChaseGuide : MonoBehaviour
         hasTarget = true;
     }
 
+    // The card: a small dark panel at the top, the gold label, the step and how, pips on the right.
     private void OnGUI()
     {
-        if (string.IsNullOrEmpty(step) || PauseMenu.IsOpen || PuzzleBoard.IsOpen || Event.current.type != EventType.Repaint)
+        if (Event.current.type != EventType.Repaint)
             return;
-        Ensure();
-        float scale = Screen.height / 1080f * UIScale.Hud;
-        float fresh = Mathf.Clamp01((Time.unscaledTime - stepChangedAt) / 0.35f);   // a new step slides in and flashes
-        float flash = 1f - Mathf.Clamp01((Time.unscaledTime - stepChangedAt) / 1.2f);
-
-        // The banner.
-        bannerStyle.fontSize = Mathf.Max(12, Mathf.RoundToInt(30f * scale));
-        var content = new GUIContent(step);
-        Vector2 size = bannerStyle.CalcSize(content);
-        float pad = 18f * scale;
-        var box = new Rect((Screen.width - size.x) * 0.5f - pad, 150f * scale - (1f - fresh) * 20f * scale, size.x + pad * 2f, size.y + pad);
-        Color was = GUI.color;
-        GUI.color = new Color(0.02f, 0.06f, 0.08f, 0.78f * fresh);
-        GUI.DrawTexture(box, white);
-        GUI.color = new Color(color.r, color.g, color.b, fresh);
-        GUI.DrawTexture(new Rect(box.x, box.yMax - Mathf.Max(2f, 3f * scale), box.width, Mathf.Max(2f, 3f * scale)), white);
-        GUI.color = Color.Lerp(new Color(1f, 1f, 1f, fresh), new Color(color.r, color.g, color.b, fresh), 0.35f + 0.65f * flash);
-        GUI.Label(box, content, bannerStyle);
-
-        if (hasTarget)
-            DrawMarker(scale);
-        GUI.color = was;
-    }
-
-    // On screen: a diamond over the target with the distance under it, bobbing. Off screen or behind: an arrow on the
-    // edge of the screen pointing the way.
-    private void DrawMarker(float scale)
-    {
-        Camera eye = Camera.main;
-        if (eye == null)
-            return;
-        Vector3 screen = eye.WorldToScreenPoint(target);
-        float metres = player != null ? Vector3.Distance(player.position, target) : 0f;
-        float pulse = 0.75f + 0.25f * Mathf.Sin(Time.unscaledTime * 4f);
-        var middle = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
-        var at = new Vector2(screen.x, Screen.height - screen.y);
-        float margin = 60f * scale;
-        bool onScreen = screen.z > 0f && at.x > margin && at.x < Screen.width - margin && at.y > margin && at.y < Screen.height - margin;
-
-        if (onScreen)
+        if (string.IsNullOrEmpty(title) || shown <= 0f || PauseMenu.IsOpen || PuzzleBoard.IsOpen)
         {
-            float size = 34f * scale;
-            float bob = Mathf.Sin(Time.unscaledTime * 3f) * 5f * scale;
-            GUI.color = new Color(color.r, color.g, color.b, 0.9f * pulse);
-            GUI.DrawTexture(new Rect(at.x - size * 0.5f, at.y - size * 1.6f + bob, size, size), diamond);
-            distanceStyle.fontSize = Mathf.Max(10, Mathf.RoundToInt(20f * scale));
-            GUI.color = new Color(1f, 1f, 1f, 0.9f);
-            GUI.Label(new Rect(at.x - 60f * scale, at.y - size * 0.55f + bob, 120f * scale, 26f * scale), Mathf.RoundToInt(metres) + " m", distanceStyle);
+            CardBottom = 0f;
             return;
         }
+        float scale = HudStyle.Scale;
+        float since = Time.unscaledTime - stepChangedAt;
+        float slide = 1f - Ease.OutCubic(Mathf.Clamp01(since / 0.35f));
+        float glow = 1f - Mathf.Clamp01(since / 1.4f);
+        float alpha = shown * (1f - slide * 0.6f);
 
-        // Which way: towards it on screen (flipped when it is behind the camera), pinned to an ellipse inside the edges.
-        Vector2 direction = at - middle;
-        if (screen.z < 0f)
-            direction = -direction;
-        if (direction.sqrMagnitude < 1f)
-            direction = Vector2.down;
-        direction.Normalize();
-        var edge = middle + new Vector2(direction.x * (Screen.width * 0.5f - margin), direction.y * (Screen.height * 0.5f - margin));
-        float arrowSize = 48f * scale;
-        float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg + 90f;   // the texture points up
-        Matrix4x4 keep = GUI.matrix;
-        GUIUtility.RotateAroundPivot(angle, edge);
-        GUI.color = new Color(color.r, color.g, color.b, 0.95f * pulse);
-        GUI.DrawTexture(new Rect(edge.x - arrowSize * 0.5f, edge.y - arrowSize * 0.5f, arrowSize, arrowSize), arrow);
-        GUI.matrix = keep;
-        distanceStyle.fontSize = Mathf.Max(10, Mathf.RoundToInt(20f * scale));
-        GUI.color = new Color(1f, 1f, 1f, 0.9f);
-        GUI.Label(new Rect(edge.x - 60f * scale - direction.x * arrowSize, edge.y - 13f * scale - direction.y * arrowSize, 120f * scale, 26f * scale), Mathf.RoundToInt(metres) + " m", distanceStyle);
-    }
+        GUIStyle label = HudStyle.Label(Mathf.Max(8, Mathf.RoundToInt(11f * scale)));
+        GUIStyle titleStyle = HudStyle.Label(Mathf.Max(10, Mathf.RoundToInt(21f * scale)));
+        GUIStyle detailStyle = HudStyle.Label(Mathf.Max(8, Mathf.RoundToInt(14f * scale)));
+        float pad = 20f * scale;
+        float pip = 10f * scale, pipGap = 6f * scale;
+        float pipsWidth = need > 0 ? need * pip + (need - 1) * pipGap + 16f * scale : 0f;
+        float titleWidth = titleStyle.CalcSize(new GUIContent(title)).x;
+        float detailWidth = string.IsNullOrEmpty(detail) ? 0f : detailStyle.CalcSize(new GUIContent(detail)).x;
+        float width = Mathf.Max(titleWidth + pipsWidth, detailWidth, 220f * scale) + pad * 2f;
+        float height = (string.IsNullOrEmpty(detail) ? 64f : 84f) * scale;
+        var card = new Rect((Screen.width - width) * 0.5f, 30f * scale - slide * 12f * scale, width, height);
+        CardBottom = card.yMax;
 
-    private void Ensure()
-    {
-        if (white == null)
+        Color gold = color;
+        HudStyle.Panel(card, 12f * scale, alpha);
+        if (glow > 0f)   // a new step: a brief gold glow round the card
+            HudStyle.Outline(card, 12f * scale, new Color(gold.r, gold.g, gold.b, 0.55f * glow * alpha));
+
+        // The label: a small gold diamond and OBJECTIVE, spread out.
+        float y = card.y + 10f * scale;
+        float lineH = label.fontSize * 1.6f;
+        if (HudStyle.BeginShapes())
         {
-            white = new Texture2D(1, 1) { hideFlags = HideFlags.DontSave };
-            white.SetPixel(0, 0, Color.white);
-            white.Apply();
-        }
-        arrow ??= Shape(64, true);
-        diamond ??= Shape(64, false);
-        if (bannerStyle == null)
-        {
-            bannerStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = false, fontStyle = FontStyle.Bold };
-            bannerStyle.normal.textColor = Color.white;
-            bannerStyle.font = GameFont.Font;
-            distanceStyle = new GUIStyle(bannerStyle);
-        }
-    }
-
-    // A soft-edged white shape: an arrowhead pointing up (arrow) or a diamond.
-    private static Texture2D Shape(int size, bool isArrow)
-    {
-        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.DontSave };
-        var pixels = new Color32[size * size];
-        for (int y = 0; y < size; y++)
-            for (int x = 0; x < size; x++)
+            HudStyle.Diamond(new Vector2(card.x + pad + 4f * scale, y + lineH * 0.5f), 4f * scale, 0.1f, Color.clear, new Color(gold.r, gold.g, gold.b, 0.9f * alpha));
+            for (int i = 0; i < need; i++)
             {
-                float u = (x + 0.5f) / size * 2f - 1f;   // -1..1, left to right
-                float v = (y + 0.5f) / size * 2f - 1f;   // -1..1, bottom to top
-                float d;
-                if (isArrow)
-                {
-                    // A chevron: the space under two lines meeting at the top, minus a notch out of the bottom.
-                    float outer = (0.85f - v) * 0.85f - Mathf.Abs(u);
-                    float notch = Mathf.Abs(u) - (0.2f - v) * 0.85f;
-                    d = Mathf.Min(Mathf.Min(outer, notch), v + 0.8f);
-                }
-                else
-                {
-                    d = 0.8f - (Mathf.Abs(u) + Mathf.Abs(v));
-                }
-                float a = Mathf.Clamp01(d * size * 0.5f + 0.5f);
-                pixels[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255f));
+                var at = new Vector2(card.xMax - pad - (need - 1 - i) * (pip + pipGap) - pip * 0.5f, card.y + 42f * scale);
+                bool done = i < have;
+                HudStyle.Arc(at, pip * 0.25f, pip * 0.5f, 0f, 360f, new Color(gold.r, gold.g, gold.b, (done ? 0.95f : 0.16f) * alpha));
+                if (!done)
+                    HudStyle.Arc(at, pip * 0.5f - 0.75f, 1.3f, 0f, 360f, new Color(gold.r, gold.g, gold.b, 0.6f * alpha));
             }
-        tex.SetPixels32(pixels);
-        tex.Apply();
-        return tex;
+            HudStyle.EndShapes();
+        }
+        HudStyle.Spaced(new Vector2(card.x + pad + 14f * scale, y), "OBJECTIVE", label, gold, 2.2f * scale, alpha);
+        HudStyle.Write(new Rect(card.x + pad, card.y + 42f * scale - titleStyle.fontSize * 0.8f, width - pad * 2f - pipsWidth, titleStyle.fontSize * 1.6f),
+            title, titleStyle, Color.Lerp(HudStyle.Text, gold, 0.5f * glow), alpha);
+        if (!string.IsNullOrEmpty(detail))
+            HudStyle.Write(new Rect(card.x + pad, card.y + 66f * scale - detailStyle.fontSize * 0.8f, width - pad * 2f, detailStyle.fontSize * 1.6f),
+                detail, detailStyle, HudStyle.Muted, alpha);
     }
 }

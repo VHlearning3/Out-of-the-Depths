@@ -14,7 +14,6 @@ public class HintPopup : MonoBehaviour
     private float shownAt = -100f;
     private float seconds;
     private GUIStyle style;
-    private Texture2D white;
 
     public static void Show(string message, float forSeconds = 4.5f)
     {
@@ -27,43 +26,32 @@ public class HintPopup : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (white != null)
-            Destroy(white);
         if (instance == this)
             instance = null;
     }
 
+    // A small rounded card in the HUD style (HudStyle): soft shadow, a short accent tick on top, the text centred and
+    // wrapped to at most Max Width; it rises a little as it fades in.
     private void OnGUI()
     {
         float age = Time.unscaledTime - shownAt;
-        if (string.IsNullOrEmpty(text) || age > seconds || PauseMenu.IsOpen)
+        if (string.IsNullOrEmpty(text) || age > seconds || PauseMenu.IsOpen || Event.current.type != EventType.Repaint)
             return;
 
         float alpha = Mathf.Clamp01(age / FadeIn) * Mathf.Clamp01((seconds - age) / FadeOut);
-        float rise = 1f - Mathf.Clamp01(age / FadeIn);
-        float scale = Screen.height / 1080f * UIScale.Hud;
-        if (white == null)
-        {
-            white = new Texture2D(1, 1) { hideFlags = HideFlags.DontSave };
-            white.SetPixel(0, 0, Color.white);
-            white.Apply();
-        }
-        style ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, wordWrap = true, richText = true };
-        style.font = GameFont.Font;
-        style.fontSize = Mathf.Max(12, Mathf.RoundToInt(30f * scale));
+        float rise = 1f - Ease.OutCubic(Mathf.Clamp01(age / FadeIn));
+        float scale = HudStyle.Scale;
+        style = HudStyle.Label(Mathf.Max(11, Mathf.RoundToInt(18f * scale)), TextAnchor.MiddleCenter, true);
 
-        float width = Mathf.Min(900f * scale, Screen.width - 40f);
-        float pad = 18f * scale;
-        float height = style.CalcHeight(new GUIContent(text), width - pad * 2f) + pad * 2f;
-        var box = new Rect((Screen.width - width) * 0.5f, Screen.height * 0.74f - height * 0.5f + rise * 24f * scale, width, height);
+        var content = new GUIContent(text);
+        float padX = 22f * scale, padY = 13f * scale;
+        float maxWidth = Mathf.Min(640f * scale, Screen.width - 40f);
+        float width = Mathf.Min(maxWidth, style.CalcSize(content).x + padX * 2f + 2f);
+        float height = style.CalcHeight(content, width - padX * 2f) + padY * 2f;
+        var box = new Rect((Screen.width - width) * 0.5f, Screen.height * 0.72f - height * 0.5f + rise * 14f * scale, width, height);
 
-        Color was = GUI.color;
-        GUI.color = new Color(0.02f, 0.08f, 0.12f, 0.78f * alpha);
-        GUI.DrawTexture(box, white);
-        GUI.color = new Color(0.45f, 0.85f, 0.95f, alpha);   // a thin accent line along the top
-        GUI.DrawTexture(new Rect(box.x, box.y, box.width, Mathf.Max(2f, 3f * scale)), white);
-        GUI.color = new Color(1f, 1f, 1f, alpha);
-        GUI.Label(new Rect(box.x + pad, box.y + pad, box.width - pad * 2f, box.height - pad * 2f), text, style);
-        GUI.color = was;
+        HudStyle.Panel(box, 12f * scale, alpha);
+        HudStyle.Fill(new Rect(box.center.x - 18f * scale, box.y, 36f * scale, Mathf.Max(2f, 2.5f * scale)), 2f * scale, new Color(HudStyle.Accent.r, HudStyle.Accent.g, HudStyle.Accent.b, alpha));
+        HudStyle.Write(new Rect(box.x + padX, box.y + padY, box.width - padX * 2f, box.height - padY * 2f), text, style, HudStyle.Text, alpha);
     }
 }

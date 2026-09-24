@@ -49,6 +49,9 @@ public class ItemSocket : MonoBehaviour, IInteractable, IPromptTone
     public ItemDefinition RequiredItem => requiredItem;
     public int RequiredAmount => requiredAmount;
     public bool IsFilled => Placed >= requiredAmount;
+    // Must the item be the one in your hand (selected), or is anywhere in the inventory enough? The chase switches it off
+    // on its tablet, so there is no fiddling with the hotbar while the swarm comes.
+    public bool RequireHeld { get => requireHeld; set => requireHeld = value; }
 
     public string Prompt
     {

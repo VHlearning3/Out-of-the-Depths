@@ -58,6 +58,7 @@ public class ChasePufferfish : MonoBehaviour
     [Header("Events")]
     public UnityEvent onBite = new UnityEvent();
 
+    public AudioClip BiteSound => biteSound;
     public bool IsHunting => state == State.Emerging || state == State.Hunting || state == State.Lunging || state == State.Recovering;
     public float DistanceToPlayer => target != null ? Vector3.Distance(transform.position, TargetPoint) : float.PositiveInfinity;
 
@@ -65,6 +66,8 @@ public class ChasePufferfish : MonoBehaviour
 
     private const int TrailChecksPerFrame = 6;
     private static readonly List<ChasePufferfish> active = new List<ChasePufferfish>();
+    // The pack members that exist and are enabled (the HUD's direction indicators look through them).
+    public static IReadOnlyList<ChasePufferfish> Active => active;
     private static readonly RaycastHit[] hits = new RaycastHit[8];
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
@@ -369,7 +372,7 @@ public class ChasePufferfish : MonoBehaviour
     {
         bitThisLunge = true;
         float damage = health != null ? Mathf.Ceil(health.MaxHealth / hitsToKill + 0.01f) : 34f;
-        target.ApplyDamage(damage);
+        target.ApplyDamage(damage, transform.position);
         if (swimmer != null)
         {
             swimmer.AddImpulse(lungeDirection * knockback + Vector3.up * 0.5f);

@@ -48,6 +48,9 @@ Clips fetched from the internet, all **Creative Commons 0 (public domain)** - fr
 | `Puzzles/Knot_Wrap_RopeTying_Kyles_CC0.mp3` | Bone Key Tying → Wind Sound (a slice per quarter turn round a joint) | https://freesound.org/s/450849/ "nylon rope string fishing line handling tying" | kyles |
 | `Puzzles/Knot_Slide_RopeSliding_Cmilo_CC0.mp3` | Bone Key Tying → Slide Sound (the key pulling together) | https://freesound.org/s/491960/ "Rope Sliding" | cmilo1269 |
 | `Puzzles/Knot_Tied_RopeSnap_Zepurple_CC0.mp3` | Bone Key Tying → Tied Sound (a joint holding) | https://freesound.org/s/540266/ "cut rope" | zepurple |
+| `Creatures/HelloFish_Pet_MouthPop_Chaferwitt_CC0.mp3` | Resources/HelloFish → Pet Sound (a soft pop as each heart floats up) | https://freesound.org/s/776443/ "pop out, bubble, soft bursting" | chaferwitt |
+| `Creatures/HelloFish_PetSpare_GumPop_Mafon2_CC0.mp3` | spare (a gum bubble pop) | https://freesound.org/s/253956/ "Bubble Pop" | Mafon2 |
+| `Creatures/HelloFish_Poke_SqueakyToy_Qubodup_CC0.mp3` | Resources/HelloFish → Poke Sound (the squeak when it is poked) | https://freesound.org/s/861825/ "Squeaky Toy 7" | qubodup |
 
 These are Freesound's high-quality MP3 previews. The lossless originals need a Freesound login to download: log in on the page, hit Download, and drop the file over the MP3 in the Inspector.
 

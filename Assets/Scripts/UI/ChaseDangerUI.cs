@@ -111,7 +111,9 @@ public class ChaseDangerUI : MonoBehaviour
 
     private void UpdateMarker(ChaseSequence chase, float swell)
     {
-        Transform nearest = showDirection && chase != null ? chase.NearestPursuer : null;
+        // The Direction Indicators' arcs round the crosshair already point at every hunter; the edge chevron is only
+        // for when they are switched off.
+        Transform nearest = showDirection && !DirectionIndicators.Enabled && chase != null ? chase.NearestPursuer : null;
         Camera cam = Camera.main;
         if (nearest == null || cam == null || danger < 0.02f)
         {

@@ -421,7 +421,8 @@ public class PickupItem : MonoBehaviour, IInteractable
             while (true)
             {
                 Mouse mouse = Mouse.current;
-                bool dragging = inspectAllowed && mouse != null && mouse.leftButton.isPressed;
+                bool petting = HelloFish.HasMouse;   // a press on the hello fish is for the fish, not the item
+                bool dragging = inspectAllowed && mouse != null && mouse.leftButton.isPressed && !petting;
                 if (dragging && Time.deltaTime > 0f)
                 {
                     spin = Vector2.ClampMagnitude(mouse.delta.ReadValue() * (inspectSensitivity / Time.deltaTime), 900f);
@@ -449,7 +450,7 @@ public class PickupItem : MonoBehaviour, IInteractable
                 if (eye != null && spin.sqrMagnitude > 0.01f)
                     handled = Quaternion.AngleAxis(spin.x * Time.deltaTime, eye.up) * Quaternion.AngleAxis(-spin.y * Time.deltaTime, eye.right) * handled;
                 if (swimmer != null && lockLookWhileInspecting == false)
-                    swimmer.LookLocked = inspectLookWas || dragging;   // camera free, except while you are dragging the item
+                    swimmer.LookLocked = inspectLookWas || dragging || petting;   // camera free, except while you are dragging the item or petting
 
                 visual.position = HoldPoint(eye, startPosition) + Vector3.up * (holdBobAmount * Mathf.Sin(Time.time * holdBobSpeed * Mathf.PI * 2f));
                 visual.rotation = handled * Showcase(showcase, eye, turned);

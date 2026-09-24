@@ -55,6 +55,10 @@ public class InventoryUI : MonoBehaviour
     private Text[] monograms;
     private Text[] counts;
     private Image[] badges;
+    private Image[] glows;
+    private Image[] backlights;
+    private Image[] discs;
+    private float[] baseY;
     private Text nameLabel;
     private int selected;
     private Font font;
@@ -111,9 +115,24 @@ public class InventoryUI : MonoBehaviour
         monograms = new Text[n];
         counts = new Text[n];
         badges = new Image[n];
+        glows = new Image[n];
+        backlights = new Image[n];
+        discs = new Image[n];
+        baseY = new float[n];
 
-        Sprite fillSprite = slotFill != null ? slotFill : generatedLook ? RoundedSprite(false) : slotSprite;
-        Sprite rimSprite = slotRim != null ? slotRim : generatedLook ? RoundedSprite(true) : null;
+        // The generated look is the HUD's own (HudStyle): shaded glassy slots, a hairline rim, the accent for the
+        // selected one; the colours on this component still tint it.
+        bool styled = generatedLook && slotFill == null;
+        if (styled)
+        {
+            slotColor = new Color(0.09f, 0.19f, 0.235f, 0.82f);
+            selectedColor = HudStyle.Accent;
+            rimColor = HudStyle.Rim;
+            weaponRimColor = new Color(HudStyle.Gold.r, HudStyle.Gold.g, HudStyle.Gold.b, 0.38f);
+            textColor = HudStyle.Text;
+        }
+        Sprite fillSprite = slotFill != null ? slotFill : generatedLook ? HudStyle.RoundedShaded : slotSprite;
+        Sprite rimSprite = slotRim != null ? slotRim : generatedLook ? HudStyle.RoundedRim : null;
 
         float step = slotSize + spacing;
         int weapons = inventory.WeaponSlots;
@@ -129,10 +148,33 @@ public class InventoryUI : MonoBehaviour
             slot.sizeDelta = new Vector2(slotSize, slotSize);
             slot.anchoredPosition = new Vector2(startX + i * step + (inventory.IsWeaponSlot(i) ? gap : 0f), 0f);
             slots[i] = slot;
+            baseY[i] = 0f;
 
+            if (styled)
+            {
+                // A soft accent glow round the selected slot, behind everything.
+                glows[i] = MakeImage("Glow", slot, HudStyle.Glow, new Color(selectedColor.r, selectedColor.g, selectedColor.b, 0f));
+                glows[i].rectTransform.offsetMin = new Vector2(-22f, -22f);
+                glows[i].rectTransform.offsetMax = new Vector2(22f, 22f);
+            }
             fills[i] = MakeImage("Fill", slot, fillSprite, slotColor);
             if (rimSprite != null)
                 rims[i] = MakeImage("Rim", slot, rimSprite, rimColor);
+
+            if (styled)
+            {
+                // A faint light behind an icon, so dark item renders still read; a disc behind a monogram.
+                backlights[i] = MakeImage("Backlight", slot, HudStyle.Backlight, new Color(0.7f, 0.94f, 0.96f, 0.2f));
+                backlights[i].rectTransform.offsetMin = new Vector2(3f, 3f);
+                backlights[i].rectTransform.offsetMax = new Vector2(-3f, -3f);
+                backlights[i].enabled = false;
+                discs[i] = MakeImage("Disc", slot, HudStyle.Pill, new Color(selectedColor.r, selectedColor.g, selectedColor.b, 0.12f));
+                discs[i].type = Image.Type.Simple;
+                float inset = slotSize * 0.22f;
+                discs[i].rectTransform.offsetMin = new Vector2(inset, inset);
+                discs[i].rectTransform.offsetMax = new Vector2(-inset, -inset);
+                discs[i].enabled = false;
+            }
 
             RectTransform icon = MakeRect("Icon", slot, Vector2.zero, Vector2.one);
             icon.offsetMin = new Vector2(8f, 8f);
@@ -142,23 +184,25 @@ public class InventoryUI : MonoBehaviour
             icons[i].raycastTarget = false;
             icons[i].enabled = false;
 
-            monograms[i] = MakeText("Monogram", slot, TextAnchor.MiddleCenter, new Vector2(2f, 2f), monogramSize, FontStyle.Bold, textColor);
+            monograms[i] = MakeText("Monogram", slot, TextAnchor.MiddleCenter, new Vector2(2f, 2f), styled ? Mathf.RoundToInt(slotSize * 0.26f) : monogramSize, styled ? FontStyle.Normal : FontStyle.Bold, textColor);
 
-            Text key = MakeText("Key", slot, TextAnchor.UpperLeft, new Vector2(6f, 4f), smallSize, FontStyle.Normal, new Color(1f, 1f, 1f, 0.45f));
+            Text key = MakeText("Key", slot, TextAnchor.UpperLeft, new Vector2(6f, 4f), styled ? Mathf.Max(8, Mathf.RoundToInt(slotSize * 0.19f)) : smallSize, FontStyle.Normal, new Color(1f, 1f, 1f, styled ? 0.4f : 0.45f));
             key.text = (i + 1).ToString();
 
-            // The count badge: a small accent pill in the corner, hidden until there is a stack.
+            // The count badge: a small pill tucked into the bottom-right corner, hidden until there is a stack.
             RectTransform badge = MakeRect("Badge", slot, new Vector2(1f, 0f), new Vector2(1f, 0f));
             badge.pivot = new Vector2(1f, 0f);
-            badge.anchoredPosition = new Vector2(3f, -3f);
-            badge.sizeDelta = new Vector2(slotSize * 0.42f, slotSize * 0.28f);
+            badge.anchoredPosition = styled ? new Vector2(-4f, 4f) : new Vector2(3f, -3f);
+            badge.sizeDelta = styled ? new Vector2(slotSize * 0.36f, slotSize * 0.27f) : new Vector2(slotSize * 0.42f, slotSize * 0.28f);
             badges[i] = badge.gameObject.AddComponent<Image>();
-            badges[i].sprite = fillSprite;
+            badges[i].sprite = styled ? HudStyle.Pill : fillSprite;
             badges[i].type = Image.Type.Sliced;
             badges[i].color = selectedColor;
             badges[i].raycastTarget = false;
             badges[i].enabled = false;
             counts[i] = MakeText("Count", badge, TextAnchor.MiddleCenter, Vector2.zero, smallSize, FontStyle.Bold, new Color(0.02f, 0.05f, 0.08f));
+            if (styled)
+                Object.Destroy(counts[i].GetComponent<Shadow>());   // dark on a light pill: no shadow
         }
 
         // The selected item's full name, under the bar.
@@ -231,13 +275,19 @@ public class InventoryUI : MonoBehaviour
             bool emptyWeaponSlot = slot.IsEmpty && inventory.IsWeaponSlot(i) && bladeSprite != null;
             icons[i].enabled = hasIcon || emptyWeaponSlot;
             icons[i].sprite = hasIcon ? slot.item.Icon : emptyWeaponSlot ? bladeSprite : null;
-            icons[i].color = hasIcon ? Color.white : new Color(weaponRimColor.r, weaponRimColor.g, weaponRimColor.b, 0.3f);
+            icons[i].color = hasIcon ? Color.white : new Color(weaponRimColor.r, weaponRimColor.g, weaponRimColor.b, glows[i] != null ? 0.2f : 0.3f);
             monograms[i].text = slot.IsEmpty || hasIcon ? string.Empty : Monogram(slot.item.DisplayName);
             bool stacked = slot.count > 1;
             badges[i].enabled = stacked;
-            counts[i].text = stacked ? "x" + slot.count : string.Empty;
+            bool styled = glows[i] != null;
+            counts[i].text = stacked ? (styled ? slot.count.ToString() : "x" + slot.count) : string.Empty;
             fills[i].color = slot.IsEmpty ? new Color(slotColor.r, slotColor.g, slotColor.b, slotColor.a * emptyAlpha) : slotColor;
+            if (backlights[i] != null)
+                backlights[i].enabled = hasIcon;
+            if (discs[i] != null)
+                discs[i].enabled = !slot.IsEmpty && !hasIcon;
         }
+        PaintBadges();
         UpdateNameLabel();
         fade?.Wake();
     }
@@ -251,8 +301,17 @@ public class InventoryUI : MonoBehaviour
         for (int i = 0; i < slots.Length; i++)
             if (rims[i] != null)
                 rims[i].color = i == index ? selectedColor : inventory.IsWeaponSlot(i) ? weaponRimColor : rimColor;
+        PaintBadges();
         UpdateNameLabel();
         fade?.Wake();
+    }
+
+    // In the generated look the selected slot's count badge is in the accent, the others pale.
+    private void PaintBadges()
+    {
+        for (int i = 0; i < slots.Length; i++)
+            if (glows[i] != null)
+                badges[i].color = i == selected ? selectedColor : new Color(0.91f, 0.97f, 0.97f, 0.85f);
     }
 
     private void UpdateNameLabel()
@@ -287,13 +346,21 @@ public class InventoryUI : MonoBehaviour
         if (slots == null)
             return;
 
-        // Ease the slot sizes toward their targets so selection reads as a pop, not a jump.
+        // Ease the slot sizes toward their targets so selection reads as a pop, not a jump; in the generated look the
+        // selected slot also lifts a little and its glow fades in.
         float blend = 1f - Mathf.Exp(-14f * Time.unscaledDeltaTime);
         for (int i = 0; i < slots.Length; i++)
         {
-            float target = i == selected ? selectedScale : 1f;
+            bool on = i == selected;
+            float target = on ? selectedScale : 1f;
             float size = Mathf.Lerp(slots[i].localScale.x, target, blend);
             slots[i].localScale = new Vector3(size, size, 1f);
+            if (glows[i] == null)
+                continue;
+            Vector2 at = slots[i].anchoredPosition;
+            slots[i].anchoredPosition = new Vector2(at.x, Mathf.Lerp(at.y, baseY[i] + (on ? 4f : 0f), blend));
+            Color glow = glows[i].color;
+            glows[i].color = new Color(glow.r, glow.g, glow.b, Mathf.Lerp(glow.a, on ? 0.13f : 0f, blend));
         }
     }
 
@@ -328,31 +395,5 @@ public class InventoryUI : MonoBehaviour
         Vector2 ab = b - a;
         along = Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude);
         return Vector2.Distance(p, a + ab * along);
-    }
-
-    // A rounded square, 64 px, with sliced borders so it can stretch: either the solid fill or just a 2 px rim.
-    private static Sprite RoundedSprite(bool rimOnly)
-    {
-        const int size = 64;
-        const float radius = 12f;
-        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-        var pixels = new Color32[size * size];
-        for (int y = 0; y < size; y++)
-        {
-            for (int x = 0; x < size; x++)
-            {
-                float px = x + 0.5f - size * 0.5f;
-                float py = y + 0.5f - size * 0.5f;
-                float qx = Mathf.Abs(px) - size * 0.5f + radius;
-                float qy = Mathf.Abs(py) - size * 0.5f + radius;
-                float outside = new Vector2(Mathf.Max(qx, 0f), Mathf.Max(qy, 0f)).magnitude;
-                float d = Mathf.Min(Mathf.Max(qx, qy), 0f) + outside - radius;   // signed distance, negative inside
-                float a = rimOnly ? Mathf.Clamp01(1.5f - Mathf.Abs(d + 1.5f)) : Mathf.Clamp01(0.5f - d);
-                pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(a * 255f));
-            }
-        }
-        tex.SetPixels32(pixels);
-        tex.Apply();
-        return Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(16f, 16f, 16f, 16f));
     }
 }

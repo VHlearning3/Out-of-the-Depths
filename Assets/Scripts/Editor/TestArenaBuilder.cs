@@ -518,7 +518,7 @@ public static class TestArenaBuilder
         GameObject lockPlate = GameObject.CreatePrimitive(PrimitiveType.Cube);
         lockPlate.name = "Lock";
         lockPlate.transform.SetParent(right, false);
-        lockPlate.transform.localPosition = new Vector3(-2.1f, 1.4f, 0.13f);
+        lockPlate.transform.localPosition = new Vector3(-2.1f, 1.4f, -0.13f);   // on the -Z face: the side you come from at yaw 0
         lockPlate.transform.localScale = new Vector3(0.5f, 0.6f, 0.12f);
         lockPlate.AddComponent<RendererTint>().Tint = new Color(0.8f, 0.7f, 0.3f);
 
