@@ -1,6 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+// Generated clumps sway on the GPU (Sway On GPU, on by default): the fronds are merged into one mesh drawn with the
+// Swaying Plant shader, which bends it in the current and pushes it out of the player's way, so a whole field costs
+// the CPU nothing per frame (the swoop is one number on the material). Off, or with a custom model, the older way:
+// every vertex bent on the CPU, with a spring and the player's wake.
 // Giant Kelp (the kind) is the other shape: tall thick stalks right up to the ceiling, each hung with long leaves
 // spiralling up it, dark olive stalks and yellow-green leaves, like a kelp forest.
 // Cartoon seaweed: a clump of flat, tapered leaves (generated meshes) like the kelp in an animated film. Each is a
@@ -20,7 +24,7 @@ using UnityEngine;
 public class Seaweed : MonoBehaviour
 {
     // The kinds: presets that fill in the leaf fields below (Custom = the fields as they are).
-    public enum Kind { Custom, Kelp, SeaGrass, BroadLeaf, Ribbon, GiantKelp }
+    public enum Kind { Custom, Kelp, SeaGrass, BroadLeaf, Ribbon, GiantKelp, Meadow }
 
     [Header("Kind")]
     [Tooltip("A preset for the leaves: tall kelp, a bed of short sea grass, a few broad leaves, or twisting ribbons. Pick one and the leaf fields below fill in; edit them freely after.")]
@@ -41,6 +45,8 @@ public class Seaweed : MonoBehaviour
     [SerializeField] private Material bladeMaterial;
     [Tooltip("The small rock the plant grows out of. Off for models that have their own base.")]
     [SerializeField] private bool showRoots = true;
+    [Tooltip("Sway and part round the player on the GPU (the Swaying Plant shader), one mesh per clump: far cheaper for fields of seaweed. Off = every vertex bent on the CPU, with a springy push and the player's wake.")]
+    [SerializeField] private bool swayOnGpu = true;
 
     [Header("Low-poly leaves")]
     [Tooltip("Flat facets: every triangle its own face, no smoothing. Off = smooth cartoon leaves.")]
@@ -190,6 +196,13 @@ public class Seaweed : MonoBehaviour
     private int frameOffset;     // which of every three frames this clump takes, so they do not all update together
     private Vector3 gustDirection = Vector3.right;
     private Material runtimeMaterial;
+    private Material gpuMaterial;       // the Swaying Plant material of this clump (GPU sway)
+    private Texture2D gpuGradient;      // its paint, four shades side by side
+    private Mesh combined;              // every frond of the clump in one mesh (GPU sway)
+    private float gustShown;            // the gust last put on the material
+    private const int PaintVariants = 4;
+    private static readonly int GustId = Shader.PropertyToID("_Gust");
+    private static readonly int PusherId = Shader.PropertyToID("_PlantPusher");
     private Material paint;
     private Texture2D gradient;
     private Transform playerFound;
@@ -234,6 +247,9 @@ public class Seaweed : MonoBehaviour
 
     private void OnDestroy()
     {
+        SafeDestroy(gpuMaterial);
+        SafeDestroy(gpuGradient);
+        SafeDestroy(combined);
         SafeDestroy(paint);
         SafeDestroy(gradient);
         SafeDestroy(runtimeMaterial);
@@ -367,6 +383,15 @@ public class Seaweed : MonoBehaviour
                 wiggle = 0.03f; waves = 1.2f; waveOut = 0.9f; bulge = 0.1f; twist = 4f; curl = 0.35f;
                 color = new Color(0.03f, 0.28f, 0.3f); tipColor = new Color(0.2f, 0.62f, 0.5f);
                 swayMetres = 0.3f;
+                break;
+            case Kind.Meadow:
+                // A low tuft for carpeting the floor: few, simple leaves (cheap enough for a field of them), no rock.
+                fronds = 26; height = 0.85f; spread = 0.55f; fan = 32f; lowPoly = true; segments = 4; sides = 4; showRoots = false;
+                bladeWidth = 0.09f; bladeThickness = 0.015f; stemLength = 0.05f; taperAt = 0.35f; tipWidth = 0.15f; tipRound = 0.1f;
+                wiggle = 0.06f; waves = 0.8f; waveOut = 0.5f; bulge = 0.04f; twist = 14f; curl = 0.3f;
+                color = new Color(0.14f, 0.36f, 0.14f); tipColor = new Color(0.55f, 0.78f, 0.3f);
+                veinLight = 0.15f; edgeDark = 0.05f; shine = 0.15f; glow = 0.06f; variety = 0.28f;
+                swayMetres = 0.1f; swayDistance = 12f;
                 break;
             case Kind.GiantKelp:
                 appliedKelpVersion = KelpVersion;
@@ -526,29 +551,7 @@ public class Seaweed : MonoBehaviour
                 filterMode = FilterMode.Bilinear,
             };
         }
-        var pixels = new Color32[PaintWidth * PaintHeight];
-        for (int y = 0; y < PaintHeight; y++)
-        {
-            float t = y / (float)(PaintHeight - 1);
-            Color c = Color.Lerp(color, tipColor, Mathf.SmoothStep(0f, 1f, t));
-            if (kind == Kind.GiantKelp)
-            {
-                // Bottom quarter: the stalk, dark at its foot; the rest: each leaf, base to tip.
-                c = t < 0.25f
-                    ? Color.Lerp(stalkColor, stalkTopColor, t / 0.25f)
-                    : Color.Lerp(color, tipColor, Mathf.SmoothStep(0f, 1f, (t - 0.3f) / 0.7f));
-            }
-            for (int x = 0; x < PaintWidth; x++)
-            {
-                float face = Mathf.Abs(Mathf.Sin((x + 0.5f) / PaintWidth * Mathf.PI * 2f));   // 1 mid-face, 0 at the edges
-                float rib = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.86f, 1f, face));   // only right down the middle
-                float light = Mathf.Lerp(1f - edgeDark, 1f, face) + rib * veinLight * (1f - t * 0.6f);
-                Color p = c * light;
-                p.a = 1f;
-                pixels[y * PaintWidth + x] = p;
-            }
-        }
-        gradient.SetPixels32(pixels);
+        gradient.SetPixels32(GradientPixels(1));
         gradient.Apply(false, false);
 
         paint.SetTexture(BaseMapId, gradient);
@@ -570,10 +573,169 @@ public class Seaweed : MonoBehaviour
         return paint;
     }
 
+    // The paint: v runs base to tip (Color to Tip Color; for giant kelp the bottom quarter is the stalk), u runs round
+    // a blade (a lighter rib down each face, darker rounded edges). Variants: that many copies side by side, each a
+    // little lighter, darker, warmer or cooler (Variety), one per frond on the GPU, where there is no per-frond tint.
+    private Color32[] GradientPixels(int variants)
+    {
+        int width = PaintWidth * variants;
+        var pixels = new Color32[width * PaintHeight];
+        for (int y = 0; y < PaintHeight; y++)
+        {
+            float t = y / (float)(PaintHeight - 1);
+            Color c = Color.Lerp(color, tipColor, Mathf.SmoothStep(0f, 1f, t));
+            if (kind == Kind.GiantKelp)
+            {
+                // Bottom quarter: the stalk, dark at its foot; the rest: each leaf, base to tip.
+                c = t < 0.25f
+                    ? Color.Lerp(stalkColor, stalkTopColor, t / 0.25f)
+                    : Color.Lerp(color, tipColor, Mathf.SmoothStep(0f, 1f, (t - 0.3f) / 0.7f));
+            }
+            for (int v = 0; v < variants; v++)
+            {
+                Color shade = Color.white;
+                if (variants > 1)
+                {
+                    float light = Mathf.Lerp(-1f, 1f, v / (variants - 1f));
+                    float warm = v % 2 == 0 ? 0.6f : -0.6f;
+                    shade = new Color(1f + variety * (light + warm) * 0.5f, 1f + variety * light * 0.5f, 1f + variety * (light - warm) * 0.5f);
+                }
+                for (int x = 0; x < PaintWidth; x++)
+                {
+                    float face = Mathf.Abs(Mathf.Sin((x + 0.5f) / PaintWidth * Mathf.PI * 2f));   // 1 mid-face, 0 at the edges
+                    float rib = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.86f, 1f, face));   // only right down the middle
+                    float light = Mathf.Lerp(1f - edgeDark, 1f, face) + rib * veinLight * (1f - t * 0.6f);
+                    Color p = c * shade * light;
+                    p.a = 1f;
+                    pixels[y * width + v * PaintWidth + x] = p;
+                }
+            }
+        }
+        return pixels;
+    }
+
+    private bool UseGpu => swayOnGpu && customModel == null && Shader.Find("Out of the Depths/Swaying Plant") != null;
+
+    // GPU sway: every frond's mesh, painted with one of the shades by its Shade, merged into one mesh on this object,
+    // drawn with the Swaying Plant material (the fronds' own renderers switched off; they stay as the layout).
+    private void CombineFronds()
+    {
+        blades.Clear();
+        ClumpLook look = Look();
+        var parts = new List<CombineInstance>();
+        var made = new List<Mesh>();
+        float tallest = 0.1f;
+        foreach (Transform child in transform)
+        {
+            var shape = child.GetComponent<SeaweedFrond>();
+            if (shape == null)
+                continue;
+            Mesh mesh = FrondMesh(shape);
+            int variant = Mathf.Clamp(Mathf.FloorToInt((shape.shade * 0.5f + 0.5f) * PaintVariants), 0, PaintVariants - 1);
+            Vector2[] uv = mesh.uv;
+            for (int i = 0; i < uv.Length; i++)
+                uv[i].x = (variant + uv[i].x) / PaintVariants;
+            mesh.uv = uv;
+            parts.Add(new CombineInstance { mesh = mesh, transform = transform.worldToLocalMatrix * child.localToWorldMatrix });
+            made.Add(mesh);
+            tallest = Mathf.Max(tallest, shape.height);
+            var ownRenderer = child.GetComponent<MeshRenderer>();
+            if (ownRenderer != null)
+                ownRenderer.enabled = false;
+            var ownFilter = child.GetComponent<MeshFilter>();
+            if (ownFilter != null)
+                ownFilter.sharedMesh = null;
+        }
+
+        SafeDestroy(combined);
+        combined = new Mesh { name = "Seaweed clump", hideFlags = HideFlags.DontSave };
+        int vertices = 0;
+        foreach (Mesh m in made)
+            vertices += m.vertexCount;
+        if (vertices > 65000)
+            combined.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        combined.CombineMeshes(parts.ToArray(), true, true);
+        combined.RecalculateBounds();
+        // Room for the sway and the player's push, so it is not culled while it leans out of its box.
+        Bounds bounds = combined.bounds;
+        bounds.Expand(swayMetres * 2f + touchRadius * 2f + 1.5f);
+        combined.bounds = bounds;
+        foreach (Mesh m in made)
+            SafeDestroy(m);
+
+        var filter = GetComponent<MeshFilter>();
+        if (filter == null)
+            filter = gameObject.AddComponent<MeshFilter>();
+        filter.sharedMesh = combined;
+        var renderer = GetComponent<MeshRenderer>();
+        if (renderer == null)
+            renderer = gameObject.AddComponent<MeshRenderer>();
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.sharedMaterial = GpuMaterial(look, tallest);
+        if (!Application.isPlaying)
+            Shader.SetGlobalVector(PusherId, new Vector4(0f, -10000f, 0f, 0f));   // no player in the editor: nothing pushed
+    }
+
+    private Material GpuMaterial(ClumpLook look, float tallest)
+    {
+        if (gpuMaterial == null)
+            gpuMaterial = new Material(Shader.Find("Out of the Depths/Swaying Plant")) { name = "Seaweed (swaying)", hideFlags = HideFlags.DontSave };
+        if (gpuGradient == null)
+        {
+            gpuGradient = new Texture2D(PaintWidth * PaintVariants, PaintHeight, TextureFormat.RGBA32, false)
+            {
+                name = "Seaweed gradient (shades)",
+                hideFlags = HideFlags.DontSave,
+                wrapModeU = TextureWrapMode.Repeat,
+                wrapModeV = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+            };
+        }
+        gpuGradient.SetPixels32(GradientPixels(PaintVariants));
+        gpuGradient.Apply(false, false);
+
+        gpuMaterial.SetTexture(BaseMapId, gpuGradient);
+        gpuMaterial.SetColor("_BaseColor", look.tint);
+        gpuMaterial.SetFloat(SmoothnessId, shine);
+        gpuMaterial.SetColor("_SpecColor", Color.white * (shine * 0.4f));
+        gpuMaterial.EnableKeyword("_SPECULAR_COLOR");
+        if (glow > 0f)
+        {
+            gpuMaterial.EnableKeyword("_EMISSION");
+            gpuMaterial.SetTexture(EmissionMapId, gpuGradient);
+            gpuMaterial.SetColor(EmissionColorId, Color.white * glow);
+        }
+        else
+        {
+            gpuMaterial.DisableKeyword("_EMISSION");
+        }
+        gpuMaterial.SetVector("_SwayDirection", look.current);
+        gpuMaterial.SetFloat("_SwayAmount", swayMetres);
+        gpuMaterial.SetFloat("_SwaySpeed", swaySpeed);
+        gpuMaterial.SetFloat("_TipLag", tipLag);
+        gpuMaterial.SetFloat("_PlantHeight", tallest);
+        gpuMaterial.SetFloat("_PushReach", touchRadius);
+        gpuMaterial.SetFloat(GustId, 0f);
+        gustShown = 0f;
+        return gpuMaterial;
+    }
+
     // Gathers every mesh under this object as a blade to bend, regenerating the meshes and paint of generated fronds
     // and painting the custom model.
     private void Collect()
     {
+        if (UseGpu)
+        {
+            CombineFronds();
+            return;
+        }
+        // The CPU way: the fronds draw themselves (switched back on if the GPU way had them off).
+        var own = GetComponent<MeshRenderer>();
+        if (own != null)
+            own.enabled = false;
+        foreach (Transform child in transform)
+            if (child.GetComponent<SeaweedFrond>() != null && child.GetComponent<MeshRenderer>() != null)
+                child.GetComponent<MeshRenderer>().enabled = true;
         blades.Clear();
         Material painted = Paint();
         var rng = new System.Random(seed + 1);
@@ -925,6 +1087,24 @@ public class Seaweed : MonoBehaviour
 
     private void Update()
     {
+        if (Application.isPlaying && gpuMaterial != null && combined != null)
+        {
+            // GPU sway: the shader does the rest; only the swoops go on the material, when they change.
+            float time = Time.time;
+            if (time >= nextGust)
+            {
+                StartGust(gustStrength);
+                nextGust = time + Random.Range(gustEvery.x, gustEvery.y);
+            }
+            float k = gustSeconds > 0f ? (time - gustStart) / gustSeconds : 1f;
+            float gustNow = k >= 0f && k < 1f ? Mathf.Sin(k * Mathf.PI) * gustPower : 0f;
+            if (!Mathf.Approximately(gustNow, gustShown))
+            {
+                gustShown = gustNow;
+                gpuMaterial.SetFloat(GustId, gustNow);
+            }
+            return;
+        }
         if (!Application.isPlaying || blades.Count == 0)
             return;
         Camera eye = Camera.main;
@@ -932,10 +1112,12 @@ public class Seaweed : MonoBehaviour
             return;
 
         float now = Time.time;
-        // Giant kelp is slow and there is a forest of it: away from the player a clump only works out its bend every
-        // third frame (each clump on its own frame); near them, every frame, so it parts round them smoothly.
+        // Giant kelp and meadow grass are slow and there are fields of them: away from the player a clump only works
+        // out its bend every third frame (each clump on its own frame); near them, every frame, so it parts round them
+        // smoothly.
         bool kelp = kind == Kind.GiantKelp;
-        if (kelp && !PlayerClose() && (Time.frameCount + frameOffset) % 3 != 0)
+        bool cheap = kelp || kind == Kind.Meadow;
+        if (cheap && !PlayerClose() && (Time.frameCount + frameOffset) % 3 != 0)
             return;
         float dt = Mathf.Min(now - lastSway, 0.1f);
         lastSway = now;
@@ -993,7 +1175,7 @@ public class Seaweed : MonoBehaviour
             blade.mesh.vertices = blade.work;
             // A forest of giant kelp keeps its resting normals: the bend is small against its height and the faceted
             // look does not change, and it saves a lot of work per frame.
-            if (kind != Kind.GiantKelp)
+            if (!cheap)
                 blade.mesh.RecalculateNormals();
         }
     }

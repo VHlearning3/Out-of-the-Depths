@@ -336,7 +336,7 @@ public static class ShipGreyboxBuilder
             Window(windowPrefab, new Vector3(x, 3f, HullN - WallT * 0.5f), 180f, windows);
         foreach (float z in new[] { 50.5f, 37f, 21f, 8.75f })                   // column, east hull
             Window(windowPrefab, new Vector3(HullE - WallT * 0.5f, 3f, z), -90f, windows);
-        foreach (float z in new[] { 7f, 17f, 27f, 37f })                        // basement, east hull (the cellar plan's window wall)
+        foreach (float z in new[] { 6f, 16f, 26.3f, 36.4f })                        // basement, east hull (the cellar plan's window wall)
             Window(windowPrefab, new Vector3(HullE - WallT * 0.5f, -3.25f, z), -90f, windows);
 
         // Outside the hull, so the windows look onto something: a dark seabed far below and rocks around the ship.
@@ -591,39 +591,46 @@ public static class ShipGreyboxBuilder
                 }
         }
 
-        // Whale skeletons: a big one along the south wall (the bone fragment by its east end, the current running
-        // through its ribs), one across the middle (the stone fragment by its east end), a small one by the symbol key.
-        Carcass(CellarGround(2.3f, 3.6f), 0f, room, 1.8f);
-        Carcass(CellarGround(3f, 23f), 0f, room, 1.6f);
-        Carcass(CellarGround(-25.3f, 5f), 90f, room, 0.9f);
+        // The sea-grass meadow: the green band from the south wall (between the big skeleton and the key) down to the
+        // stone fragment on the east side, round the ring mound, carpeted with low tufts (Meadow seaweed) on a loose
+        // grid, thinner in the mound's pale middle, not under the kelp or on the things to pick up.
+        Transform meadow = Group("SeaGrass");
+        meadow.SetParent(room, false);
+        var grassRandom = new System.Random(77);
+        int grassSeed = 600;
+        const float grassStep = 1.7f;
+        for (float x = HullW + grassStep * 0.5f; x < HullE; x += grassStep)
+            for (float z = HullS + grassStep * 0.5f; z < BasementN; z += grassStep)
+            {
+                float px = x + ((float)grassRandom.NextDouble() - 0.5f) * grassStep;
+                float pz = z + ((float)grassRandom.NextDouble() - 0.5f) * grassStep;
+                float weight = MeadowWeight(px, pz);
+                float ring = new Vector2((px - 3f) / 6.2f, (pz - 12f) / 4.8f).magnitude;
+                if (ring < 0.8f)
+                    weight *= 0.4f;   // the mound's pale middle: only a few
+                if (grassRandom.NextDouble() > weight || InKelp(px, pz) || !GrassMayGrow(px, pz))
+                    continue;
+                SeaweedAt(CellarGround(px, pz), Seaweed.Kind.Meadow, grassSeed++, meadow);
+            }
+
+        // Whale skeletons: a big one along the south wall (the bone fragment by its east end), one across the middle (the stone fragment by its east end), a small one by the symbol key.
+        Carcass(CellarGround(2.6f, 3.8f), 0f, room, 1.3f, 13f);     // 17 m, x -6..11
+        Carcass(CellarGround(2.9f, 24.6f), 0f, room, 1.2f, 15f);    // 18 m, x -6..12
+        Carcass(CellarGround(-24.6f, 5f), 90f, room, 0.9f, 7f);     // 6 m, beside the symbol key
 
         CreatePickup(CellarGround(-19f, 5.5f) + Vector3.up * 0.8f, "Item_SymbolKey", room);
-        CreatePickup(CellarGround(15f, 23.5f) + Vector3.up * 0.8f, "Item_StoneFragment", room);
-        CreatePickup(CellarGround(8.2f, 4.6f) + Vector3.up * 0.8f, "Item_BoneKeyFragment", room);
+        CreatePickup(CellarGround(19f, 24.5f) + Vector3.up * 0.8f, "Item_StoneFragment", room);     // past the middle skeleton's east end
+        CreatePickup(CellarGround(14f, 5.6f) + Vector3.up * 0.8f, "Item_BoneKeyFragment", room);    // past the big skeleton's east end
         CreatePickup(CellarGround(10f, 15f) + Vector3.up * 0.8f, "Item_Pearl", room);
         CreatePickup(CellarGround(-24f, 30f) + Vector3.up * 0.8f, "Item_Pearl", room);
         CreatePickup(CellarGround(22f, 38f) + Vector3.up * 0.8f, "Item_Shell", room);   // hidden in the big kelp forest
 
-        // A current along the south wall, west to east (the bubbles show where): ride it through the kelp and the big
-        // skeleton's ribs and grab the pearls and shells strung along it as you go past.
-        var ride = new GameObject("Current_SouthRide");
-        ride.transform.SetParent(room, false);
-        ride.transform.SetPositionAndRotation(new Vector3(0f, BasementFloor + 2.5f, 4f), Quaternion.LookRotation(Vector3.right));
-        var rideBox = ride.AddComponent<BoxCollider>();
-        rideBox.isTrigger = true;
-        rideBox.size = new Vector3(3f, 2f, 48f);
-        var current = ride.AddComponent<WaterCurrent>();
-        SetField(current, "strength", p => p.floatValue = 6f);
-        SetField(current, "maxSpeed", p => p.floatValue = 5f);
-        SetField(current, "bubbleMaterial", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<Material>(UnderwaterTools.MotesMaterialPath));
-        string[] riders = { "Item_Pearl", "Item_Shell", "Item_Pearl", "Item_Shell", "Item_Pearl" };
-        for (int i = 0; i < riders.Length; i++)
-            CreatePickup(new Vector3(-18f + i * 9f, BasementFloor + 2.5f + (i % 2) * 0.5f, 4f), riders[i], room);
-
-        // Schools of fish, as the concept paints them.
-        CreateSchool("Fish_Wanderer", 4, new Vector3(-10f, BasementFloor + 3f, 25f), room);
-        CreateSchool("Fish_Wanderer", 4, new Vector3(15f, BasementFloor + 3f, 12f), room);
-        CreateSchool("Fish_Wanderer", 4, new Vector3(-6f, BasementFloor + 3.5f, 37f), room);
+        // Schools of fish where the concept paints them: by the sand hill, over the east side, over the west kelp,
+        // and over the big forest.
+        CreateSchool("Fish_Wanderer", 3, new Vector3(20f, BasementFloor + 3.5f, 7f), room);
+        CreateSchool("Fish_Wanderer", 4, new Vector3(16f, BasementFloor + 3f, 17f), room);
+        CreateSchool("Fish_Wanderer", 3, new Vector3(-16f, BasementFloor + 3.5f, 19f), room);
+        CreateSchool("Fish_Wanderer", 4, new Vector3(-8f, BasementFloor + 3.5f, 34f), room);
         Spawn("DeadFish", CellarGround(0f, 30f) + Vector3.up, room, 10f);
         Spawn("DeadFish", CellarGround(-20f, 15f) + Vector3.up, room, -80f);
         GameObject plate = Spawn("RespawnPlate", CellarGround(-22.5f, 43.2f) + Vector3.up * 0.03f, room);   // by the north wall, beside where the hatch drops you, not under it
@@ -647,7 +654,7 @@ public static class ShipGreyboxBuilder
     private static readonly Vector3[] KelpClear =
     {
         new Vector3(-26f, 41.25f, 4.5f), new Vector3(8f, 41f, 4.5f), new Vector3(-22.5f, 43.2f, 3f),
-        new Vector3(-19f, 5.5f, 2.5f), new Vector3(15f, 23.5f, 2.5f), new Vector3(8.2f, 4.6f, 2.5f),
+        new Vector3(-19f, 5.5f, 2.5f), new Vector3(19f, 24.5f, 2.5f), new Vector3(14f, 5.6f, 2.5f),
         new Vector3(10f, 15f, 1.5f), new Vector3(-24f, 30f, 1.5f), new Vector3(0f, 30f, 1.5f),
     };
 
@@ -672,7 +679,7 @@ public static class ShipGreyboxBuilder
     {
         float hill = Vector2.Distance(new Vector2(x, z), new Vector2(27f, 1.5f));
         float h = 2.2f * Smooth01(1f - hill / 11f);
-        float ring = new Vector2((x - 3.5f) / 6.2f, (z - 12f) / 4.2f).magnitude;
+        float ring = new Vector2((x - 3f) / 6.2f, (z - 12f) / 4.8f).magnitude;
         h += 0.75f * Mathf.Exp(-Mathf.Pow((ring - 1f) / 0.35f, 2f)) + 0.2f * Smooth01(1f - ring);
         h += 0.22f * (Mathf.Sin(CellarBand(x, z) * 0.7f) * 0.5f + 0.5f);
         h += 0.14f * (Mathf.PerlinNoise(x * 0.18f + 11f, z * 0.18f + 7f) - 0.5f);
@@ -684,8 +691,51 @@ public static class ShipGreyboxBuilder
         return Mathf.Max(0f, h);
     }
 
-    // Across the plan's bands (they run from the south-east corner to the north-west one), in metres.
-    private static float CellarBand(float x, float z) => (x * 44f + z * 58f) / 72.8f;
+    // The sea-grass meadow on the plan (the green band round the ring mound), as a polygon of (x, z) points.
+    private static readonly Vector2[] Meadow =
+    {
+        new Vector2(-5.2f, 0f), new Vector2(-29f, 1.3f), new Vector2(-29f, 11.1f), new Vector2(-14.5f, 16.8f),
+        new Vector2(-5.2f, 20.4f), new Vector2(4f, 25.8f), new Vector2(12.2f, 26f), new Vector2(29f, 26f),
+        new Vector2(29f, 15.5f), new Vector2(19.1f, 11.1f), new Vector2(9.9f, 5.3f), new Vector2(2.3f, 1.3f),
+    };
+
+    // 1 well inside the meadow, fading to 0 over its last 2.5 m and outside it.
+    private static float MeadowWeight(float x, float z)
+    {
+        var p = new Vector2(x, z);
+        bool inside = false;
+        float edge = float.MaxValue;
+        for (int i = 0, j = Meadow.Length - 1; i < Meadow.Length; j = i++)
+        {
+            Vector2 a = Meadow[i], b = Meadow[j];
+            if ((a.y > z) != (b.y > z) && x < (b.x - a.x) * (z - a.y) / (b.y - a.y) + a.x)
+                inside = !inside;
+            Vector2 ab = b - a;
+            float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / Mathf.Max(0.0001f, ab.sqrMagnitude));
+            edge = Mathf.Min(edge, Vector2.Distance(p, a + ab * t));
+        }
+        return inside ? Smooth01(edge / 2.5f) : 0f;
+    }
+
+    private static bool InKelp(float x, float z)
+    {
+        foreach (Rect patch in KelpPatches)
+            if (patch.Contains(new Vector2(x, z)))
+                return true;
+        return false;
+    }
+
+    // Kept clear of grass: the things to pick up and the checkpoint (the kelp's own clear list), a little tighter.
+    private static bool GrassMayGrow(float x, float z)
+    {
+        foreach (Vector3 clear in KelpClear)
+            if (new Vector2(x - clear.x, z - clear.y).magnitude < Mathf.Min(clear.z, 1.6f))
+                return false;
+        return true;
+    }
+
+    // Across the plan's bands, in metres: they curve round the sand hill in the south-east corner like contour lines.
+    private static float CellarBand(float x, float z) => Vector2.Distance(new Vector2(x, z), new Vector2(HullE, HullS));
 
     // The point on the cellar floor at (x, z).
     private static Vector3 CellarGround(float x, float z) => new Vector3(x, BasementFloor + 0.02f + CellarHeight(x, z), z);
@@ -726,7 +776,7 @@ public static class ShipGreyboxBuilder
         var floor = new GameObject("CellarFloor");
         floor.transform.SetParent(parent, false);
         floor.AddComponent<MeshFilter>().sharedMesh = mesh;
-        floor.AddComponent<MeshRenderer>().sharedMaterial = CellarMaterial(CellarFloorMaterialPath, CellarFloorTexturePath, PaintCellarFloor, 0.08f);
+        floor.AddComponent<MeshRenderer>().sharedMaterial = CellarMaterial(CellarFloorMaterialPath, CellarFloorTexturePath, PaintCellarFloor, 0.08f, true);
         floor.AddComponent<MeshCollider>().sharedMesh = mesh;
     }
 
@@ -793,19 +843,25 @@ public static class ShipGreyboxBuilder
     }
 
     // A URP Lit material with a painted texture, both saved once (paint = fills the texture's pixels).
-    private static Material CellarMaterial(string materialPath, string texturePath, System.Func<Texture2D> paint, float smoothness)
+    private static Material CellarMaterial(string materialPath, string texturePath, System.Func<Texture2D> paint, float smoothness, bool repaint = false)
     {
         var material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
-        if (material != null)
-            return material;
         var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
-        if (texture == null)
+        if (material != null && texture != null && !repaint)
+            return material;
+        if (texture == null || repaint)
         {
             Texture2D painted = paint();
             System.IO.File.WriteAllBytes(texturePath, painted.EncodeToPNG());
             Object.DestroyImmediate(painted);
             AssetDatabase.ImportAsset(texturePath);
             texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
+        }
+        if (material != null)
+        {
+            material.SetTexture("_BaseMap", texture);
+            EditorUtility.SetDirty(material);
+            return material;
         }
         material = new Material(Shader.Find("Universal Render Pipeline/Lit")) { name = System.IO.Path.GetFileNameWithoutExtension(materialPath) };
         material.SetTexture("_BaseMap", texture);
@@ -838,7 +894,11 @@ public static class ShipGreyboxBuilder
 
                 float hill = Vector2.Distance(new Vector2(x, z), new Vector2(27f, 1.5f));
                 c = Color.Lerp(c, sand, Smooth01(1.3f - hill / 9f));
-                float ring = new Vector2((x - 3.5f) / 6.2f, (z - 12f) / 4.2f).magnitude;
+                // The meadow: one green band, lighter and darker in patches like grass on the hills.
+                float lush = Mathf.PerlinNoise(x * 0.25f + 40f, z * 0.25f + 13f);
+                Color meadowGreen = Color.Lerp(new Color(0.16f, 0.32f, 0.13f), new Color(0.3f, 0.48f, 0.2f), lush);
+                c = Color.Lerp(c, meadowGreen, MeadowWeight(x, z));
+                float ring = new Vector2((x - 3f) / 6.2f, (z - 12f) / 4.8f).magnitude;
                 c = Color.Lerp(c, darkGrass, 0.8f * Mathf.Exp(-Mathf.Pow((ring - 1f) / 0.3f, 2f)));
                 c = Color.Lerp(c, paleSand, Smooth01((0.85f - ring) / 0.25f) * 0.8f);
 
@@ -1820,19 +1880,23 @@ public static class ShipGreyboxBuilder
         AddKnotMinigame(seaweed, socket, weed);
     }
 
-    // A bone carcass on the floor: a spine with ribs, turned by yaw.
-    private static void Carcass(Vector3 position, float yaw, Transform parent, float scale = 1f)
+    // A bone carcass on the floor: a spine `length` long (before `scale`) with a pair of ribs every 0.8 m along most
+    // of it, the biggest at the head end (-x before the turn) shrinking toward the tail, turned by yaw.
+    private static void Carcass(Vector3 position, float yaw, Transform parent, float scale = 1f, float length = 5f)
     {
         var carcass = new GameObject("BoneCarcass");
         carcass.transform.SetParent(parent, false);
         carcass.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, yaw, 0f));
-        Decor("Spine", position + Vector3.up * 0.3f, new Vector3(5f, 0.3f, 0.3f), Bone, parent).transform.SetParent(carcass.transform, true);
-        for (int i = 0; i < 6; i++)
+        Decor("Spine", position + Vector3.up * 0.3f, new Vector3(length, 0.3f, 0.3f), Bone, parent).transform.SetParent(carcass.transform, true);
+        float span = length * 0.8f;
+        int ribs = Mathf.Max(3, Mathf.RoundToInt(span / 0.8f) + 1);
+        for (int i = 0; i < ribs; i++)
         {
-            float x = -2f + i * 0.8f;
+            float x = -span * 0.5f + i * span / (ribs - 1);
+            float size = Mathf.Lerp(1f, 0.55f, i / (ribs - 1f));
             foreach (float side in new[] { -1f, 1f })
             {
-                GameObject rib = Decor("Rib", position + new Vector3(x, 0.9f, side * 0.7f), new Vector3(0.2f, 1.8f, 0.2f), Bone, parent);
+                GameObject rib = Decor("Rib", position + new Vector3(x, 0.9f * size, side * 0.7f * size), new Vector3(0.2f, 1.8f * size, 0.2f), Bone, parent);
                 rib.transform.rotation = Quaternion.Euler(side * 35f, 0f, 0f);
                 rib.transform.SetParent(carcass.transform, true);
             }

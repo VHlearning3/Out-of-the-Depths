@@ -199,6 +199,19 @@ public class SwimController : MonoBehaviour
         HandleLook();
         HandleSwim();
         ApplyCameraFeel();
+        ShowBodyToPlants();
+    }
+
+    private static readonly int PlantPusherId = Shader.PropertyToID("_PlantPusher");
+    private static readonly int PlantPusherHalfId = Shader.PropertyToID("_PlantPusherHalf");
+
+    // Where the player's body is, for the seaweed (the Swaying Plant shader parts the leaves round it): the middle of
+    // the Character Controller's capsule, its radius and half its height.
+    private void ShowBodyToPlants()
+    {
+        Vector3 middle = transform.TransformPoint(controller.center);
+        Shader.SetGlobalVector(PlantPusherId, new Vector4(middle.x, middle.y, middle.z, controller.radius));
+        Shader.SetGlobalFloat(PlantPusherHalfId, controller.height * 0.5f);
     }
 
     // In the editor, Escape frees the cursor and nothing can lock it again until the Game view is clicked. So when
@@ -253,6 +266,8 @@ public class SwimController : MonoBehaviour
     }
 
     // A burst the way you are swimming (or looking, when still), gliding away through the water; paid for in hunger.
+    private static bool dashHintShown;
+
     private void TryDash(Vector3 wishVelocity)
     {
         if (Time.time < nextDashAt)
@@ -268,6 +283,12 @@ public class SwimController : MonoBehaviour
         currentVelocity += direction * dashSpeed;
         nextDashAt = Time.time + dashCooldown;
         LastDashAt = Time.time;
+        // The first dash that costs something (this session) says what it cost.
+        if (!dashHintShown && hunger != null && !hunger.DrainPaused && dashHungerCost > 0f)
+        {
+            dashHintShown = true;
+            HintPopup.Show($"Dashing uses {dashHungerCost:0} hunger. Eat fish to fill it back up.");
+        }
         AddShake(dashShake);
         if (dashSound != null)
             AudioSource.PlayClipAtPoint(dashSound, transform.position, dashVolume);

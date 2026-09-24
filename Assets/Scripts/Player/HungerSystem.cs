@@ -34,7 +34,7 @@ public class HungerSystem : MonoBehaviour
     public bool IsLow => HungerPercent01 <= warningThreshold01;
     public bool IsStarving => CurrentHunger <= 0f;
 
-    // Admin panel: hunger stops going down while this is on.
+    // Admin panel: hunger stops going down while this is on, and actions that cost hunger (the dash) are free.
     public bool DrainPaused { get; set; }
 
     private bool depletedEventFired;
@@ -79,8 +79,8 @@ public class HungerSystem : MonoBehaviour
     // Pay for an action (the dash): false, and nothing taken, when there is not that much left.
     public bool Spend(float amount)
     {
-        if (amount <= 0f)
-            return true;
+        if (amount <= 0f || DrainPaused)
+            return true;   // free while the admin panel has hunger switched off
         if (CurrentHunger < amount)
             return false;
         SetHunger(CurrentHunger - amount);
