@@ -4,6 +4,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using static TestArenaBuilder;
+using static LightingTools;
 
 // Tools > Out of the Depths > Rebuild Ship Greybox (Main_Scene). Clears the level content in Main_Scene (the ROOMS and
 // Placeholder groups and the loose doors / fish / plates at the root) and rebuilds the ship from the GDD floor plans at
@@ -57,8 +58,6 @@ public static class ShipGreyboxBuilder
         (new Vector2(3.4f, 31.2f), new Vector2(2.4f, 0.42f), -35f, 4),   // a long split in the plating
         (new Vector2(-9.2f, 33.6f), new Vector2(0.6f, 0.55f), 0f, 5),
     };
-    // The sun: high, so looking up through the holes you see it, and its light falls in through them.
-    private static readonly Quaternion SunRotation = Quaternion.Euler(68f, -30f, 0f);
     private static readonly Color Hull = new Color(0.13f, 0.15f, 0.19f);
     private static readonly Color Prop = new Color(0.36f, 0.4f, 0.46f);
     private static readonly Color Wood = new Color(0.4f, 0.28f, 0.16f);
@@ -900,9 +899,9 @@ public static class ShipGreyboxBuilder
     }
 
     // The lighting, in layers: a dim cool fill in every room and along the basement so nothing is pitch black; the
-    // ship's own old lamps, warm against the blue, a few of them stuttering; the water light, a cool beam slanting in
-    // through every window and the sun falling through the roof holes (each with a faint shaft); warm spots on what
-    // matters (the dresser, the seaweed, the pedestals, the locks); and glowing algae on the basement floor.
+    // water light, a cool beam slanting in through every window and the sun falling through the roof holes (each with
+    // a faint shaft); warm spots on what matters (the dresser, the seaweed, the pedestals, the locks); and glowing
+    // algae on the basement floor.
     private static void BuildLights()
     {
         Transform lights = Group("Lights");
@@ -919,31 +918,15 @@ public static class ShipGreyboxBuilder
         foreach (var (name, x, z) in new[] { ("Basement_SW", -15f, 12f), ("Basement_SE", 15f, 12f), ("Basement_NW", -15f, 32f), ("Basement_NE", 15f, 32f) })
             RoomLight("Light_" + name, new Vector3(x, BasementCeiling - 2.4f, z), below, 1f, 20f, lights);
 
-        Transform lamps = Group("Lamps");
-        lamps.SetParent(lights, false);
-        foreach (var (name, x, z, flicker) in new[]
-        {
-            ("Room1_A", -16f, 13.5f, false), ("Room1_B", -23f, 24f, false),
-            ("Room2_A", -9.5f, 30f, false), ("Room2_B", 4.5f, 27.5f, false), ("Room2_C", -2.5f, 21.5f, true),
-            ("Room3_A", -17f, 33f, true), ("Room3_B", -24f, 41f, false), ("Nook", -18f, 47f, true),
-            ("Room5", 11f, 46f, false), ("Room6", 13.5f, 25.5f, false), ("Room7_A", -6f, 12f, false), ("Room7_B", 13f, 17f, true),
-            ("Room8", -2.25f, 42.5f, false), ("Hallway_A", -21f, 54.25f, true), ("Hallway_B", -11f, 54.25f, false), ("Room9b", 8f, 54.25f, false),
-            ("Column_A", 24.4f, 8f, false), ("Column_B", 24.4f, 18f, true), ("Column_C", 24.4f, 44f, false),
-        })
-            Lamp("Lamp_" + name, new Vector3(x, Ceiling, z), flicker, lamps);
-
         Transform water = Group("WaterLight");
         water.SetParent(lights, false);
-        var beam = new Color(0.5f, 0.85f, 1f);
         foreach (FishWindow window in ship.GetComponentsInChildren<FishWindow>(true))
         {
             Transform w = window.transform;
             if (Mathf.Abs(w.forward.y) > 0.3f)
                 continue;   // the roof holes: the sun does those
-            Vector3 into = (w.forward * Mathf.Cos(35f * Mathf.Deg2Rad) + Vector3.down * Mathf.Sin(35f * Mathf.Deg2Rad)).normalized;
             bool shadows = w.position.x < -20f && w.position.y > 0f;   // the spawn and fish room windows, the most looked at
-            BeamLight("Beam_" + w.name, w.position - into * 2f, into, 50f, 2.6f, 11f, shadows, beam, water);
-            Shaft("Shaft_" + w.name, w.position - into * 0.3f, into, 5f, 1.2f, new Color(0.5f, 0.85f, 1f, 0.14f), water);
+            WindowBeam(w, shadows, water);
         }
         // The roof holes: a shaft down each along the sun's light, and a soft spot to lift the pool it lands in.
         Vector3 sunward = SunRotation * Vector3.forward;
@@ -970,189 +953,13 @@ public static class ShipGreyboxBuilder
             ("HallwayTablet", new Vector3(-7f, 1.8f, 58.1f), new Vector3(-7f, 4.6f, 55.6f)),
             ("Trident", new Vector3(24f, 1.8f, 28.75f), new Vector3(24f, 4.6f, 26.8f)),
         })
-            BeamLight("Accent_" + name, from, target - from, 38f, 2.2f, 8f, false, new Color(1f, 0.88f, 0.7f), accents);
+            Accent(name, target, from, accents);
 
         Transform algae = Group("GlowAlgae");
         algae.SetParent(lights, false);
-        Material glow = EnsureGlowMaterial(AlgaeMaterialPath, new Color(0.25f, 1f, 0.7f));
         var random = new System.Random(11);
-        float Range(float a, float b) => a + (float)random.NextDouble() * (b - a);
         foreach (var (x, z) in new[] { (-26f, 4f), (-6f, 14f), (12f, 24f), (25f, 40f), (-18f, 27f), (3f, 7f), (20f, 12f), (-10f, 40f) })
-        {
-            var cluster = new GameObject("Algae");
-            cluster.transform.SetParent(algae, false);
-            cluster.transform.position = new Vector3(x, BasementFloor, z);
-            int blobs = 4 + random.Next(3);
-            for (int i = 0; i < blobs; i++)
-            {
-                float r = Range(0.06f, 0.18f);
-                GameObject blob = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                Object.DestroyImmediate(blob.GetComponent<Collider>());
-                blob.name = "Glow";
-                blob.transform.SetParent(cluster.transform, false);
-                blob.transform.position = new Vector3(x + Range(-0.7f, 0.7f), BasementFloor + 0.03f + r * 0.6f, z + Range(-0.7f, 0.7f));
-                blob.transform.localScale = new Vector3(r * 2f, r * 1.4f, r * 2f);
-                var renderer = blob.GetComponent<MeshRenderer>();
-                renderer.sharedMaterial = glow;
-                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            }
-            RoomLight("AlgaeLight", new Vector3(x, BasementFloor + 0.5f, z), new Color(0.3f, 1f, 0.75f), 1.4f, 5f, cluster.transform);
-        }
-    }
-
-    private static void RoomLight(string name, Vector3 position, Color color, float intensity, float range, Transform parent)
-    {
-        var go = new GameObject(name);
-        go.transform.SetParent(parent, false);
-        go.transform.position = position;
-        var light = go.AddComponent<Light>();
-        light.type = LightType.Point;
-        light.color = color;
-        light.intensity = intensity;
-        light.range = range;
-        light.shadows = LightShadows.None;
-    }
-
-    // An old ceiling lamp: a rod, a shade, a glowing bulb and a warm light just under it. Flicker = it stutters now and then.
-    private static void Lamp(string name, Vector3 ceiling, bool flicker, Transform parent)
-    {
-        var lamp = new GameObject(name);
-        lamp.transform.SetParent(parent, false);
-        lamp.transform.position = ceiling;
-        Color metal = new Color(0.12f, 0.12f, 0.13f);
-        Decor("Rod", ceiling + Vector3.down * 0.45f, new Vector3(0.04f, 0.9f, 0.04f), metal, lamp.transform);
-        Decor("Shade", ceiling + Vector3.down * 0.95f, new Vector3(0.5f, 0.1f, 0.5f), metal, lamp.transform);
-        GameObject bulb = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        Object.DestroyImmediate(bulb.GetComponent<Collider>());
-        bulb.name = "Bulb";
-        bulb.transform.SetParent(lamp.transform, false);
-        bulb.transform.position = ceiling + Vector3.down * 1.1f;
-        bulb.transform.localScale = Vector3.one * 0.22f;
-        var bulbRenderer = bulb.GetComponent<MeshRenderer>();
-        bulbRenderer.sharedMaterial = EnsureGlowMaterial(LampMaterialPath, new Color(1f, 0.72f, 0.42f));
-        bulbRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-
-        var go = new GameObject("Light");
-        go.transform.SetParent(lamp.transform, false);
-        go.transform.position = ceiling + Vector3.down * 1.35f;
-        var light = go.AddComponent<Light>();
-        light.type = LightType.Point;
-        light.color = new Color(1f, 0.72f, 0.42f);
-        light.intensity = 1.8f;
-        light.range = 8f;
-        light.shadows = LightShadows.None;
-        if (flicker)
-        {
-            var stutter = go.AddComponent<LightFlicker>();
-            SetField(stutter, "bulb", p => p.objectReferenceValue = bulbRenderer);
-        }
-    }
-
-    // A spot light from `from` along `direction`. Shadows on = soft shadows, so walls and window frames shape it.
-    private static void BeamLight(string name, Vector3 from, Vector3 direction, float angle, float intensity, float range, bool shadows, Color color, Transform parent)
-    {
-        var go = new GameObject(name);
-        go.transform.SetParent(parent, false);
-        go.transform.SetPositionAndRotation(from, Quaternion.LookRotation(direction.normalized, Mathf.Abs(direction.normalized.y) > 0.95f ? Vector3.forward : Vector3.up));
-        var light = go.AddComponent<Light>();
-        light.type = LightType.Spot;
-        light.color = color;
-        light.intensity = intensity;
-        light.range = range;
-        light.spotAngle = angle;
-        light.innerSpotAngle = angle * 0.5f;
-        light.shadows = shadows ? LightShadows.Soft : LightShadows.None;
-    }
-
-    // A faint shaft of light: two crossed quads from `start` along `direction`, bright at the start and fading out
-    // along its length and at its sides (additive, never casting or catching shadows).
-    private static void Shaft(string name, Vector3 start, Vector3 direction, float length, float width, Color color, Transform parent)
-    {
-        var shaft = new GameObject(name);
-        shaft.transform.SetParent(parent, false);
-        Vector3 d = direction.normalized;
-        shaft.transform.SetPositionAndRotation(start, Quaternion.LookRotation(d, Mathf.Abs(d.y) > 0.95f ? Vector3.forward : Vector3.up));
-        Material material = EnsureShaftMaterial();
-        foreach (Quaternion turn in new[] { Quaternion.Euler(90f, 0f, 0f), Quaternion.Euler(0f, 0f, 90f) * Quaternion.Euler(90f, 0f, 0f) })
-        {
-            GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            Object.DestroyImmediate(quad.GetComponent<Collider>());
-            quad.name = "Beam";
-            quad.transform.SetParent(shaft.transform, false);
-            quad.transform.localRotation = turn;
-            quad.transform.localPosition = new Vector3(0f, 0f, length * 0.5f);
-            quad.transform.localScale = new Vector3(width, length, 1f);
-            var renderer = quad.GetComponent<MeshRenderer>();
-            renderer.sharedMaterial = material;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-        }
-        shaft.AddComponent<RendererTint>().Tint = color;
-    }
-
-    private const string LampMaterialPath = "Assets/Art/Materials/LampBulb.mat";
-    private const string AlgaeMaterialPath = "Assets/Art/Materials/GlowAlgae.mat";
-    private const string ShaftMaterialPath = "Assets/Art/Materials/LightShaft.mat";
-    private const string ShaftTexturePath = "Assets/Art/Textures/LightShaft.png";
-
-    // A URP Lit material that glows (emission, which the bloom picks up), saved once.
-    private static Material EnsureGlowMaterial(string path, Color glow)
-    {
-        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
-        if (material != null)
-            return material;
-        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-        material = new Material(shader) { name = System.IO.Path.GetFileNameWithoutExtension(path) };
-        material.SetColor("_BaseColor", glow * 0.6f);
-        material.EnableKeyword("_EMISSION");
-        material.SetColor("_EmissionColor", glow * 3f);
-        material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
-        AssetDatabase.CreateAsset(material, path);
-        return material;
-    }
-
-    // LightShaft.mat: a URP particle material, additive, with a soft streak (LightShaft.png: bright near the start,
-    // fading along its length and to its sides), saved once.
-    private static Material EnsureShaftMaterial()
-    {
-        var material = AssetDatabase.LoadAssetAtPath<Material>(ShaftMaterialPath);
-        if (material != null)
-            return material;
-        var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(ShaftTexturePath);
-        if (texture == null)
-        {
-            const int w = 32, h = 128;
-            var generated = new Texture2D(w, h, TextureFormat.RGBA32, false);
-            var pixels = new Color[w * h];
-            for (int y = 0; y < h; y++)
-                for (int x = 0; x < w; x++)
-                {
-                    float u = (x + 0.5f) / w, v = (y + 0.5f) / h;
-                    float side = Mathf.Pow(Mathf.Sin(u * Mathf.PI), 2f);
-                    float along = Mathf.SmoothStep(0f, 1f, v / 0.08f) * Mathf.Pow(1f - v, 1.6f);
-                    pixels[y * w + x] = new Color(1f, 1f, 1f, side * along);
-                }
-            generated.SetPixels(pixels);
-            generated.Apply();
-            System.IO.File.WriteAllBytes(ShaftTexturePath, generated.EncodeToPNG());
-            Object.DestroyImmediate(generated);
-            AssetDatabase.ImportAsset(ShaftTexturePath);
-            if (AssetImporter.GetAtPath(ShaftTexturePath) is TextureImporter importer)
-            {
-                importer.alphaIsTransparency = true;
-                importer.wrapMode = TextureWrapMode.Clamp;
-                importer.SaveAndReimport();
-            }
-            texture = AssetDatabase.LoadAssetAtPath<Texture2D>(ShaftTexturePath);
-        }
-        Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
-        material = new Material(shader) { name = "LightShaft" };
-        UnderwaterLighting.ConfigureMoteMaterial(material, texture);
-        material.SetFloat("_Blend", 2f);   // additive
-        material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
-        AssetDatabase.CreateAsset(material, ShaftMaterialPath);
-        return material;
+            Algae(new Vector3(x, BasementFloor, z), random, algae);
     }
 
     // Collectibles tucked away round the ship, for the counter in the corner: high corners you have to swim up to,
@@ -1174,28 +981,11 @@ public static class ShipGreyboxBuilder
             CreatePickup(new Vector3(x, y, z), item, group);
     }
 
-    // The sun, turned high (Sun Rotation) so it shows through the roof holes and its light falls in through them, and
-    // the ocean surface overhead (Ocean Surface: the shimmering underside of the surface and the sun's glow).
+    // The sun, turned high (Lighting Tools' Sun Rotation) so it shows through the roof holes and its light falls in
+    // through them, and the ocean surface overhead (Ocean Surface: the shimmering underside and the sun's glow).
     private static void BuildSunAndSurface()
     {
-        Light sun = RenderSettings.sun;
-        if (sun == null)
-            foreach (Light light in Object.FindObjectsByType<Light>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-                if (light.type == LightType.Directional)
-                {
-                    sun = light;
-                    break;
-                }
-        if (sun != null)
-        {
-            sun.transform.rotation = SunRotation;
-            sun.shadows = LightShadows.Soft;
-        }
-        var surface = new GameObject("OceanSurface");
-        surface.transform.SetParent(ship, false);
-        var component = surface.AddComponent<OceanSurface>();
-        if (sun != null)
-            SetField(component, "sun", p => p.objectReferenceValue = sun);
+        SunAndSurface(ship);
     }
 
     // Nothing left poking through the level: a pickup placed inside something solid (a wall, a pillar, a pedestal)

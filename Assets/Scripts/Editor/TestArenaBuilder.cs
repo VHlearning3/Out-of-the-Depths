@@ -3,6 +3,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using static LightingTools;
 
 // Tools > Out of the Depths > Rebuild Test Arena. Keeps Player, HUD, lights and the admin panel in TestArena.unity and
 // replaces the arena itself with labelled test zones built from the placeholder prefabs. Safe to run again any time.
@@ -103,6 +104,7 @@ public static class TestArenaBuilder
         Step("HUD layout", HudLayoutTools.Apply);
         Step("Warning thresholds", TuneWarningThresholds);
         Step("Underwater look", UnderwaterTools.ApplyToOpenScene);
+        Step("Lighting", BuildLighting);
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -1188,6 +1190,37 @@ public static class TestArenaBuilder
             Spawn(prefabName, position + offset, school.transform, 90f);
         }
         return pack;
+    }
+
+    // The ship's look in the arena (Lighting Tools): the high sun and the ocean surface overhead (the arena is open to
+    // the sky, so you see them looking up), the water light through the fish room windows, a cool fill down the roofed
+    // chase corridor, warm accents on the puzzles and the pickup shelf, and glowing algae in the corners.
+    private static void BuildLighting()
+    {
+        Transform lights = Group("Lights");
+        SunAndSurface(arenaRoot);
+
+        foreach (FishWindow window in arenaRoot.GetComponentsInChildren<FishWindow>(true))
+            if (Mathf.Abs(window.transform.forward.y) < 0.3f)
+                WindowBeam(window.transform, true, lights);
+
+        var fill = new Color(0.42f, 0.66f, 0.95f);
+        foreach (var (name, x, z) in new[] { ("Hall_W", -4f, 33.25f), ("Hall_Mid", 8f, 33.25f), ("Hall_E", 20f, 33.25f), ("Room", 29.75f, 35.25f), ("Corridor_S", 30.25f, 45f), ("Corridor_N", 30.25f, 56f) })
+            RoomLight("Light_Chase_" + name, new Vector3(x, 3.2f, z), fill, 0.85f, 14f, lights);
+
+        foreach (var (name, target, from) in new[]
+        {
+            ("Pedestal", new Vector3(0f, 1.2f, 6f), new Vector3(0f, 4.6f, 4f)),
+            ("Seaweed", new Vector3(-5f, 1f, 8f), new Vector3(-5f, 4.6f, 5.8f)),
+            ("BoneLock", new Vector3(2.1f, 1.2f, 13.4f), new Vector3(2.1f, 4.2f, 11.4f)),
+            ("RuneLock", new Vector3(6.3f, 1.6f, 13.4f), new Vector3(6.3f, 4.2f, 11.2f)),
+            ("PickupShelf", new Vector3(18f, 1.25f, -20f), new Vector3(18f, 5.5f, -17f)),
+        })
+            Accent(name, target, from, lights);
+
+        var random = new System.Random(5);
+        foreach (var (x, z) in new[] { (-28f, -28f), (27f, -27f), (28f, 28f), (-28f, 28f), (-27f, 0f), (5f, 25f) })
+            Algae(new Vector3(x, 0f, z), random, lights);
     }
 
     // Ship windows onto open water: the FishWindow prefabs cut their own holes in the north wall; a dark seabed and a few
