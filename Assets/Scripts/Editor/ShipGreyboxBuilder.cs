@@ -336,7 +336,7 @@ public static class ShipGreyboxBuilder
             Window(windowPrefab, new Vector3(x, 3f, HullN - WallT * 0.5f), 180f, windows);
         foreach (float z in new[] { 50.5f, 37f, 21f, 8.75f })                   // column, east hull
             Window(windowPrefab, new Vector3(HullE - WallT * 0.5f, 3f, z), -90f, windows);
-        foreach (float z in new[] { 37f, 23.5f, 8.75f })                        // basement, east hull
+        foreach (float z in new[] { 7f, 17f, 27f, 37f })                        // basement, east hull (the cellar plan's window wall)
             Window(windowPrefab, new Vector3(HullE - WallT * 0.5f, -3.25f, z), -90f, windows);
 
         // Outside the hull, so the windows look onto something: a dark seabed far below and rocks around the ship.
@@ -550,35 +550,62 @@ public static class ShipGreyboxBuilder
         Spawn("DeadFish", new Vector3(-20f, 1f, 42f), room, 40f);
     }
 
-    // Room 4: the basement, one open cellar under everything (x -29..29, z 0..44.25, floor at -6, no walls inside; the
-    // strip north of it is the plan's hatched empty space) with a mural down the west wall, seaweed, bone carcasses,
-    // fish, the symbol key, a stone fragment and a bone fragment, and the second hatch up into room 5.
+    // Room 4: the cellar, one open hold under everything (x -29..29, z 0..44.25, floor at -6, ceiling at -0.5), laid
+    // out as the concept art draws it. The plan is drawn with south at the top: the window wall is the east hull (four
+    // portholes), the murals are on the south and west walls, the hatch you come down through is in the north-west
+    // corner (symbol 1 under it) and the north wall is blank. The floor is sand and sea grass in bands running corner
+    // to corner, with a sand hill in the south-east corner and a ring-shaped mound in the middle; thick tall giant
+    // kelp stands in forests (along the south wall, down the west side, and a big one across the north half, clear of
+    // the hatches); whale skeletons lie along the south wall and across the middle, a small one by the symbol key. All
+    // walls and the ceiling are the same stone. Also: the stone fragment, the bone fragment, pearls, the current along
+    // the south wall to ride, fish, and the hatch up into room 5.
     private static void BuildBasement()
     {
         Transform room = Group("Room_4_Basement");
-        Deck(room, HullW, HullS, HullE, BasementN, BasementFloor, new Color(0.22f, 0.24f, 0.2f));
+        CellarFloor(room);
+        MuralAt(new Vector3(0f, -3.3f, HullS + 0.3f), new Vector2(40f, 1.6f), Vector3.forward, room);    // south wall
+        MuralAt(new Vector3(HullW + 0.3f, -3.3f, 22f), new Vector2(34f, 1.6f), Vector3.right, room);      // west wall
 
-        // No walls inside: one open hull, as the plan draws it, with the mural strip down the west wall from the hatch.
-        MuralAt(new Vector3(HullW + 0.3f, -3.3f, 31f), new Vector2(26f, 1.6f), Vector3.right, room);
+        // The kelp forests: clumps of giant kelp on a loose grid through each patch, reaching up to the ceiling,
+        // kept clear of the hatches, the checkpoint and the things to pick up.
+        Transform kelp = Group("KelpForest");
+        kelp.SetParent(room, false);
+        var random = new System.Random(41);
+        int seedNo = 200;
+        foreach (Rect patch in KelpPatches)
+        {
+            const float step = 3f;   // clumps about 3 m apart: a thick forest
+            for (float x = patch.xMin + step * 0.5f; x < patch.xMax; x += step)
+                for (float z = patch.yMin + step * 0.5f; z < patch.yMax; z += step)
+                {
+                    // Anywhere in its grid cell (so no rows show), and now and then none at all (so it thins out).
+                    float px = x + ((float)random.NextDouble() - 0.5f) * step;
+                    float pz = z + ((float)random.NextDouble() - 0.5f) * step;
+                    if (random.NextDouble() < 0.15 || !patch.Contains(new Vector2(px, pz)) || !KelpMayGrow(px, pz))
+                        continue;
+                    Vector3 foot = CellarGround(px, pz);
+                    Seaweed weed = SeaweedAt(foot, Seaweed.Kind.GiantKelp, seedNo++, kelp);
+                    float room01 = BasementCeiling - foot.y - 0.35f;   // up to just under the ceiling
+                    SetField(weed, "height", p => p.floatValue = Mathf.Min(5f, room01));
+                    weed.Build();
+                }
+        }
 
-        // Seven clumps of four kinds, each with its own layout.
-        Seaweed.Kind[] kinds = { Seaweed.Kind.Kelp, Seaweed.Kind.SeaGrass, Seaweed.Kind.BroadLeaf, Seaweed.Kind.Ribbon };
-        Vector3[] spots = { new Vector3(-22f, 0f, 36f), new Vector3(-14f, 0f, 40f), new Vector3(12f, 0f, 36f), new Vector3(20f, 0f, 30f), new Vector3(-8f, 0f, 22f), new Vector3(24f, 0f, 8f), new Vector3(-24f, 0f, 12f) };
-        for (int i = 0; i < spots.Length; i++)
-            SeaweedClump(spots[i] + Vector3.up * BasementFloor, kinds[i % kinds.Length], 20 + i, room);
-        Carcass(new Vector3(-12f, BasementFloor, 8f), 20f, room);
-        Carcass(new Vector3(16f, BasementFloor, 20f), -50f, room);
-        Carcass(new Vector3(0f, BasementFloor, 40f), 90f, room);
+        // Whale skeletons: a big one along the south wall (the bone fragment by its east end, the current running
+        // through its ribs), one across the middle (the stone fragment by its east end), a small one by the symbol key.
+        Carcass(CellarGround(2.3f, 3.6f), 0f, room, 1.8f);
+        Carcass(CellarGround(3f, 23f), 0f, room, 1.6f);
+        Carcass(CellarGround(-25.3f, 5f), 90f, room, 0.9f);
 
-        CreatePickup(new Vector3(-17.5f, BasementFloor + 0.8f, 8.25f), "Item_SymbolKey", room);
-        CreatePickup(new Vector3(16.5f, BasementFloor + 0.8f, 28.75f), "Item_StoneFragment", room);
-        CreatePickup(new Vector3(-4f, BasementFloor + 0.8f, 3f), "Item_BoneKeyFragment", room);
-        CreatePickup(new Vector3(10f, BasementFloor + 0.8f, 15f), "Item_Pearl", room);
-        CreatePickup(new Vector3(-24f, BasementFloor + 0.8f, 30f), "Item_Pearl", room);
-        CreatePickup(new Vector3(22f, BasementFloor + 0.8f, 38f), "Item_Shell", room);
+        CreatePickup(CellarGround(-19f, 5.5f) + Vector3.up * 0.8f, "Item_SymbolKey", room);
+        CreatePickup(CellarGround(15f, 23.5f) + Vector3.up * 0.8f, "Item_StoneFragment", room);
+        CreatePickup(CellarGround(8.2f, 4.6f) + Vector3.up * 0.8f, "Item_BoneKeyFragment", room);
+        CreatePickup(CellarGround(10f, 15f) + Vector3.up * 0.8f, "Item_Pearl", room);
+        CreatePickup(CellarGround(-24f, 30f) + Vector3.up * 0.8f, "Item_Pearl", room);
+        CreatePickup(CellarGround(22f, 38f) + Vector3.up * 0.8f, "Item_Shell", room);   // hidden in the big kelp forest
 
-        // A current along the south wall, west to east (the bubbles show where): ride it and grab the pearls and shells
-        // strung along it as you go past.
+        // A current along the south wall, west to east (the bubbles show where): ride it through the kelp and the big
+        // skeleton's ribs and grab the pearls and shells strung along it as you go past.
         var ride = new GameObject("Current_SouthRide");
         ride.transform.SetParent(room, false);
         ride.transform.SetPositionAndRotation(new Vector3(0f, BasementFloor + 2.5f, 4f), Quaternion.LookRotation(Vector3.right));
@@ -593,13 +620,322 @@ public static class ShipGreyboxBuilder
         for (int i = 0; i < riders.Length; i++)
             CreatePickup(new Vector3(-18f + i * 9f, BasementFloor + 2.5f + (i % 2) * 0.5f, 4f), riders[i], room);
 
-        CreateSchool("Fish_Wanderer", 3, new Vector3(-10f, BasementFloor + 2.5f, 25f), room);
-        CreateSchool("Fish_Wanderer", 3, new Vector3(15f, BasementFloor + 2.5f, 12f), room);
-        Spawn("DeadFish", new Vector3(0f, BasementFloor + 1f, 30f), room, 10f);
-        Spawn("DeadFish", new Vector3(-20f, BasementFloor + 1f, 15f), room, -80f);
-        GameObject plate = Spawn("RespawnPlate", new Vector3(-22.5f, BasementFloor + 0.05f, 43.2f), room);   // by the north wall, beside where the hatch drops you, not under it
+        // Schools of fish, as the concept paints them.
+        CreateSchool("Fish_Wanderer", 4, new Vector3(-10f, BasementFloor + 3f, 25f), room);
+        CreateSchool("Fish_Wanderer", 4, new Vector3(15f, BasementFloor + 3f, 12f), room);
+        CreateSchool("Fish_Wanderer", 4, new Vector3(-6f, BasementFloor + 3.5f, 37f), room);
+        Spawn("DeadFish", CellarGround(0f, 30f) + Vector3.up, room, 10f);
+        Spawn("DeadFish", CellarGround(-20f, 15f) + Vector3.up, room, -80f);
+        GameObject plate = Spawn("RespawnPlate", CellarGround(-22.5f, 43.2f) + Vector3.up * 0.03f, room);   // by the north wall, beside where the hatch drops you, not under it
         if (plate != null)
             plate.name = "Checkpoint_Basement";
+
+        StoneCellar();
+    }
+
+    // Where the kelp forests grow (x, z, width, depth): along the south wall between the big skeleton and the symbol
+    // key, down the west side, a strip on the east side, and the big forest across the north half.
+    private static readonly Rect[] KelpPatches =
+    {
+        new Rect(-14.5f, 1f, 8.5f, 8f),
+        new Rect(-25f, 11f, 10.5f, 10f),
+        new Rect(15.5f, 19.5f, 11f, 4f),
+        new Rect(-2f, 26f, 28f, 16.5f),
+    };
+
+    // Kept clear of kelp: the two hatches, the checkpoint, the things to pick up (x, z, radius).
+    private static readonly Vector3[] KelpClear =
+    {
+        new Vector3(-26f, 41.25f, 4.5f), new Vector3(8f, 41f, 4.5f), new Vector3(-22.5f, 43.2f, 3f),
+        new Vector3(-19f, 5.5f, 2.5f), new Vector3(15f, 23.5f, 2.5f), new Vector3(8.2f, 4.6f, 2.5f),
+        new Vector3(10f, 15f, 1.5f), new Vector3(-24f, 30f, 1.5f), new Vector3(0f, 30f, 1.5f),
+    };
+
+    private static bool KelpMayGrow(float x, float z)
+    {
+        foreach (Vector3 clear in KelpClear)
+            if (new Vector2(x - clear.x, z - clear.y).magnitude < clear.z)
+                return false;
+        return x < 26.5f;   // leave the window wall's light clear
+    }
+
+    // Level ground round the hatches and the checkpoint (x, z, radius flat, radius where it is back to normal).
+    private static readonly Vector4[] CellarLevel =
+    {
+        new Vector4(-26f, 41.25f, 3f, 6f), new Vector4(8f, 41f, 3f, 6f), new Vector4(-22.5f, 43.2f, 2f, 4f),
+    };
+
+    // The cellar floor's height above the flat floor at (x, z), in metres: a sand hill in the south-east corner, a
+    // ring-shaped mound in the middle, low dunes in bands running corner to corner, a little unevenness, and level
+    // round the hatches.
+    private static float CellarHeight(float x, float z)
+    {
+        float hill = Vector2.Distance(new Vector2(x, z), new Vector2(27f, 1.5f));
+        float h = 2.2f * Smooth01(1f - hill / 11f);
+        float ring = new Vector2((x - 3.5f) / 6.2f, (z - 12f) / 4.2f).magnitude;
+        h += 0.75f * Mathf.Exp(-Mathf.Pow((ring - 1f) / 0.35f, 2f)) + 0.2f * Smooth01(1f - ring);
+        h += 0.22f * (Mathf.Sin(CellarBand(x, z) * 0.7f) * 0.5f + 0.5f);
+        h += 0.14f * (Mathf.PerlinNoise(x * 0.18f + 11f, z * 0.18f + 7f) - 0.5f);
+        foreach (Vector4 level in CellarLevel)
+        {
+            float d = new Vector2(x - level.x, z - level.y).magnitude;
+            h *= Smooth01((d - level.z) / (level.w - level.z));
+        }
+        return Mathf.Max(0f, h);
+    }
+
+    // Across the plan's bands (they run from the south-east corner to the north-west one), in metres.
+    private static float CellarBand(float x, float z) => (x * 44f + z * 58f) / 72.8f;
+
+    // The point on the cellar floor at (x, z).
+    private static Vector3 CellarGround(float x, float z) => new Vector3(x, BasementFloor + 0.02f + CellarHeight(x, z), z);
+
+    private static float Smooth01(float t) => Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t));
+
+    // The cellar floor: a 1 m grid shaped by Cellar Height, painted with CellarFloor.png (sand and sea grass bands,
+    // the pale middle of the ring mound, dark ground under the kelp), solid to swim on (Mesh Collider).
+    private static void CellarFloor(Transform parent)
+    {
+        int nx = 59, nz = 45;
+        var verts = new Vector3[nx * nz];
+        var uvs = new Vector2[nx * nz];
+        for (int j = 0; j < nz; j++)
+            for (int i = 0; i < nx; i++)
+            {
+                float x = HullW + (HullE - HullW) * i / (nx - 1f);
+                float z = HullS + (BasementN - HullS) * j / (nz - 1f);
+                verts[j * nx + i] = CellarGround(x, z);
+                uvs[j * nx + i] = new Vector2(i / (nx - 1f), j / (nz - 1f));
+            }
+        var tris = new int[(nx - 1) * (nz - 1) * 6];
+        int t = 0;
+        for (int j = 0; j < nz - 1; j++)
+            for (int i = 0; i < nx - 1; i++)
+            {
+                int a = j * nx + i, b = a + 1, c = a + nx, d = c + 1;
+                tris[t++] = a; tris[t++] = c; tris[t++] = b;
+                tris[t++] = b; tris[t++] = c; tris[t++] = d;
+            }
+        var mesh = new Mesh { name = "CellarFloor" };
+        mesh.vertices = verts;
+        mesh.uv = uvs;
+        mesh.triangles = tris;
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+
+        var floor = new GameObject("CellarFloor");
+        floor.transform.SetParent(parent, false);
+        floor.AddComponent<MeshFilter>().sharedMesh = mesh;
+        floor.AddComponent<MeshRenderer>().sharedMaterial = CellarMaterial(CellarFloorMaterialPath, CellarFloorTexturePath, PaintCellarFloor, 0.08f);
+        floor.AddComponent<MeshCollider>().sharedMesh = mesh;
+    }
+
+    private const string CellarFloorTexturePath = "Assets/Art/Textures/CellarFloor.png";
+    private const string CellarFloorMaterialPath = "Assets/Art/Materials/CellarFloor.mat";
+    private const string StoneTexturePath = "Assets/Art/Textures/CellarStone.png";
+    private const string StoneMaterialPath = "Assets/Art/Materials/CellarStone.mat";
+    private const float StoneTile = 2.5f;   // metres of wall one tile of the stone covers
+
+    // All the cellar's walls and its ceiling (the underside of the deck) in the same stone: each box gets a copy of
+    // the cube mesh with its texture tiled by its size (Stone Tile metres a tile), so big walls are not one stretched
+    // picture. The cut pieces round the portholes are included.
+    private static void StoneCellar()
+    {
+        Material stone = CellarMaterial(StoneMaterialPath, StoneTexturePath, PaintStone, 0.18f);
+        foreach (MeshRenderer renderer in ship.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            GameObject go = renderer.gameObject;
+            bool cellarWall = go.name.StartsWith("Cellar_");
+            bool ceiling = go.name == "Deck" && go.GetComponent<GridFloor>() == null;
+            if (!cellarWall && !ceiling)
+                continue;
+            var filter = go.GetComponent<MeshFilter>();
+            if (filter == null)
+                continue;
+            filter.sharedMesh = TiledCube(go.transform.lossyScale, StoneTile);
+            renderer.sharedMaterial = stone;
+            var tint = go.GetComponent<RendererTint>();
+            if (tint != null)
+                tint.Tint = Color.white;
+        }
+    }
+
+    // A unit cube (24 vertices, like Unity's, so the wall cutter still takes it) whose UVs are tiled by the box's size.
+    private static Mesh TiledCube(Vector3 size, float tile)
+    {
+        var verts = new List<Vector3>();
+        var normals = new List<Vector3>();
+        var uvs = new List<Vector2>();
+        var tris = new List<int>();
+        Vector3[] axes = { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back };
+        foreach (Vector3 n in axes)
+        {
+            Vector3 u = Mathf.Abs(n.y) > 0.5f ? Vector3.right : Vector3.Cross(Vector3.up, n);
+            Vector3 v = Vector3.Cross(n, u);
+            float su = Mathf.Abs(Vector3.Dot(u, size)) / tile, sv = Mathf.Abs(Vector3.Dot(v, size)) / tile;
+            int start = verts.Count;
+            foreach (var (a, b) in new[] { (-1f, -1f), (1f, -1f), (1f, 1f), (-1f, 1f) })
+            {
+                verts.Add((n + u * a + v * b) * 0.5f);
+                normals.Add(n);
+                uvs.Add(new Vector2((a + 1f) * 0.5f * su, (b + 1f) * 0.5f * sv));
+            }
+            tris.AddRange(new[] { start, start + 1, start + 2, start, start + 2, start + 3 });
+        }
+        var mesh = new Mesh { name = "StoneBox" };
+        mesh.SetVertices(verts);
+        mesh.SetNormals(normals);
+        mesh.SetUVs(0, uvs);
+        mesh.SetTriangles(tris, 0);
+        mesh.RecalculateTangents();
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    // A URP Lit material with a painted texture, both saved once (paint = fills the texture's pixels).
+    private static Material CellarMaterial(string materialPath, string texturePath, System.Func<Texture2D> paint, float smoothness)
+    {
+        var material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+        if (material != null)
+            return material;
+        var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
+        if (texture == null)
+        {
+            Texture2D painted = paint();
+            System.IO.File.WriteAllBytes(texturePath, painted.EncodeToPNG());
+            Object.DestroyImmediate(painted);
+            AssetDatabase.ImportAsset(texturePath);
+            texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
+        }
+        material = new Material(Shader.Find("Universal Render Pipeline/Lit")) { name = System.IO.Path.GetFileNameWithoutExtension(materialPath) };
+        material.SetTexture("_BaseMap", texture);
+        material.SetColor("_BaseColor", Color.white);
+        material.SetFloat("_Smoothness", smoothness);
+        AssetDatabase.CreateAsset(material, materialPath);
+        return material;
+    }
+
+    // The cellar floor's paint, over the whole floor (x -29..29 across, z 0..44.25 up): sand and sea grass in wavy
+    // bands running corner to corner, sand up the hill in the south-east corner, the ring mound's pale middle and
+    // darker rim, darker ground under the kelp forests, plain sand round the hatches, and a fine grain over it all.
+    private static Texture2D PaintCellarFloor()
+    {
+        const int w = 1024, h = 782;
+        var texture = new Texture2D(w, h, TextureFormat.RGB24, true);
+        var pixels = new Color[w * h];
+        var sand = new Color(0.64f, 0.58f, 0.38f);
+        var paleSand = new Color(0.76f, 0.72f, 0.5f);
+        var grass = new Color(0.2f, 0.37f, 0.16f);
+        var darkGrass = new Color(0.1f, 0.22f, 0.1f);
+        for (int py = 0; py < h; py++)
+            for (int px = 0; px < w; px++)
+            {
+                float x = HullW + (HullE - HullW) * px / (w - 1f);
+                float z = HullS + (BasementN - HullS) * py / (h - 1f);
+                float wobble = (Mathf.PerlinNoise(x * 0.12f + 3f, z * 0.12f + 9f) - 0.5f) * 3f;
+                float band = Mathf.Sin((CellarBand(x, z) + wobble) * Mathf.PI * 2f / 9f);
+                Color c = Color.Lerp(grass, sand, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.25f, 0.25f, band)));
+
+                float hill = Vector2.Distance(new Vector2(x, z), new Vector2(27f, 1.5f));
+                c = Color.Lerp(c, sand, Smooth01(1.3f - hill / 9f));
+                float ring = new Vector2((x - 3.5f) / 6.2f, (z - 12f) / 4.2f).magnitude;
+                c = Color.Lerp(c, darkGrass, 0.8f * Mathf.Exp(-Mathf.Pow((ring - 1f) / 0.3f, 2f)));
+                c = Color.Lerp(c, paleSand, Smooth01((0.85f - ring) / 0.25f) * 0.8f);
+
+                float under = 0f;
+                foreach (Rect patch in KelpPatches)
+                {
+                    float dx = Mathf.Max(patch.xMin - x, 0f, x - patch.xMax);
+                    float dz = Mathf.Max(patch.yMin - z, 0f, z - patch.yMax);
+                    under = Mathf.Max(under, Smooth01(1f - new Vector2(dx, dz).magnitude / 2.5f));
+                }
+                float clumps = Mathf.PerlinNoise(x * 0.35f + 1f, z * 0.35f + 5f);
+                c = Color.Lerp(c, darkGrass, under * Mathf.Lerp(0.45f, 0.9f, clumps));
+                foreach (Vector4 level in CellarLevel)
+                    c = Color.Lerp(c, sand, Smooth01(1f - new Vector2(x - level.x, z - level.y).magnitude / level.w) * 0.7f);
+
+                float grain = 0.85f + 0.3f * Mathf.PerlinNoise(x * 3.1f + 17f, z * 3.1f + 23f);
+                float speck = Mathf.PerlinNoise(x * 9f, z * 9f) > 0.72f ? 0.85f : 1f;
+                pixels[py * w + px] = c * grain * speck;
+            }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        return texture;
+    }
+
+    // The stone: a tiling wall of rounded blocks (a jittered grid of cells, 6 across a tile), each its own shade of
+    // grey-brown, darker toward its edges, with dark mortar between and a fine grain.
+    private static Texture2D PaintStone()
+    {
+        const int size = 512, cells = 6;
+        var random = new System.Random(9);
+        var centres = new Vector2[cells, cells];
+        var shades = new Color[cells, cells];
+        for (int i = 0; i < cells; i++)
+            for (int j = 0; j < cells; j++)
+            {
+                centres[i, j] = new Vector2(i + 0.2f + 0.6f * (float)random.NextDouble(), j + 0.2f + 0.6f * (float)random.NextDouble());
+                float k = (float)random.NextDouble();
+                shades[i, j] = Color.Lerp(new Color(0.34f, 0.35f, 0.37f), new Color(0.44f, 0.4f, 0.33f), k) * Mathf.Lerp(0.85f, 1.1f, (float)random.NextDouble());
+            }
+        var mortar = new Color(0.1f, 0.1f, 0.11f);
+        var texture = new Texture2D(size, size, TextureFormat.RGB24, true) { wrapMode = TextureWrapMode.Repeat };
+        var pixels = new Color[size * size];
+        for (int py = 0; py < size; py++)
+            for (int px = 0; px < size; px++)
+            {
+                var p = new Vector2(px / (float)size * cells, py / (float)size * cells);
+                float d1 = float.MaxValue, d2 = float.MaxValue;
+                Color shade = Color.gray;
+                int ci = Mathf.FloorToInt(p.x), cj = Mathf.FloorToInt(p.y);
+                for (int di = -1; di <= 1; di++)
+                    for (int dj = -1; dj <= 1; dj++)
+                    {
+                        int i = ci + di, j = cj + dj;
+                        int wi = ((i % cells) + cells) % cells, wj = ((j % cells) + cells) % cells;
+                        Vector2 c = centres[wi, wj] + new Vector2(i - wi, j - wj);
+                        float d = Vector2.Distance(p, c);
+                        if (d < d1)
+                        {
+                            d2 = d1;
+                            d1 = d;
+                            shade = shades[wi, wj];
+                        }
+                        else if (d < d2)
+                        {
+                            d2 = d;
+                        }
+                    }
+                float edge = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.02f, 0.09f, d2 - d1));
+                float grain = 0.88f + 0.24f * Tileable(px, py, size, 64, 3) ;
+                Color stone = shade * Mathf.Lerp(1.05f, 0.8f, Mathf.Clamp01(d1 * 1.1f)) * grain;
+                pixels[py * size + px] = Color.Lerp(mortar, stone, edge);
+            }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        return texture;
+    }
+
+    // Tiling value noise 0..1 over a size x size picture, `cells` lattice cells across, from `seed`.
+    private static float Tileable(int px, int py, int size, int cells, int seed)
+    {
+        float fx = px / (float)size * cells, fy = py / (float)size * cells;
+        int x0 = Mathf.FloorToInt(fx), y0 = Mathf.FloorToInt(fy);
+        float tx = Mathf.SmoothStep(0f, 1f, fx - x0), ty = Mathf.SmoothStep(0f, 1f, fy - y0);
+        float Hash(int x, int y)
+        {
+            x = ((x % cells) + cells) % cells;
+            y = ((y % cells) + cells) % cells;
+            unchecked
+            {
+                int n = x * 374761393 + y * 668265263 + seed * 144269504;
+                n = (n ^ (n >> 13)) * 1274126177;
+                return ((n ^ (n >> 16)) & 0xffff) / 65535f;
+            }
+        }
+        float a = Mathf.Lerp(Hash(x0, y0), Hash(x0 + 1, y0), tx);
+        float b = Mathf.Lerp(Hash(x0, y0 + 1), Hash(x0 + 1, y0 + 1), tx);
+        return Mathf.Lerp(a, b, ty);
     }
 
     // Room 5 (green): the chest room (x 2.5..19.75, z 38.25..50). No doors: the only way in and out is the hatch in its
@@ -897,7 +1233,7 @@ public static class ShipGreyboxBuilder
             Transform w = window.transform;
             if (Mathf.Abs(w.forward.y) > 0.3f)
                 continue;   // the roof holes: the sun does those
-            bool shadows = w.position.x < -20f && w.position.y > 0f;   // the spawn and fish room windows, the most looked at
+            bool shadows = (w.position.x < -20f && w.position.y > 0f) || w.position.y < 0f;   // the spawn and fish room windows, and the cellar's
             WindowBeam(w, shadows, water);
         }
         // The roof holes: a shaft down each along the sun's light, and a soft spot to lift the pool it lands in.
@@ -930,7 +1266,7 @@ public static class ShipGreyboxBuilder
         algae.SetParent(lights, false);
         var random = new System.Random(11);
         foreach (var (x, z) in new[] { (-26f, 4f), (-6f, 14f), (12f, 24f), (25f, 40f), (-18f, 27f), (3f, 7f), (20f, 12f), (-10f, 40f) })
-            Algae(new Vector3(x, BasementFloor, z), random, algae);
+            Algae(CellarGround(x, z), random, algae);
     }
 
     // Collectibles tucked away round the ship, for the counter in the corner: high corners you have to swim up to,
@@ -1485,7 +1821,7 @@ public static class ShipGreyboxBuilder
     }
 
     // A bone carcass on the floor: a spine with ribs, turned by yaw.
-    private static void Carcass(Vector3 position, float yaw, Transform parent)
+    private static void Carcass(Vector3 position, float yaw, Transform parent, float scale = 1f)
     {
         var carcass = new GameObject("BoneCarcass");
         carcass.transform.SetParent(parent, false);
@@ -1503,5 +1839,6 @@ public static class ShipGreyboxBuilder
         }
         foreach (Transform child in carcass.transform)
             child.RotateAround(position, Vector3.up, yaw);
+        carcass.transform.localScale = Vector3.one * scale;
     }
 }

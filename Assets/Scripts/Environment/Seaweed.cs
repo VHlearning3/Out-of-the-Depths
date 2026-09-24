@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+// Giant Kelp (the kind) is the other shape: tall thick stalks right up to the ceiling, each hung with long leaves
+// spiralling up it, dark olive stalks and yellow-green leaves, like a kelp forest.
 // Cartoon seaweed: a clump of flat, tapered leaves (generated meshes) like the kelp in an animated film. Each is a
 // thin strip with rounded edges, a narrow stem, widest halfway up and narrowing to a round tip, waving gently side
 // to side and front to back with a soft flutter along its edges, and painted from a deep base colour to a bright
@@ -18,12 +20,15 @@ using UnityEngine;
 public class Seaweed : MonoBehaviour
 {
     // The kinds: presets that fill in the leaf fields below (Custom = the fields as they are).
-    public enum Kind { Custom, Kelp, SeaGrass, BroadLeaf, Ribbon }
+    public enum Kind { Custom, Kelp, SeaGrass, BroadLeaf, Ribbon, GiantKelp }
 
     [Header("Kind")]
     [Tooltip("A preset for the leaves: tall kelp, a bed of short sea grass, a few broad leaves, or twisting ribbons. Pick one and the leaf fields below fill in; edit them freely after.")]
     [SerializeField] private Kind kind = Kind.Custom;
     [SerializeField, HideInInspector] private Kind appliedKind = Kind.Custom;
+    // Which version of the Giant Kelp preset it has: a newer one is applied once on load (keeping its height).
+    [SerializeField, HideInInspector] private int appliedKelpVersion;
+    private const int KelpVersion = 7;
 
     [Header("Model")]
     [Tooltip("Your own seaweed: a prefab or an imported model. It replaces the generated fronds and bends the same way. Empty = generated fronds.")]
@@ -79,6 +84,17 @@ public class Seaweed : MonoBehaviour
     [Tooltip("How far the tip leans over at rest, in metres.")]
     [SerializeField] private float curl = 0.25f;
     [SerializeField] private int seed = 7;
+
+    [Header("Giant kelp (the Giant Kelp kind)")]
+    [Tooltip("Each frond is a stalk (Blade Thickness across at the bottom, thinning up) hung with leaves this long (metres) every Leaf Spacing metres up it, Blade Width wide.")]
+    [SerializeField] private float leafLength = 0.9f;
+    [SerializeField] private float leafSpacing = 0.36f;
+    [Tooltip("Degrees up from the stalk that the leaves grow, and how far they droop back down toward their tips (metres).")]
+    [SerializeField] private float leafAngle = 40f;
+    [SerializeField] private float leafDroop = 0.25f;
+    [Tooltip("The stalk's colour, bottom to top (the leaves use Color to Tip Color).")]
+    [SerializeField] private Color stalkColor = new Color(0.16f, 0.14f, 0.05f);
+    [SerializeField] private Color stalkTopColor = new Color(0.3f, 0.32f, 0.08f);
 
     [Header("Paint")]
     [Tooltip("Colour at the base and at the tip; each blade runs from one to the other.")]
@@ -149,6 +165,8 @@ public class Seaweed : MonoBehaviour
         public Vector3[] rest;
         public Vector3[] work;
         public float[] height01;
+        public float[] bend;        // how much each vertex follows the sway (height01 ^ 1.7), worked out once
+        public float[] shove;       // and the player's push (height01 ^ 1.3)
         public float phase;
         public Vector3 direction;   // world-space direction of its sway
         public Vector3 side;        // world-space direction of its ripple
@@ -168,6 +186,8 @@ public class Seaweed : MonoBehaviour
     private float nextGust;
     private float gustStart = -100f;
     private float gustPower;
+    private float lastSway;      // when the bend was last worked out (giant kelp skips frames)
+    private int frameOffset;     // which of every three frames this clump takes, so they do not all update together
     private Vector3 gustDirection = Vector3.right;
     private Material runtimeMaterial;
     private Material paint;
@@ -180,7 +200,14 @@ public class Seaweed : MonoBehaviour
 
     private void OnEnable()
     {
-        if (kind != Kind.Custom && appliedKind != kind)
+        if (kind == Kind.GiantKelp && appliedKind == kind && appliedKelpVersion < KelpVersion)
+        {
+            float tall = height;   // the builder fits each clump under the ceiling: keep that
+            ApplyPreset(kind);
+            height = tall;
+            Build();
+        }
+        else if (kind != Kind.Custom && appliedKind != kind)
         {
             ApplyPreset(kind);
             appliedKind = kind;
@@ -191,6 +218,7 @@ public class Seaweed : MonoBehaviour
         else
             Collect();
         nextGust = Time.time + Random.Range(gustEvery.x, gustEvery.y);
+        frameOffset = Mathf.Abs(GetInstanceID()) % 3;
         if (Application.isPlaying && player == null && playerFound == null)
         {
             SwimController swimmer = FindFirstObjectByType<SwimController>();
@@ -235,7 +263,7 @@ public class Seaweed : MonoBehaviour
     {
         if (customModel != null)
             return builtModel != customModel || builtPainted != paintModel || transform.Find("Model") == null;
-        return builtModel != null || GeneratedFrondCount() != fronds;
+        return builtModel != null || GeneratedFrondCount() != StalkCount();
     }
 
     private int GeneratedFrondCount()
@@ -246,6 +274,42 @@ public class Seaweed : MonoBehaviour
                 count++;
         return count;
     }
+
+    // What makes each giant kelp clump its own plant, picked from its seed so it is the same every time it loads:
+    // how many stalks (Fronds, give or take two), how widely they stand, which way its own bit of current runs (Sway
+    // Direction, turned up to 40 degrees either way), how big its leaves are and a warmer or cooler shade. Other
+    // kinds get the plain values.
+    private struct ClumpLook
+    {
+        public int stalks;
+        public float spread;
+        public Vector3 current;
+        public float size;
+        public Color tint;
+    }
+
+    private ClumpLook Look()
+    {
+        Vector3 flat = new Vector3(swayDirection.x, 0f, swayDirection.z);
+        flat = flat.sqrMagnitude > 0.0001f ? flat.normalized : Vector3.right;
+        if (kind != Kind.GiantKelp)
+            return new ClumpLook { stalks = fronds, spread = 1f, current = flat, size = 1f, tint = Color.white };
+        var rng = new System.Random(seed * 131 + 17);
+        float Rand(float a, float b) => a + (float)rng.NextDouble() * (b - a);
+        int stalks = Mathf.Max(2, fronds + rng.Next(-2, 3));
+        float warm = Rand(-1f, 1f) * 0.12f;
+        float light = Rand(0.85f, 1.15f);
+        return new ClumpLook
+        {
+            stalks = stalks,
+            spread = Rand(0.6f, 1.4f),
+            current = Quaternion.Euler(0f, Rand(-40f, 40f), 0f) * flat,
+            size = Rand(0.8f, 1.2f),
+            tint = new Color((1f + warm) * light, light, (1f - warm) * light),
+        };
+    }
+
+    private int StalkCount() => Look().stalks;
 
     // A big swoop right now (the socket fires this when the bone key is made).
     public void Swoop()
@@ -304,6 +368,18 @@ public class Seaweed : MonoBehaviour
                 color = new Color(0.03f, 0.28f, 0.3f); tipColor = new Color(0.2f, 0.62f, 0.5f);
                 swayMetres = 0.3f;
                 break;
+            case Kind.GiantKelp:
+                appliedKelpVersion = KelpVersion;
+                fronds = 5; height = 5f; spread = 0.85f; fan = 7f; lowPoly = true;
+                bladeWidth = 0.28f; bladeThickness = 0.12f; wiggle = 0.05f; waves = 0.7f; waveOut = 0.6f; twist = 25f; curl = 0.35f;
+                leafLength = 1.5f; leafSpacing = 0.4f; leafAngle = 32f; leafDroop = 0.1f; ruffle = 0.18f; ruffleWaves = 3f;
+                color = new Color(0.36f, 0.56f, 0.14f); tipColor = new Color(0.86f, 0.93f, 0.36f);
+                stalkColor = new Color(0.3f, 0.28f, 0.1f); stalkTopColor = new Color(0.45f, 0.48f, 0.15f);
+                veinLight = 0.22f; edgeDark = 0.1f; shine = 0.3f; glow = 0.16f; variety = 0.25f;
+                touchRadius = 0.7f; touchStrength = 1.1f; wakeRadius = 2.2f;
+                rootColor = new Color(0.12f, 0.1f, 0.07f);
+                swayMetres = 0.25f; swayDistance = 10f;
+                break;
             case Kind.Ribbon:
                 fronds = 14; height = 2.6f; spread = 0.45f; fan = 16f;
                 bladeWidth = 0.22f; bladeThickness = 0.03f; stemLength = 0.15f; taperAt = 0.5f; tipWidth = 0.35f; tipRound = 0.14f;
@@ -334,7 +410,9 @@ public class Seaweed : MonoBehaviour
             SafeDestroy(roots.GetComponent<Collider>());
             roots.transform.SetParent(transform, false);
             roots.transform.localPosition = new Vector3(0f, -spread * 0.2f, 0f);
-            roots.transform.localScale = new Vector3(spread * 1.1f, spread * 0.9f, spread * 1.1f);
+            roots.transform.localScale = kind == Kind.GiantKelp
+                ? new Vector3(0.55f, 0.28f, 0.55f)   // a low holdfast, not a boulder
+                : new Vector3(spread * 1.1f, spread * 0.9f, spread * 1.1f);
             roots.AddComponent<RendererTint>().Tint = rootColor;
         }
 
@@ -351,12 +429,13 @@ public class Seaweed : MonoBehaviour
         else
         {
             var rng = new System.Random(seed);
-            for (int f = 0; f < fronds; f++)
+            ClumpLook look = Look();
+            for (int f = 0; f < StalkCount(); f++)
             {
                 // Spread over the whole clump (not just a rim), the tall ones toward the middle, shorter ones around them.
                 float angle = (float)rng.NextDouble() * Mathf.PI * 2f;
                 float radius01 = Mathf.Sqrt((float)rng.NextDouble());
-                float radius = spread * radius01;
+                float radius = spread * look.spread * radius01;
                 var frond = new GameObject("Frond " + (f + 1));
                 frond.transform.SetParent(transform, false);
                 Vector3 outward = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
@@ -368,7 +447,7 @@ public class Seaweed : MonoBehaviour
 
                 var shape = frond.AddComponent<SeaweedFrond>();
                 float tallness = (1f - radius01) * 0.55f + (float)rng.NextDouble() * 0.45f;
-                shape.height = height * Mathf.Lerp(0.35f, 1f, tallness);
+                shape.height = height * (kind == Kind.GiantKelp ? Mathf.Lerp(0.6f, 1f, tallness) : Mathf.Lerp(0.35f, 1f, tallness));
                 shape.widthScale = Mathf.Lerp(0.7f, 1.4f, (float)rng.NextDouble());   // thin kelp to broad leaves
                 shape.curl = curl * Mathf.Lerp(0.5f, 1.4f, (float)rng.NextDouble());
                 shape.phase = (float)rng.NextDouble();
@@ -380,9 +459,9 @@ public class Seaweed : MonoBehaviour
                 // A little brighter or darker, a little warmer or cooler, so they are not all the same green.
                 float warm = Mathf.Lerp(-1f, 1f, (float)rng.NextDouble());
                 frond.AddComponent<RendererTint>().Tint = new Color(
-                    1f + variety * (shape.shade + warm) * 0.5f,
-                    1f + variety * shape.shade * 0.5f,
-                    1f + variety * (shape.shade - warm) * 0.5f);
+                    (1f + variety * (shape.shade + warm) * 0.5f) * look.tint.r,
+                    (1f + variety * shape.shade * 0.5f) * look.tint.g,
+                    (1f + variety * (shape.shade - warm) * 0.5f) * look.tint.b);
             }
         }
         Collect();
@@ -452,6 +531,13 @@ public class Seaweed : MonoBehaviour
         {
             float t = y / (float)(PaintHeight - 1);
             Color c = Color.Lerp(color, tipColor, Mathf.SmoothStep(0f, 1f, t));
+            if (kind == Kind.GiantKelp)
+            {
+                // Bottom quarter: the stalk, dark at its foot; the rest: each leaf, base to tip.
+                c = t < 0.25f
+                    ? Color.Lerp(stalkColor, stalkTopColor, t / 0.25f)
+                    : Color.Lerp(color, tipColor, Mathf.SmoothStep(0f, 1f, (t - 0.3f) / 0.7f));
+            }
             for (int x = 0; x < PaintWidth; x++)
             {
                 float face = Mathf.Abs(Mathf.Sin((x + 0.5f) / PaintWidth * Mathf.PI * 2f));   // 1 mid-face, 0 at the edges
@@ -541,6 +627,13 @@ public class Seaweed : MonoBehaviour
             float minY = mesh.bounds.min.y, maxY = mesh.bounds.max.y;
             for (int i = 0; i < rest.Length; i++)
                 blade.height01[i] = maxY > minY ? Mathf.Clamp01((rest[i].y - minY) / (maxY - minY)) : 0f;
+            blade.bend = new float[rest.Length];
+            blade.shove = new float[rest.Length];
+            for (int i = 0; i < rest.Length; i++)
+            {
+                blade.bend[i] = Mathf.Pow(blade.height01[i], 1.7f);
+                blade.shove[i] = Mathf.Pow(blade.height01[i], 1.3f);
+            }
             blade.worldHeight = (maxY - minY) * Mathf.Abs(filter.transform.lossyScale.y);
 
             if (shape == null && paintModel)
@@ -552,7 +645,7 @@ public class Seaweed : MonoBehaviour
                 mesh.uv = uv;
             }
 
-            Vector3 flat = new Vector3(swayDirection.x, 0f, swayDirection.z);
+            Vector3 flat = kind == Kind.GiantKelp ? Look().current : new Vector3(swayDirection.x, 0f, swayDirection.z);
             Vector3 direction = flat.sqrMagnitude > 0.0001f ? flat.normalized : Vector3.right;
             if (!swayTogether)
             {
@@ -571,6 +664,8 @@ public class Seaweed : MonoBehaviour
     // square to the curve, so the ribbon keeps its width round the bends. Rings pack tighter toward the tip.
     private Mesh FrondMesh(SeaweedFrond shape)
     {
+        if (kind == Kind.GiantKelp)
+            return KelpMesh(shape);
         int rings = Mathf.Max(3, segments + 1);
         int around = Mathf.Max(4, sides);
         var verts = new Vector3[rings * around];
@@ -655,6 +750,149 @@ public class Seaweed : MonoBehaviour
         return mesh;
     }
 
+    // One giant kelp stalk: a round stalk swaying up the same S-curve as a frond, thick at the foot and thinning to the
+    // top, hung with long thin leaves spiralling round it (the golden angle apart), each rising at Leaf Angle from the
+    // stalk and drooping back toward its tip, widest a third of the way along, its edges rippling. The paint's bottom
+    // quarter is the stalk's colour (Stalk Color), the rest runs up each leaf from Color to Tip Color.
+    private Mesh KelpMesh(SeaweedFrond shape)
+    {
+        var verts = new List<Vector3>();
+        var uvs = new List<Vector2>();
+        var tris = new List<int>();
+        float phase = shape.phase * Mathf.PI * 2f;
+        float amp = wiggle * shape.height;
+        var rng = new System.Random(seed * 7919 + Mathf.RoundToInt(shape.phase * 100000f));
+        float Rand(float a, float b) => a + (float)rng.NextDouble() * (b - a);
+
+        // A tube along `path` (its width across and thickness front to back at each point), u round it, v from vBottom
+        // to vTop. Flat above 2 flattens the cross-section into a leaf with rounded edges (2 = round).
+        void Tube(List<Vector3> path, List<Vector3> across, List<Vector3> deep, List<float> wide, List<float> thick, int around, float vBottom, float vTop, float flat)
+        {
+            int start = verts.Count;
+            for (int r = 0; r < path.Count; r++)
+            {
+                float v = Mathf.Lerp(vBottom, vTop, r / (float)(path.Count - 1));
+                for (int k = 0; k < around; k++)
+                {
+                    float a = k / (float)around * Mathf.PI * 2f;
+                    float ca = Mathf.Cos(a), sa = Mathf.Sin(a);
+                    float fx = Mathf.Sign(ca) * Mathf.Pow(Mathf.Abs(ca), 2f / flat);
+                    float fz = Mathf.Sign(sa) * Mathf.Pow(Mathf.Abs(sa), 2f / flat);
+                    verts.Add(path[r] + across[r] * (fx * wide[r] * 0.5f) + deep[r] * (fz * thick[r] * 0.5f));
+                    float u = k / (float)around;
+                    uvs.Add(new Vector2(u <= 0.5f ? u : 1f - u, v));
+                }
+            }
+            for (int r = 0; r < path.Count - 1; r++)
+                for (int k = 0; k < around; k++)
+                {
+                    int a = start + r * around + k;
+                    int b = start + r * around + (k + 1) % around;
+                    int c = a + around;
+                    int d = b + around;
+                    tris.AddRange(new[] { a, c, b, b, c, d });
+                }
+        }
+
+        // The stalk.
+        int stalkRings = lowPoly ? 7 : 14;
+        var spine = new List<Vector3>();
+        var sx = new List<Vector3>();
+        var sz = new List<Vector3>();
+        var sw = new List<float>();
+        for (int r = 0; r < stalkRings; r++)
+        {
+            float h = r / (float)(stalkRings - 1);
+            Vector3 c = Centreline(h, shape, amp, phase);
+            Vector3 tangent = (Centreline(Mathf.Min(1f, h + 0.01f), shape, amp, phase) - Centreline(Mathf.Max(0f, h - 0.01f), shape, amp, phase)).normalized;
+            Vector3 x = Vector3.Cross(tangent, Vector3.forward).normalized;
+            spine.Add(c);
+            sx.Add(x);
+            sz.Add(Vector3.Cross(x, tangent).normalized);
+            sw.Add(Mathf.Max(0.012f, bladeThickness * shape.widthScale * Mathf.Lerp(1f, 0.4f, h)));
+        }
+        Tube(spine, sx, sz, sw, sw, lowPoly ? 5 : 6, 0.02f, 0.22f, 2f);
+
+        // The leaves: long flat ribbons (the rounded-edge cross-section of the other seaweed) that all stream the same
+        // way, downstream in the clump's current (Sway Direction), fanned either side of it, not a stiff herringbone.
+        // Each leaves the stalk at a slant and curves up to run with the water, snaking gently side to side, widest
+        // a third of the way along and narrowing to a long tip. Spacing, length and width all vary, some nodes are
+        // bare, and the bottom of the stalk has none, so every stalk is a little different.
+        ClumpLook look = Look();
+        Vector3 current = shape.transform.InverseTransformDirection(look.current);
+        current.y = 0f;
+        current = current.sqrMagnitude > 0.0001f ? current.normalized : Vector3.right;
+        int leafRings = lowPoly ? 5 : 8;
+        float along = Mathf.Min(0.8f, shape.height * 0.16f) + Rand(0f, 0.3f);
+        int n = 0;
+        while (along < shape.height * 0.97f)
+        {
+            float h = along / shape.height;
+            along += leafSpacing * Rand(0.6f, 1.45f);
+            if (Rand(0f, 1f) < 0.15f)
+                continue;   // a bare node
+            float side = n++ % 2 == 0 ? 1f : -1f;
+            float azimuth = side * Rand(15f, 70f);                        // fanned either side of downstream
+            Vector3 flow = Quaternion.Euler(0f, azimuth, 0f) * current;
+            Vector3 flatAcross = Vector3.Cross(Vector3.up, flow).normalized;
+            float lean = (leafAngle + Rand(-12f, 12f)) * Mathf.Deg2Rad;
+            float length = leafLength * look.size * Rand(0.55f, 1.35f) * Mathf.Lerp(1f, 0.8f, h);
+            float width = bladeWidth * look.size * shape.widthScale * Rand(0.7f, 1.2f);
+            float spin = Rand(-1f, 1f) * twist * Mathf.Deg2Rad;
+            float snake = length * Rand(0.04f, 0.1f);
+            float snakePhase = Rand(0f, Mathf.PI * 2f);
+            Vector3 root = Centreline(h, shape, amp, phase);
+
+            var path = new List<Vector3>();
+            var across = new List<Vector3>();
+            var deep = new List<Vector3>();
+            var wide = new List<float>();
+            var thick = new List<float>();
+            for (int r = 0; r < leafRings; r++)
+            {
+                float t = r / (float)(leafRings - 1);
+                // Out at its slant near the stalk, bending up to run with the current, snaking a little, the tip
+                // sagging by Leaf Droop.
+                float outAmount = length * Mathf.Sin(lean) * (t - 0.35f * t * t);
+                float upAmount = length * t * Mathf.Lerp(Mathf.Cos(lean), 1f, 0.6f * t);
+                Vector3 p = root + flow * outAmount + Vector3.up * upAmount
+                          + flatAcross * (Mathf.Sin(t * Mathf.PI * 1.6f + snakePhase) * snake * t)
+                          + flow * (leafDroop * t * t) + Vector3.down * (leafDroop * 0.5f * t * t * t);
+                float profile = Mathf.Sin(Mathf.Pow(t, 0.55f) * Mathf.PI);          // widest a third along, a long tip
+                float ripple = 1f + ruffle * Mathf.Sin(t * ruffleWaves * Mathf.PI * 2f + snakePhase) * t;
+                Quaternion turn = Quaternion.AngleAxis(spin * t * Mathf.Rad2Deg, Vector3.up);
+                path.Add(p);
+                across.Add(turn * flatAcross);
+                deep.Add(turn * flow);
+                wide.Add(Mathf.Max(0.01f, width * (0.1f + 0.9f * profile) * ripple));
+                thick.Add(Mathf.Max(0.006f, 0.02f * (0.4f + 0.6f * profile)));
+            }
+            Tube(path, across, deep, wide, thick, lowPoly ? 4 : 6, 0.3f, 1f, 3.5f);
+        }
+
+        if (lowPoly)
+        {
+            // Every triangle its own three vertices: flat faces, the faceted look of the other seaweed.
+            var flatVerts = new List<Vector3>(tris.Count);
+            var flatUvs = new List<Vector2>(tris.Count);
+            for (int i = 0; i < tris.Count; i++)
+            {
+                flatVerts.Add(verts[tris[i]]);
+                flatUvs.Add(uvs[tris[i]]);
+                tris[i] = i;
+            }
+            verts = flatVerts;
+            uvs = flatUvs;
+        }
+        var mesh = new Mesh { name = "Giant kelp", hideFlags = HideFlags.DontSave };
+        mesh.SetVertices(verts);
+        mesh.SetUVs(0, uvs);
+        mesh.SetTriangles(tris, 0);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
     private static float RingHeight(int ring, int rings)
     {
         float t = ring / (float)(rings - 1);
@@ -694,6 +932,13 @@ public class Seaweed : MonoBehaviour
             return;
 
         float now = Time.time;
+        // Giant kelp is slow and there is a forest of it: away from the player a clump only works out its bend every
+        // third frame (each clump on its own frame); near them, every frame, so it parts round them smoothly.
+        bool kelp = kind == Kind.GiantKelp;
+        if (kelp && !PlayerClose() && (Time.frameCount + frameOffset) % 3 != 0)
+            return;
+        float dt = Mathf.Min(now - lastSway, 0.1f);
+        lastSway = now;
         if (now >= nextGust)
         {
             StartGust(gustStrength);
@@ -702,7 +947,6 @@ public class Seaweed : MonoBehaviour
         float g = gustSeconds > 0f ? (now - gustStart) / gustSeconds : 1f;
         float gust = g >= 0f && g < 1f ? Mathf.Sin(g * Mathf.PI) * gustPower : 0f;
 
-        float dt = Mathf.Min(Time.deltaTime, 0.05f);
         bool playerNear = PlayerBody(dt, out Vector3 bodyCentre, out float bodyHalf, out float bodyRadius, out Vector3 playerVelocity);
 
         foreach (Blade blade in blades)
@@ -722,12 +966,23 @@ public class Seaweed : MonoBehaviour
             Vector3 swayLocal = blade.transform.InverseTransformVector(blade.direction * swayMetres);
             Vector3 gustLocal = blade.transform.InverseTransformVector(gustDirection * (swayMetres * gust));
             Vector3 side = blade.transform.InverseTransformVector(blade.side * rippleMetres);
+            // Giant kelp parts round the player's body where it is, not from its foot: the push is strongest at their
+            // height (their hitbox, the Character Controller's capsule) and fades a metre above and below it, so a tall
+            // stalk bends out of their way at the height they swim through it.
+            bool local = kelp && playerNear;
+            float bandCentre = local ? blade.transform.InverseTransformPoint(bodyCentre).y : 0f;
+            float band = bodyHalf + 1f;
 
             for (int i = 0; i < blade.rest.Length; i++)
             {
                 float h = blade.height01[i];
-                float bend = Mathf.Pow(h, 1.7f);                       // rooted at the base, moving most at the tip
-                float shove = Mathf.Pow(h, 1.3f);                      // a body pushes most of the leaf, not just the tip
+                float bend = blade.bend[i];                            // rooted at the base, moving most at the tip
+                float shove = blade.shove[i];                          // a body pushes most of the leaf, not just the tip
+                if (kelp)
+                {
+                    float s = local ? Mathf.Clamp01(1f - Mathf.Abs(blade.rest[i].y - bandCentre) / band) : 0f;
+                    shove = s * s * (3f - 2f * s) * Mathf.Min(1f, h * 6f);
+                }
                 float wave = Mathf.Sin((cycle - h * tipLag) * Mathf.PI * 2f);
                 Vector3 moved = (swayLocal * wave + gustLocal) * bend + shoveLocal * shove;
                 Vector3 p = blade.rest[i] + moved;
@@ -736,7 +991,10 @@ public class Seaweed : MonoBehaviour
                 blade.work[i] = p;
             }
             blade.mesh.vertices = blade.work;
-            blade.mesh.RecalculateNormals();
+            // A forest of giant kelp keeps its resting normals: the bend is small against its height and the faceted
+            // look does not change, and it saves a lot of work per frame.
+            if (kind != Kind.GiantKelp)
+                blade.mesh.RecalculateNormals();
         }
     }
 
@@ -776,6 +1034,18 @@ public class Seaweed : MonoBehaviour
         playerHasLast = true;
         velocity = new Vector3(playerVelocitySmoothed.x, 0f, playerVelocitySmoothed.z);
         return true;
+    }
+
+    // The player is near enough to touch this clump or stir it with their wake.
+    private bool PlayerClose()
+    {
+        Transform body = player != null ? player : playerFound;
+        if (body == null)
+            return false;
+        Vector3 d = body.position - transform.position;
+        d.y = 0f;
+        float near = spread + touchRadius + wakeRadius + 1f;
+        return d.sqrMagnitude < near * near;
     }
 
     // Where the player pushes this leaf to (world space, horizontal): away from their body where it overlaps the leaf,
