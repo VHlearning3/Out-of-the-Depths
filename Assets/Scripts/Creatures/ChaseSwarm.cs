@@ -647,12 +647,25 @@ public class ChaseSwarm : MonoBehaviour
         pupilMaterial = MakeMaterial("Swarm Pupils", new Color(0.04f, 0.05f, 0.06f), 0.8f, 0f);
     }
 
+    // Copies of the two material assets in Resources/Materials (URP Lit, GPU instancing on, one with emission): they
+    // are what make a build keep the shader variants the swarm draws with. Materials made from nothing in code would
+    // ask for variants no asset in the build uses, the build strips them, and every fish draws as nothing.
     private static Material MakeMaterial(string name, Color color, float smoothness, float emission)
     {
-        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-        if (shader == null)
-            shader = Shader.Find("Standard");
-        var material = new Material(shader) { name = name + " (runtime)", enableInstancing = true, hideFlags = HideFlags.DontSave };
+        Material template = Resources.Load<Material>(emission > 0f ? "Materials/SwarmFishGlow" : "Materials/SwarmFishPlain");
+        Material material;
+        if (template != null)
+        {
+            material = new Material(template) { name = name + " (runtime)", hideFlags = HideFlags.DontSave };
+        }
+        else
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+                shader = Shader.Find("Standard");
+            material = new Material(shader) { name = name + " (runtime)", hideFlags = HideFlags.DontSave };
+        }
+        material.enableInstancing = true;
         if (material.HasProperty("_BaseColor"))
             material.SetColor("_BaseColor", color);
         if (material.HasProperty("_Color"))
