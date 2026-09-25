@@ -1074,6 +1074,18 @@ public static class ShipGreyboxBuilder
         // The rune puzzle: the three symbols in order, on the board; solving it unlocks the rune door (wired in the hallway).
         GameObject codeLock = Box("CodeLock", new Vector3(-2.6f, 2.3f, 49.6f), new Vector3(0.7f, 0.7f, 0.3f), new Color(0.8f, 0.7f, 0.3f), room);
         runeStation = PuzzleBuildTools.AddStation(codeLock, "Puzzle_Runes", null, 0, false, "enter the runes");
+
+        // The checkpoint before the chase: a pillar by the north wall, west of the rune door. Solving the runes (which
+        // opens the rune door and so starts the chase) turns it on by itself, so dying in the chase always brings you
+        // back here, right outside; E on it works too.
+        GameObject plate = Spawn("RespawnPlate", new Vector3(-5.8f, 0.05f, 47.8f), room);
+        if (plate != null)
+        {
+            plate.name = "Checkpoint_BeforeChase";
+            Checkpoint beforeChase = plate.GetComponentInChildren<Checkpoint>();
+            if (beforeChase != null && runeStation != null)
+                UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(runeStation.onSolved, beforeChase.ActivateNow);
+        }
     }
 
     // Room 9: the hallway (x -29..-4.75, z 50..58.5) and the room east of it (x -4.75..19.75) that the rune door opens

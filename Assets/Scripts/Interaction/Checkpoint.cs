@@ -179,6 +179,16 @@ public class Checkpoint : MonoBehaviour, IInteractable
         Activate(death, interactor.transform);
     }
 
+    // Activate it from an event (the rune lock solved just before the chase): the player respawns where they are now.
+    public void ActivateNow()
+    {
+        if (IsActive)
+            return;
+        var death = FindFirstObjectByType<DeathManager>();
+        if (death != null)
+            Activate(death, death.transform);
+    }
+
     private void Activate(DeathManager death, Transform player)
     {
         Checkpoint previous = Current;
