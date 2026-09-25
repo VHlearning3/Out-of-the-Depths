@@ -13,8 +13,8 @@ using static LightingTools;
 // Safe to run again any time; everything it makes lives under SHIP. All numbers are metres (x east, z north).
 //
 // Route: 1 spawn (cyan) -> one-way door east into 2 the middle room (red) -> west into 3 the fish room (orange), hatch
-// down to 4 the basement -> up the second hatch into 5 the chest room (green, no other way in or out) -> back through
-// the basement -> 6 the stone room (blue) east of the middle room, pedestal door south into 7 the box room (yellow, the
+// down to 4 the basement (the symbol key) -> back up the hatch -> through the window beside the bone key door into 5 the
+// chest room (green, no door) -> 6 the stone room (blue) east of the middle room, pedestal door south into 7 the box room (yellow, the
 // whole south strip) -> 8 the symbol room north of the middle room -> the rune door, 9 the hallway and the column.
 public static class ShipGreyboxBuilder
 {
@@ -43,9 +43,12 @@ public static class ShipGreyboxBuilder
     // Ship extents from the map: x -29..29, z 0..58.5. The basement runs z 0..44.25 under the rooms.
     private const float HullW = -29f, HullE = 29f, HullS = 0f, HullN = 58.5f, BasementN = 44.25f;
 
-    // The two hatches through the deck: room 3 down to the basement, and the basement up into room 5.
+    // The hatch through the deck: room 3 down to the basement (room 5 is reached through the Chest Window instead).
     private static readonly Rect HatchFish = new Rect(-27f, 40.25f, 2f, 2f);
-    private static readonly Rect HatchChest = new Rect(7f, 40f, 2f, 2f);
+    // The window you swim through from the middle room into the chest room: in the wall between them (z 38.25), just
+    // east of the bone key double door, clear of the pillar in the middle room's north-east corner (x from, x to, sill
+    // height, top).
+    private static readonly Vector4 ChestWindow = new Vector4(3f, 4.8f, 1f, 2.8f);
 
     // The middle room's roof is broken open: ragged holes of different sizes (centre, radii, turn in degrees, seed for
     // the ragged edge) that show the surface and the sun and let the light and the fish in. Only the room's roof has them.
@@ -152,12 +155,12 @@ public static class ShipGreyboxBuilder
 
     // ---- structure ------------------------------------------------------------------------------------------------
 
-    // Floor slabs: the basement footprint (also the basement ceiling) with the two hatch holes, the northern strip
+    // Floor slabs: the basement footprint (also the basement ceiling) with the hatch hole, the northern strip
     // under the hallway, symbol room, chest room and the top of the column, and the basement floor.
     private static void BuildDecks()
     {
         Transform decks = Group("Decks");
-        SlabWithHoles("Deck", HullW, HullS, HullE, BasementN, 0f, new[] { HatchFish, HatchChest }, decks);
+        SlabWithHoles("Deck", HullW, HullS, HullE, BasementN, 0f, new[] { HatchFish }, decks);
         Slab("Deck_N", HullW, BasementN, HullE, HullN, 0f, decks);
         Slab("BasementFloor", HullW, HullS, HullE, BasementN, BasementFloor, decks);
     }
@@ -424,7 +427,8 @@ public static class ShipGreyboxBuilder
         Transform room = Group("Room_2_Middle");
         Deck(room, -12.25f, 19.75f, 7f, 38.25f, 0f, Room2Red);
         WallX("R2_S", 19.75f, -12.25f, 7f, room);                                   // room 7 below, no door
-        WallXBig("R2_N", 38.25f, -12.25f, 19.75f, room, -5.05f, -5.05f + DoubleDoorGap);   // rooms 3, 8, 5 above: only the symbol room's big double door
+        WallXBig("R2_N", 38.25f, -12.25f, 19.75f, room, -5.05f, -5.05f + DoubleDoorGap, ChestWindow.x, ChestWindow.y);   // rooms 3, 8, 5 above: the symbol room's big double door, and the window into the chest room
+        ChestRoomWindow(room);
         DoubleDoor toSymbol = SpawnDoubleDoor("Door_SymbolRoom", new Vector3(-2.25f, 0f, 38.25f), 0f, true, room);
         SetField(toSymbol, "lockedHint", p => p.stringValue = "Locked. The bone key goes in the lock plate: tie the three bone fragments together at the seaweed.");
         WallZ("R2_E", 7f, 19.75f, 38.25f, room, 29f, 29f + DoorGap);               // room 6 east (and the stub down to its south wall)
@@ -1000,16 +1004,13 @@ public static class ShipGreyboxBuilder
         return Mathf.Lerp(a, b, ty);
     }
 
-    // Room 5 (green): the chest room (x 2.5..19.75, z 38.25..50). No doors: the only way in and out is the hatch in its
-    // floor from the basement. The chest opens with the symbol key and holds a stone fragment and a bone fragment.
+    // Room 5 (green): the chest room (x 2.5..19.75, z 38.25..50). No doors: the way in and out is the broken window
+    // from the middle room, beside the bone key door. The chest opens with the symbol key and holds a stone fragment and a bone fragment.
     private static void BuildChestRoom()
     {
         Transform room = Group("Room_5_ChestRoom");
-        Deck(room, 2.5f, 38.25f, 19.75f, 50f, 0f, Room5Green, HatchChest);
+        Deck(room, 2.5f, 38.25f, 19.75f, 50f, 0f, Room5Green);
         WallZ("R8_E", 2.5f, 38.25f, 50f, room);   // shared with the symbol room
-
-        // The hatch up from the basement.
-        SpawnTrapdoor("Hatch_ChestRoom", new Vector3(HatchChest.xMin, 0f, HatchChest.yMin), room);
 
         GameObject chest = Box("Chest", new Vector3(16f, 0.5f, 44f), new Vector3(1.8f, 1f, 1.1f), Wood, room);
         Decor("ChestLid", new Vector3(16f, 1.06f, 44f), new Vector3(1.9f, 0.12f, 1.2f), Wood * 0.8f, room);
@@ -1321,6 +1322,7 @@ public static class ShipGreyboxBuilder
             ("Seaweed", SeaweedSpot + Vector3.up, SeaweedSpot + new Vector3(-1.2f, 4.6f, -2f)),
             ("StoneTablet", new Vector3(13.5f, 1.2f, 34.25f), new Vector3(13.5f, 4.6f, 32.3f)),
             ("Chest", new Vector3(16f, 1f, 44f), new Vector3(16f, 4.6f, 42.2f)),
+            ("ChestWindow", new Vector3((ChestWindow.x + ChestWindow.y) * 0.5f, 1.9f, 38.25f), new Vector3((ChestWindow.x + ChestWindow.y) * 0.5f, 4.6f, 36f)),
             ("CodeLock", new Vector3(-2.6f, 2.3f, 49.5f), new Vector3(-2.6f, 4.6f, 46.8f)),
             ("HallwayTablet", new Vector3(-7f, 1.8f, 58.1f), new Vector3(-7f, 4.6f, 55.6f)),
             ("Trident", new Vector3(24f, 1.8f, 28.75f), new Vector3(24f, 4.6f, 26.8f)),
@@ -1444,6 +1446,30 @@ public static class ShipGreyboxBuilder
             if (y1 - bottom > 0.01f)
                 Piece(name, alongX, cross, from, to, bottom, y1, parent);
         }
+    }
+
+    // The window into the chest room: the wall under it (the sill) and over it up to where the double door's tall gap
+    // stops (the wall run above that is already there), and a worn brass frame round the opening, a little proud of the
+    // wall on both sides. The frame has no colliders, so the whole 1.8 x 1.8 m opening is free to swim through.
+    private static void ChestRoomWindow(Transform parent)
+    {
+        const float z = 38.25f;
+        float x1 = ChestWindow.x, x2 = ChestWindow.y, sill = ChestWindow.z, top = ChestWindow.w;
+        Piece("R2_N", true, z, x1, x2, 0f, sill, parent);
+        Piece("R2_N", true, z, x1, x2, top, DoubleDoorTop, parent);
+
+        var brass = new Color(0.55f, 0.42f, 0.2f);
+        const float bar = 0.12f, depth = WallT + 0.1f;
+        float midX = (x1 + x2) * 0.5f, midY = (sill + top) * 0.5f;
+        Decor("ChestWindow_Frame", new Vector3(midX, sill + bar * 0.5f, z), new Vector3(x2 - x1 + bar * 2f, bar, depth), brass, parent);
+        Decor("ChestWindow_Frame", new Vector3(midX, top - bar * 0.5f, z), new Vector3(x2 - x1 + bar * 2f, bar, depth), brass, parent);
+        Decor("ChestWindow_Frame", new Vector3(x1 + bar * 0.5f, midY, z), new Vector3(bar, top - sill, depth), brass, parent);
+        Decor("ChestWindow_Frame", new Vector3(x2 - bar * 0.5f, midY, z), new Vector3(bar, top - sill, depth), brass, parent);
+        // What is left of the glass: a few jagged bits still stuck in the corners.
+        var glass = new Color(0.55f, 0.8f, 0.85f);
+        Decor("ChestWindow_Glass", new Vector3(x1 + 0.22f, top - 0.2f, z), new Vector3(0.22f, 0.28f, 0.02f), glass, parent);
+        Decor("ChestWindow_Glass", new Vector3(x2 - 0.18f, sill + 0.24f, z), new Vector3(0.18f, 0.34f, 0.02f), glass, parent);
+        Decor("ChestWindow_Glass", new Vector3(x2 - 0.3f, top - 0.16f, z), new Vector3(0.36f, 0.14f, 0.02f), glass, parent);
     }
 
     // One wall box: along X at z = cross (or along Z at x = cross), from..to, between the given heights.
