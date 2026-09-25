@@ -339,6 +339,7 @@ public static class TestArenaBuilder
         Box("Pen_N", new Vector3(18f, 2f, 26f), new Vector3(16.5f, 4f, 0.5f), PropColor, zone);
         Spawn("Pufferfish", new Vector3(14f, 2f, 20f), zone, 200f);
         Spawn("Pufferfish", new Vector3(22f, 2f, 18f), zone, 160f);
+        NestAt("PufferNest_Combat", new Vector3(18f, 0f, 14f), Vector3.up, 2, zone);   // and a nest that keeps sending more
         Spawn("Fish_Wanderer", new Vector3(18f, 2f, 23f), zone);
         Label("COMBAT - left click to slash (needs the dagger)", new Vector3(18f, 5.5f, 25f), zone);
     }
@@ -729,6 +730,22 @@ public static class TestArenaBuilder
     // ---- chase (GDD map room 9: the hallway, the room after it, the corridor where the rubble comes down) -----------
 
     internal static AudioClip Sfx(string file) => AssetDatabase.LoadAssetAtPath<AudioClip>(SfxFolder + file);
+
+    // A pufferfish nest (Puffer Nest): the enemy pufferfish come out of it, Max Alive at a time. Facing = out of its
+    // mouth (up from a floor, into the room from a wall); it builds its own look (a red, spiny, glowing mound) in play.
+    internal static PufferNest NestAt(string name, Vector3 at, Vector3 facing, int maxAlive, Transform parent)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        go.transform.SetPositionAndRotation(at, Quaternion.LookRotation(facing, Mathf.Abs(facing.y) > 0.9f ? Vector3.forward : Vector3.up));
+        var nest = go.AddComponent<PufferNest>();
+        SetField(nest, "pufferPrefab", p => p.objectReferenceValue = FindPrefab("Pufferfish"));
+        SetField(nest, "maxAlive", p => p.intValue = maxAlive);
+        SetField(nest, "warnSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Ambience/Ambience_DeepBoom_ZaGames_CC0.mp3"));
+        SetField(nest, "burstSound", p => p.objectReferenceValue = Sfx("Enemy fish Attack sound effect.mp3"));
+        SetField(nest, "breakSound", p => p.objectReferenceValue = Sfx("Hit impact.wav"));
+        return nest;
+    }
 
     // A box without a collider: murals and other set dressing nothing should bump into.
     internal static GameObject Decor(string name, Vector3 center, Vector3 size, Color color, Transform parent)

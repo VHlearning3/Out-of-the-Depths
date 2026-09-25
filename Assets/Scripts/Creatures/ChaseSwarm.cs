@@ -16,13 +16,18 @@ using UnityEngine.Rendering;
 public class ChaseSwarm : MonoBehaviour
 {
     [Header("Moving")]
-    [Tooltip("Metres per second, all the way: it never speeds up to catch you and never slows (the player swims at about 2.2, and a dash is much faster). Keep moving and it cannot catch you.")]
-    [SerializeField] private float speed = 1.6f;
+    [Tooltip("Metres per second, all the way: it never speeds up to catch you and never slows (2.1, just under the player's 2.2: keep swimming and you stay ahead, stop to grab or place something and it closes in; a dash is much faster). Keep moving and it cannot catch you.")]
+    [SerializeField] private float speed = 2.1f;
     [Tooltip("How far it pours straight out of its hole (along its start facing) before it goes after the player.")]
     [SerializeField] private float emergeDistance = 3f;
     [Tooltip("Keeps the chase close: while it is more than this far behind (metres) AND you cannot see it, it hurries (Hurry times Speed) until it is within it again. 0 = never: strictly the set speed.")]
     [SerializeField] private float keepWithin = 20f;
     [SerializeField] private float hurry = 2.5f;
+    [Tooltip("The start: it bursts out and comes at this many times Speed until it first gets within Opening Until Within metres of the player, so the chase is on at once instead of a long swim up from its hole.")]
+    [SerializeField] private float openingBoost = 2.2f;
+    [SerializeField] private float openingUntilWithin = 9f;
+    [Tooltip("How wide its front is for getting through gaps (metres, a radius): it only goes straight at the player when a body this wide fits the whole way, else it follows the player's route, so it never jams on a door frame.")]
+    [SerializeField] private float bodyRadius = 0.35f;
     [Tooltip("How quickly the wall turns to face the way it is going.")]
     [SerializeField] private float turnRate = 2.5f;
     [SerializeField] private LayerMask obstacleMask = ~0;
@@ -37,7 +42,7 @@ public class ChaseSwarm : MonoBehaviour
     [SerializeField] private float maxRadius = 4f;
     [SerializeField] private float wallGap = 0.25f;
     [Tooltip("Seconds it takes to pour out of its hole at the start.")]
-    [SerializeField] private float pourSeconds = 1.6f;
+    [SerializeField] private float pourSeconds = 1f;
     [Tooltip("The fish come in these colours, a share each.")]
     [SerializeField] private Color[] colors = { new Color(0.95f, 0.76f, 0.29f), new Color(0.91f, 0.59f, 0.23f), new Color(0.85f, 0.82f, 0.48f) };
     [Tooltip("A faint glow of their own, so the wall reads in the dark water.")]
@@ -92,6 +97,9 @@ public class ChaseSwarm : MonoBehaviour
     private Vector3 holdPoint, holdAway;
     private float holdMargin;
     private bool placed;
+    private bool opening;              // the start rush (Opening Boost), until it is first close
+    private float stuckFor;            // seconds it has hardly moved while it should have
+    private float routeOnlyUntil;      // after being stuck: follow the route, not the straight line, until then
     private AudioSource rush;
 
     // The fish: where each sits in the wall (u, v across it, -1..1; w back from the front, 0..1), how big, its own
@@ -108,7 +116,11 @@ public class ChaseSwarm : MonoBehaviour
     private Material whiteMaterial, pupilMaterial;
     private readonly RaycastHit[] hits = new RaycastHit[12];
 
-    private Vector3 PlayerPoint => target.transform.position + Vector3.up * 0.4f;
+    // The middle of the player's body (the player object's origin is at its feet, so aiming there dragged the wall down
+    // into the floor), and a breadcrumb lifted the same way.
+    private Vector3 PlayerPoint => target.transform.position + Vector3.up * bodyLift;
+    private Vector3 Crumb(int index) => trail.Get(index) + Vector3.up * bodyLift;
+    private float bodyLift = 1f;   // from the player's origin up to the middle of its Character Controller
 
     private void Awake()
     {
@@ -144,6 +156,8 @@ public class ChaseSwarm : MonoBehaviour
         health = player != null ? player.GetComponentInParent<HealthSystem>() : null;
         swimmer = player != null ? player.GetComponentInParent<SwimController>() : null;
         trail = playerTrail;
+        CharacterController body = player != null ? player.GetComponentInParent<CharacterController>() : null;
+        bodyLift = body != null ? body.transform.TransformPoint(body.center).y - player.transform.position.y : 1f;
         trailIndex = trail != null ? trail.Oldest : 0;
         head = home;
         forward = startFacing;
@@ -153,6 +167,9 @@ public class ChaseSwarm : MonoBehaviour
         ox = oy = 0f;
         releasedAt = Time.time;
         pausedUntil = 0f;
+        opening = openingBoost > 1f;
+        stuckFor = 0f;
+        routeOnlyUntil = 0f;
         caughtAt = -10f;
         holding = false;
         SpeedLimit = 1f;
@@ -239,8 +256,13 @@ public class ChaseSwarm : MonoBehaviour
             return;
         Vector3 playerPoint = PlayerPoint;
         float step = speed * Mathf.Clamp01(SpeedLimit) * dt;
-        if (keepWithin > 0f && DistanceToPlayer > keepWithin && !Seen())
+        if (opening && DistanceToPlayer <= openingUntilWithin)
+            opening = false;
+        if (opening)
+            step *= openingBoost;
+        else if (keepWithin > 0f && DistanceToPlayer > keepWithin && !Seen())
             step *= hurry;
+        bool routeOnly = Time.time < routeOnlyUntil;
 
         Vector3 goal;
         if (emerging)
@@ -249,30 +271,30 @@ public class ChaseSwarm : MonoBehaviour
             if ((goal - head).sqrMagnitude < 0.04f)
                 emerging = false;
         }
-        else if (Visible(head, playerPoint))
+        else if (!routeOnly && Visible(head, playerPoint))
         {
-            goal = playerPoint;   // straight at the player while it can see them
+            goal = playerPoint;   // straight at the player while it can see them (and fits the whole way)
             if (trail != null)
                 trailIndex = trail.Newest;
         }
         else if (trail != null && trail.Count > 0)
         {
             // Round a corner: the newest breadcrumb it can see, else keep going for the current one.
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; i < 6 && !routeOnly; i++)
             {
                 int index = trail.Newest - i;
                 if (index <= trailIndex)
                     break;
-                if (Visible(head, trail.Get(index)))
+                if (Visible(head, Crumb(index)))
                 {
                     trailIndex = index;
                     break;
                 }
             }
             trailIndex = Mathf.Max(trailIndex, trail.Oldest);
-            goal = trail.Get(trailIndex);
+            goal = Crumb(trailIndex);
             if (trailIndex < trail.Newest && (goal - head).sqrMagnitude < 0.25f)
-                goal = trail.Get(++trailIndex);
+                goal = Crumb(++trailIndex);
         }
         else
         {
@@ -291,10 +313,46 @@ public class ChaseSwarm : MonoBehaviour
             if (over > 0f)
                 move -= holdAway * over;
         }
-        // Its front never goes through a wall (it slides along one); out of the hole it is free, the grate is flying.
+        // Its front never goes through a wall: it slides along one (a floor it grazes, a door frame it clips) instead of
+        // stopping dead; out of the hole it is free, the grate is flying.
         if (!emerging)
-            move = FishSteering.ClampMove(head, move, 0.3f, obstacleMask, target.transform);
+            move = SlideMove(head, move);
         head += move;
+
+        // Jammed (against a frame, in a corner) while it should be moving: drop back onto the player's own route from
+        // the breadcrumb nearest to it and follow that, one crumb after the next, for a couple of seconds.
+        bool held = holding && Vector3.Dot(head - holdPoint, holdAway) + holdMargin > -0.2f;
+        if (!emerging && !held && Mathf.Min(step, distance) > 1e-4f && move.magnitude < Mathf.Min(step, distance) * 0.3f)
+            stuckFor += dt;
+        else
+            stuckFor = Mathf.Max(0f, stuckFor - dt * 2f);
+        if (stuckFor > 0.4f && trail != null && trail.Count > 0 && routeOnly && !holding && !Seen()
+            && DistanceToPlayer > 6f && (Crumb(Mathf.Min(trailIndex + 1, trail.Newest)) - PlayerPoint).magnitude > 6f)   // never hops up to the player: it has to swim the last bit, in the open
+        {
+            // Still jammed while already on the route, and the player is not looking: step it along the route (the
+            // player swam there, so there is room) until it is free again. Nobody sees the hop.
+            stuckFor = 0.3f;
+            trailIndex = Mathf.Min(trailIndex + 1, trail.Newest);
+            head = Crumb(trailIndex);
+            routeOnlyUntil = Time.time + 2.5f;
+        }
+        else if (stuckFor > 0.4f && trail != null && trail.Count > 0)
+        {
+            stuckFor = 0f;
+            routeOnlyUntil = Time.time + 2.5f;
+            int nearest = trail.Oldest;
+            float best = float.MaxValue;
+            for (int i = trail.Oldest; i <= trail.Newest; i++)
+            {
+                float d = (Crumb(i) - head).sqrMagnitude;
+                if (d < best)
+                {
+                    best = d;
+                    nearest = i;
+                }
+            }
+            trailIndex = nearest;
+        }
 
         if (distance > 0.05f)
         {
@@ -344,6 +402,43 @@ public class ChaseSwarm : MonoBehaviour
         PlayerBody.Is(collider) || (target != null && collider.transform.IsChildOf(target.transform)) ||
         collider.GetComponentInParent<FishController>() != null || collider.GetComponentInParent<ChasePufferfish>() != null;
 
+    // Move, but never into anything solid: up to what is in the way, then the rest of the move along its surface (a
+    // floor it grazes, a door frame it clips), twice over for corners.
+    private Vector3 SlideMove(Vector3 from, Vector3 move)
+    {
+        const float radius = 0.3f, skin = 0.05f;
+        Vector3 done = Vector3.zero;
+        for (int pass = 0; pass < 3; pass++)
+        {
+            float length = move.magnitude;
+            if (length < 1e-5f)
+                break;
+            Vector3 direction = move / length;
+            int n = Physics.SphereCastNonAlloc(from + done, radius, direction, hits, length + skin, obstacleMask, QueryTriggerInteraction.Ignore);
+            float nearest = float.MaxValue;
+            Vector3 normal = Vector3.zero;
+            for (int i = 0; i < n; i++)
+            {
+                RaycastHit hit = hits[i];
+                if (hit.distance <= 0f && hit.point == Vector3.zero)
+                    continue;   // started inside it: it is round us, not ahead
+                if (hit.distance >= nearest || Ignored(hit.collider))
+                    continue;
+                nearest = hit.distance;
+                normal = hit.normal;
+            }
+            if (nearest == float.MaxValue)
+            {
+                done += move;
+                break;
+            }
+            float allowed = Mathf.Max(0f, nearest - skin);
+            done += direction * Mathf.Min(length, allowed);
+            move = Vector3.ProjectOnPlane(direction * Mathf.Max(0f, length - allowed), normal);
+        }
+        return done;
+    }
+
     // A clear line from here to there? The player and fish never count as blocking.
     private bool Visible(Vector3 from, Vector3 to)
     {
@@ -351,9 +446,10 @@ public class ChaseSwarm : MonoBehaviour
         float distance = delta.magnitude;
         if (distance < 0.01f)
             return true;
-        int n = Physics.RaycastNonAlloc(from, delta / distance, hits, distance, obstacleMask, QueryTriggerInteraction.Ignore);
+        // A sweep as wide as its front, not a thin line: a line can slip past a door frame the body cannot.
+        int n = Physics.SphereCastNonAlloc(from, bodyRadius, delta / distance, hits, distance, obstacleMask, QueryTriggerInteraction.Ignore);
         for (int i = 0; i < n; i++)
-            if (!Ignored(hits[i].collider))
+            if (!Ignored(hits[i].collider) && !(hits[i].distance <= 0f && hits[i].point == Vector3.zero))   // (not what it is already touching)
                 return false;
         return true;
     }

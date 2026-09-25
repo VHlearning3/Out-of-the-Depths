@@ -24,6 +24,8 @@ public class FishAggression : MonoBehaviour
     public static readonly System.Collections.Generic.List<FishAggression> Chasing = new System.Collections.Generic.List<FishAggression>();
 
     private FishWander wander;
+    private FishController body;
+    private EdibleFish edible;
     private FishKnockback knockback;
     private DamageManager target;
     private float nextAttackTime;
@@ -32,6 +34,8 @@ public class FishAggression : MonoBehaviour
     {
         wander = GetComponent<FishWander>();
         knockback = GetComponent<FishKnockback>();
+        body = GetComponent<FishController>();
+        edible = GetComponent<EdibleFish>();
     }
 
     private void Start()
@@ -48,6 +52,14 @@ public class FishAggression : MonoBehaviour
     {
         if (target == null)
             return;
+        // Dead, fading or gone (eaten, despawned, waiting to respawn): no chasing, and above all no biting. However this
+        // got switched on, a fish nobody can see must never hurt the player.
+        if ((body != null && (!body.IsAlive || body.IsFading)) || (edible != null && edible.Consumed))
+        {
+            IsChasing = false;          // (not SetChasing: that would set its wandering going again, and it is dead)
+            Chasing.Remove(this);
+            return;
+        }
 
         Vector3 targetPoint = target.transform.position + Vector3.up;
         float distance = Vector3.Distance(transform.position, targetPoint);

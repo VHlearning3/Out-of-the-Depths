@@ -213,7 +213,8 @@ public class ChaseGuide : MonoBehaviour
         float detailWidth = string.IsNullOrEmpty(detail) ? 0f : detailStyle.CalcSize(new GUIContent(detail)).x;
         float width = Mathf.Max(titleWidth + pipsWidth, detailWidth, 220f * scale) + pad * 2f;
         float height = (string.IsNullOrEmpty(detail) ? 64f : 84f) * scale;
-        var card = new Rect((Screen.width - width) * 0.5f, 30f * scale - slide * 12f * scale, width, height);
+        float top = Mathf.Max(30f * scale, ChaseProximityBar.Bottom + 10f * scale);   // under the proximity bar
+        var card = new Rect((Screen.width - width) * 0.5f, top - slide * 12f * scale, width, height);
         CardBottom = card.yMax;
 
         Color gold = color;

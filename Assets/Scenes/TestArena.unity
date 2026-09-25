@@ -19320,8 +19320,8 @@ MonoBehaviour:
   fovBoost: 8
   sealStartDoor: 1
   unsealWhen: {fileID: 0}
-  sealedHint: It slammed shut behind you. Put the stone fragments in the tablet at
-    the end of the hallway to open it.
+  sealedHint: It slammed shut behind you. Put the stone fragments in the tablet by
+    the far door to open it.
   endSlowRadius: 12
   endSlowSpeed: 0.3
   holdBehindRubble: 2

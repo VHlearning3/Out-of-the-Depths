@@ -25,6 +25,8 @@ public class EdibleFish : MonoBehaviour, IInteractable
     private Collider fishCollider;
     private Renderer[] renderers;
     private bool consumed;
+    // Eaten or faded away and not back yet: out of the world (hidden, no collider).
+    public bool Consumed => consumed;
 
     public string Prompt => prompt;
 

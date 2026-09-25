@@ -117,13 +117,22 @@ public class ChaseSequence : MonoBehaviour
     [Tooltip("Extra degrees of field of view at full danger: the view widens as panic sets in. 0 = none.")]
     [SerializeField] private float fovBoost = 8f;
 
+    [Header("The ending")]
+    [Tooltip("Opening the End Door (the way out at the far end of the trident corridor) ends the game: after Credits Delay the screen fades to black and the credits roll (End Credits), then back to the main menu.")]
+    [UnityEngine.Serialization.FormerlySerializedAs("creditsOnTrident")]
+    [SerializeField] private bool creditsOnEndDoor = true;
+    [Tooltip("The last door. Empty = the door named Door_Exit.")]
+    [SerializeField] private Door endDoor;
+    [Tooltip("Seconds between the door swinging open and the fade.")]
+    [SerializeField] private float creditsDelay = 0.8f;
+
     [Header("Sealed in")]
     [Tooltip("When the chase starts the Start Door slams shut behind the player and stays locked until Unseal When is filled, so there is no way back out before the fragments are in. Dying opens it again.")]
     [SerializeField] private bool sealStartDoor = true;
     [Tooltip("The socket that opens it again (the stone tablet the fragments go into). Empty = the Item Socket on the object named RuneTablet; with none at all it opens when the chase ends.")]
     [SerializeField] private ItemSocket unsealWhen;
     [Tooltip("What trying the sealed door says.")]
-    [SerializeField] private string sealedHint = "It slammed shut behind you. Put the stone fragments in the tablet at the end of the hallway to open it.";
+    [SerializeField] private string sealedHint = "It slammed shut behind you. Put the stone fragments in the tablet by the far door to open it.";
 
     [Header("The end (the trident and the rubble)")]
     [Tooltip("Once the player is this close to the pickup that drops End Rubble (the trident), the pack slows down...")]
@@ -147,6 +156,8 @@ public class ChaseSequence : MonoBehaviour
     public bool InCutscene => cutsceneActive;
     public RubbleFall EndRubble => endRubble;
     public float Danger01 { get; private set; }
+    // Metres from the player to the nearest hunter (the swarm's front), infinity when none is hunting.
+    public float NearestDistance { get; private set; } = float.PositiveInfinity;
     // The hunting pursuer closest to the player right now (the HUD marker points at it), or null.
     public Transform NearestPursuer { get; private set; }
 
@@ -184,6 +195,8 @@ public class ChaseSequence : MonoBehaviour
     {
         if (GetComponent<ChaseGuide>() == null)
             gameObject.AddComponent<ChaseGuide>();   // the on-screen steps and marker: what to do next
+        if (GetComponent<ChaseProximityBar>() == null)
+            gameObject.AddComponent<ChaseProximityBar>();   // the bar at the top: how close they are
         if (pursuers == null || pursuers.Length == 0)
             pursuers = GetComponentsInChildren<ChasePufferfish>(true);
         if (useSwarm)
@@ -210,6 +223,15 @@ public class ChaseSequence : MonoBehaviour
             startDoor.onOpened.AddListener(OnDoorOpened);
         if (endRubble != null)
             endRubble.onDropped.AddListener(End);
+        if (endDoor == null)
+            foreach (Door door in FindObjectsByType<Door>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (door.name == "Door_Exit")
+                {
+                    endDoor = door;
+                    break;
+                }
+        if (creditsOnEndDoor && endDoor != null)
+            endDoor.onOpened.AddListener(RollCredits);
     }
 
     private void OnDisable()
@@ -233,6 +255,8 @@ public class ChaseSequence : MonoBehaviour
             startDoor.onOpened.RemoveListener(OnDoorOpened);
         if (endRubble != null)
             endRubble.onDropped.RemoveListener(End);
+        if (endDoor != null)
+            endDoor.onOpened.RemoveListener(RollCredits);
         if (Active == this)
             Active = null;
     }
@@ -294,6 +318,19 @@ public class ChaseSequence : MonoBehaviour
         Bounds bounds = area.bounds;
         position = new Vector3(bounds.center.x, bounds.min.y + 1.6f, bounds.center.z);
         return true;
+    }
+
+    // The last door is open: the ending (End Credits).
+    private void RollCredits()
+    {
+        if (!EndCredits.Playing)
+            StartCoroutine(CreditsLater());
+    }
+
+    private IEnumerator CreditsLater()
+    {
+        yield return new WaitForSecondsRealtime(creditsDelay);
+        EndCredits.Play();
     }
 
     // Start the chase now, from anywhere.
@@ -617,6 +654,7 @@ public class ChaseSequence : MonoBehaviour
             nearestFish = swarm.transform;
         }
         NearestPursuer = nearestFish;
+        NearestDistance = nearest;
         Danger01 = float.IsPositiveInfinity(nearest) ? 0f : 1f - Mathf.InverseLerp(dangerNear, dangerFar, nearest);
         UpdateFear();
     }

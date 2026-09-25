@@ -322,6 +322,11 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
         if (MenuGUI.Button("End (pack leaves)")) chase.End();
         if (MenuGUI.Button("Reset")) chase.ResetChase();
         GUILayout.EndHorizontal();
+        if (MenuGUI.Button("Play the ending (credits)"))
+        {
+            FindFirstObjectByType<PauseMenu>()?.Resume();
+            EndCredits.Play();
+        }
     }
 
     private void DrawWorld()

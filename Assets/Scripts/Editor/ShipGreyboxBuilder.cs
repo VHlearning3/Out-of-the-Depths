@@ -118,6 +118,7 @@ public static class ShipGreyboxBuilder
         Step("Room 8: symbol room", BuildSymbolRoom);
         Step("Room 9: hallway + chase", BuildHallway);
         Step("Trident corridor", BuildColumn);
+        Step("Pufferfish nests", BuildNests);
         Step("Collectibles", BuildCollectibles);
         Step("Room lights", BuildLights);
         Step("Item models", ItemModelTools.ApplyItemModelsInOpenScene);
@@ -662,6 +663,7 @@ public static class ShipGreyboxBuilder
         new Vector3(-26f, 41.25f, 4.5f), new Vector3(8f, 41f, 4.5f), new Vector3(-22.5f, 43.2f, 3f),
         new Vector3(-19f, 5.5f, 2.5f), new Vector3(19f, 24.5f, 2.5f), new Vector3(14f, 5.6f, 2.5f),
         new Vector3(10f, 15f, 1.5f), new Vector3(-24f, 30f, 1.5f), new Vector3(0f, 30f, 1.5f),
+        new Vector3(-8f, 24f, 2.2f), new Vector3(12f, 34f, 2.2f),   // the two pufferfish nests
     };
 
     private static bool KelpMayGrow(float x, float z)
@@ -1075,8 +1077,9 @@ public static class ShipGreyboxBuilder
     }
 
     // Room 9: the hallway (x -29..-4.75, z 50..58.5) and the room east of it (x -4.75..19.75) that the rune door opens
-    // into. The pack waits in a vent at the hallway's far west end; the chase starts when the rune door opens. Two
-    // stone fragments in the hallway go into the tablet by its east end, which unlocks the door east into the column.
+    // into (9b). The pack waits in a vent at the hallway's far west end. The chase starts as you come through the rune
+    // door into 9b (the vent is in plain view down the hallway from there), and everything you need is ahead of you,
+    // away from the pack: two stone fragments in 9b, the tablet beside the door east into the column, which it unlocks.
     private static void BuildHallway()
     {
         Transform room = Group("Room_9_Hallway");
@@ -1123,15 +1126,15 @@ public static class ShipGreyboxBuilder
         SetField(chase, "endSound", p => p.objectReferenceValue = Sfx("Puzzle Completed Sound effect.mp3"));
         SetField(chase, "grateSound", p => p.objectReferenceValue = Sfx("Hit impact.wav"));
         SetField(chase, "startDoor", p => p.objectReferenceValue = finalDoor);
-        // The rune door arms it; the cutscene plays once the player is in the hallway (by the divider doorway or the
-        // nook door), where the vent can be seen down its length.
+        // The rune door arms it; the cutscene plays as soon as the player is through it, in the west part of 9b: from
+        // there the vent is straight down the hallway through the divider doorway, and the way on is east.
         var start = new GameObject("ChaseStart");
         start.transform.SetParent(room, false);
-        // 1.5 m in from the divider and the nook door, so it starts once the player is through, not in the doorway.
-        start.transform.position = new Vector3((HullW + 0.25f - 6.25f) * 0.5f, Ceiling * 0.5f, (51.5f + HullN - 0.25f) * 0.5f);
+        // Half a metre in from the rune door and the divider, so it starts once the player is through, not in the doorway.
+        start.transform.position = new Vector3(0.125f, Ceiling * 0.5f, (50.5f + HullN - 0.25f) * 0.5f);
         var startBox = start.AddComponent<BoxCollider>();
         startBox.isTrigger = true;
-        startBox.size = new Vector3(-6.25f - HullW - 0.25f, Ceiling, HullN - 0.25f - 51.5f);
+        startBox.size = new Vector3(8.75f, Ceiling, HullN - 0.25f - 50.5f);
         SetField(chase, "startTrigger", p => p.objectReferenceValue = start.AddComponent<PlayerAreaTrigger>());
         GameObject pursuerPrefab = ChaseTools.EnsurePursuerPrefab();
         Vector3[] slots = { new Vector3(x - 2.2f, 3.2f, 53.1f), new Vector3(x - 1.5f, 3.2f, 53.7f), new Vector3(x - 0.8f, 3.2f, 54.3f) };
@@ -1153,19 +1156,19 @@ public static class ShipGreyboxBuilder
             Decor("Bar", new Vector3(x + WallT * 0.5f, y, 53.7f), new Vector3(0.08f, 0.08f, 2.4f), iron, room).transform.SetParent(grate.transform, true);
         SetField(chase, "grate", p => p.objectReferenceValue = grate.transform);
 
-        // Under pressure: two stone fragments, high and low, for the tablet by the hallway's east end.
-        CreatePickup(new Vector3(-20f, 4.2f, 52.5f), "Item_StoneFragment", room).name = "Pickup_StoneFragment_ChaseTablet_High";   // not for the pedestal: the hallway tablet
-        CreatePickup(new Vector3(-12f, 0.6f, 56f), "Item_StoneFragment", room).name = "Pickup_StoneFragment_ChaseTablet_Low";
-        GameObject tablet = Box("RuneTablet", new Vector3(-7f, 1.8f, HullN - 0.35f), new Vector3(1.1f, 1.3f, 0.2f), Stone, room);
+        // Under pressure, and always ahead of the pack: two stone fragments in 9b on the way east (one up by the ceiling,
+        // one on the floor), for the tablet on the wall beside the column door. No other fish in 9b, so the only fish
+        // there are the ones after you.
+        CreatePickup(new Vector3(5f, 4.2f, 57.5f), "Item_StoneFragment", room).name = "Pickup_StoneFragment_ChaseTablet_High";   // not for the pedestal: the chase tablet
+        CreatePickup(new Vector3(12f, 0.6f, 52f), "Item_StoneFragment", room).name = "Pickup_StoneFragment_ChaseTablet_Low";
+        GameObject tablet = Box("RuneTablet", new Vector3(19.35f, 1.8f, 55.5f), new Vector3(0.2f, 1.3f, 1.1f), Stone, room);
         var slotted = new GameObject[2];
         for (int i = 0; i < slotted.Length; i++)
         {
-            slotted[i] = Box("Placed_Stone_" + (i + 1), new Vector3(-7.3f + i * 0.6f, 1.8f, HullN - 0.53f), new Vector3(0.3f, 0.35f, 0.16f), new Color(0.4f, 0.8f, 0.85f), room);
+            slotted[i] = Box("Placed_Stone_" + (i + 1), new Vector3(19.2f, 1.8f, 55.2f + i * 0.6f), new Vector3(0.16f, 0.35f, 0.3f), new Color(0.4f, 0.8f, 0.85f), room);
             slotted[i].SetActive(false);
         }
         hallwayTablet = Socket(tablet, "Item_StoneFragment", 2, true, "slot", null, slotted);   // the column door it opens is made by BuildColumn
-
-        CreateSchool("Fish_Wanderer", 3, new Vector3(8f, 2.5f, 54f), room);
     }
 
     // The column down the east side (x 19.75..29): the trident corridor north of the divider, the rubble that seals it,
@@ -1176,7 +1179,7 @@ public static class ShipGreyboxBuilder
         Deck(room, 19.75f, HullS, HullE, HullN, 0f, new Color(0.28f, 0.3f, 0.3f));
         WallZ("Column_W", 19.75f, HullS, HullN, room, 51f, 51f + DoorGap);
         columnDoor = DoorZ("Door_Column", 19.75f, 51f, true, false, room);
-        SetField(columnDoor, "lockedHint", p => p.stringValue = "Locked. Put two stone fragments into the tablet at the end of the hallway.");
+        SetField(columnDoor, "lockedHint", p => p.stringValue = "Locked. Put two stone fragments into the tablet beside it.");
         if (hallwayTablet != null)
             OpenOnFilled(hallwayTablet, columnDoor);
         WallX("Column_Div", 23.75f, 19.75f, HullE, room, 23f, 23f + DoorGap);
@@ -1184,6 +1187,9 @@ public static class ShipGreyboxBuilder
         WallX("Column_ExitWall", 3f, 19.75f, HullE, room, 22.5f, 22.5f + DoorGap);
         Door exit = SpawnDoor("Door_Exit", new Vector3(22.5f + 2.4f, 0f, 3f), false, true, room, 180f);
         SetField(exit, "openPrompt", p => p.stringValue = "open the way out");
+        var ending = Object.FindFirstObjectByType<ChaseSequence>();
+        if (ending != null)
+            SetField(ending, "endDoor", p => p.objectReferenceValue = exit);   // opening it rolls the credits
 
         // Rubble: rocks placed where they land across the whole corridor; a blocker seals the gaps.
         var rubbleGo = new GameObject("Rubble");
@@ -1324,10 +1330,28 @@ public static class ShipGreyboxBuilder
             ("Chest", new Vector3(16f, 1f, 44f), new Vector3(16f, 4.6f, 42.2f)),
             ("ChestWindow", new Vector3((ChestWindow.x + ChestWindow.y) * 0.5f, 1.9f, 38.25f), new Vector3((ChestWindow.x + ChestWindow.y) * 0.5f, 4.6f, 36f)),
             ("CodeLock", new Vector3(-2.6f, 2.3f, 49.5f), new Vector3(-2.6f, 4.6f, 46.8f)),
-            ("HallwayTablet", new Vector3(-7f, 1.8f, 58.1f), new Vector3(-7f, 4.6f, 55.6f)),
+            ("HallwayTablet", new Vector3(19.35f, 1.8f, 55.5f), new Vector3(17.2f, 4.6f, 55.5f)),
             ("Trident", new Vector3(24f, 1.8f, 28.75f), new Vector3(24f, 4.6f, 26.8f)),
         })
             Accent(name, target, from, accents);
+    }
+
+    // Where the enemy pufferfish come from: red, spiny, glowing nests (Puffer Nest), easy to tell from the friendly
+    // fish's windows and roof holes. Each keeps a couple of pufferfish out while you are near and in its sight, warns
+    // before each one, and can be slashed to pieces to stop it. In the fish room, the basement (two), the chest room,
+    // the stone room and the box room, clear of the ways through.
+    private static void BuildNests()
+    {
+        Transform nests = Group("PufferNests");
+        nests.SetParent(ship, false);
+        // Tucked into the fish room's far north-east corner, round the corner from the door in: out of sight (and out of
+        // range) on the way to the dagger, so you meet it armed.
+        NestAt("PufferNest_FishRoom", new Vector3(-8.1f, 0f, 43f), Vector3.up, 2, nests);
+        NestAt("PufferNest_Basement_W", CellarGround(-8f, 24f), Vector3.up, 2, nests);
+        NestAt("PufferNest_Basement_E", CellarGround(12f, 34f), Vector3.up, 2, nests);
+        NestAt("PufferNest_ChestRoom", new Vector3(8f, 0f, 46f), Vector3.up, 1, nests);
+        NestAt("PufferNest_StoneRoom", new Vector3(16.5f, 0f, 25f), Vector3.up, 1, nests);
+        NestAt("PufferNest_BoxRoom", new Vector3(-6f, 0f, 12f), Vector3.up, 2, nests);
     }
 
     // Collectibles tucked away round the ship, for the counter in the corner: high corners you have to swim up to,

@@ -10,7 +10,7 @@ using UnityEngine.Events;
 public class ChasePufferfish : MonoBehaviour
 {
     [Header("Swimming")]
-    [SerializeField] private float speed = 2.4f;
+    [SerializeField] private float speed = 3f;
     [Tooltip("Speed multiplier when far behind, so you can never simply leave it behind.")]
     [SerializeField] private float catchUpBoost = 1.5f;
     [Tooltip("Distance at which the catch-up boost is at full strength.")]
