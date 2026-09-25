@@ -21,14 +21,14 @@ public class SwimController : MonoBehaviour
 
     [Header("Swim Movement")]
     [Tooltip("Top speed in metres per second.")]
-    [SerializeField] private float swimSpeed = 2.2f;
+    [SerializeField] private float swimSpeed = 3f;
     [Header("Dash (the Sprint key, Shift)")]
     [Tooltip("The burst a dash gives, in metres per second on top of your swimming; it glides away through the water.")]
     [SerializeField] private float dashSpeed = 7f;
     [Tooltip("Seconds before the next dash.")]
     [SerializeField] private float dashCooldown = 3f;
     [Tooltip("Hunger each dash costs; with less than that left you cannot dash.")]
-    [SerializeField] private float dashHungerCost = 10f;
+    [SerializeField] private float dashHungerCost = 5f;
     [SerializeField, Range(0f, 1f)] private float dashShake = 0.12f;
     [SerializeField] private AudioClip dashSound;
     [SerializeField, Range(0f, 1f)] private float dashVolume = 0.5f;
@@ -102,6 +102,8 @@ public class SwimController : MonoBehaviour
     public float DashReadyIn => Mathf.Max(0f, nextDashAt - Time.time);
     public float DashCooldown => dashCooldown;
     public float DashHungerCost => dashHungerCost;
+    // Dashes made in this level (the tutorial's Dash step).
+    public int DashCount { get; private set; }
     public float LastDashRefusedAt { get; private set; } = -10f;
     public float LastDashAt { get; private set; } = -10f;
     private float nextDashAt;
@@ -285,6 +287,7 @@ public class SwimController : MonoBehaviour
         currentVelocity += direction * dashSpeed;
         nextDashAt = Time.time + dashCooldown;
         LastDashAt = Time.time;
+        DashCount++;
         // The first dash that costs something (this session) says what it cost.
         if (!dashHintShown && hunger != null && !hunger.DrainPaused && dashHungerCost > 0f)
         {
@@ -388,12 +391,13 @@ public class SwimController : MonoBehaviour
         float panic = Mathf.Max(0f, PanicSway);
         swayPhase += Time.deltaTime * swayFrequency * (1f + 0.6f * panic);
         bobPhase += Time.deltaTime * bobFrequency * (1f + 0.8f * panic);
-        float sway = Mathf.Sin(swayPhase * Mathf.PI * 2f) * swayAmplitude * (1f + panic);
+        float feel = ComfortSettings.ViewBobbing;   // the Settings page's View bobbing: 0 = a steady camera
+        float sway = Mathf.Sin(swayPhase * Mathf.PI * 2f) * swayAmplitude * (1f + panic) * feel;
         float shakePitch = (Random.value - 0.5f) * 4f * jolt;
         float shakeRoll = (Random.value - 0.5f) * 6f * jolt;
-        cameraPivot.localRotation = Quaternion.Euler(pitch + shakePitch, 0f, currentRoll + sway + shakeRoll);
+        cameraPivot.localRotation = Quaternion.Euler(pitch + shakePitch, 0f, currentRoll * feel + sway + shakeRoll);
 
-        float bob = Mathf.Sin(bobPhase * Mathf.PI * 2f) * bobAmplitude * (1f + panic);
+        float bob = Mathf.Sin(bobPhase * Mathf.PI * 2f) * bobAmplitude * (1f + panic) * feel;
         cameraPivot.localPosition = OutOfWalls(cameraPivotRestLocalPosition + Vector3.up * bob + Random.insideUnitSphere * (0.08f * jolt));
     }
 

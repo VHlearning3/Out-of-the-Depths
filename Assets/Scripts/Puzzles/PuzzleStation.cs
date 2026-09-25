@@ -87,6 +87,9 @@ public class PuzzleStation : MonoBehaviour, IInteractable, IPromptTone
         onSolved.Invoke();
     }
 
+    // Checkpoint Save: solved already (no sound, no events).
+    public void RestoreSolved() => IsSolved = true;
+
     // For the admin page: solve it as if the board had been done.
     public void SolveNow() => Solved();
 }

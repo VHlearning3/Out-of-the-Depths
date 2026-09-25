@@ -171,6 +171,9 @@ MonoBehaviour:
   openingScatter: {x: 0.8, y: 0.4}
   exitScatter: {x: 45, y: 20}
   fishWidth: 0.5
+  bars: 1
+  barSpacing: 0.42
+  barColor: {r: 0.2, g: 0.17, b: 0.15, a: 1}
 --- !u!1 &4667964244148648520
 GameObject:
   m_ObjectHideFlags: 0

@@ -5279,7 +5279,7 @@ MonoBehaviour:
   fontSize: 15
   selectedScale: 1.1
   emptyAlpha: 0.45
-  autoHide: 1
+  autoHide: 0
   showSeconds: 3
 --- !u!1 &253267731
 GameObject:
@@ -16854,7 +16854,7 @@ MonoBehaviour:
   inventory: {fileID: 901100003}
   label: {fileID: 1329520721}
   total: 0
-  autoHide: 1
+  autoHide: 0
   showSeconds: 4
   generatedLook: 1
 --- !u!1 &723995612
@@ -22281,10 +22281,10 @@ MonoBehaviour:
   mouseSensitivity: 0.12
   minPitch: -85
   maxPitch: 85
-  swimSpeed: 2.2
+  swimSpeed: 3
   dashSpeed: 7
   dashCooldown: 3
-  dashHungerCost: 10
+  dashHungerCost: 5
   dashShake: 0.12
   dashSound: {fileID: 0}
   dashVolume: 0.5
@@ -22644,7 +22644,7 @@ MonoBehaviour:
   fillImage: {fileID: 900200030}
   valueLabel: {fileID: 900500004}
   smoothSpeed: 8
-  autoHide: 1
+  autoHide: 0
   showBelow: 0.5
   jumpToShow: 0.015
   showSeconds: 3
@@ -22856,7 +22856,7 @@ MonoBehaviour:
   fillImage: {fileID: 0}
   valueLabel: {fileID: 900500014}
   smoothSpeed: 8
-  autoHide: 1
+  autoHide: 0
   showBelow: 0.5
   jumpToShow: 0.015
   showSeconds: 3

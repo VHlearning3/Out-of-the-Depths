@@ -97,6 +97,9 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
     public bool IsOpen => open;
     public bool IsTied => done;
 
+    // Checkpoint Save: tied already, the key handed over (it is in the saved inventory).
+    public void RestoreTied() => done = true;
+
     private bool open;
     private bool done;
     private readonly float[] wound = new float[2];        // radians wound round each joint, signed (either way works)

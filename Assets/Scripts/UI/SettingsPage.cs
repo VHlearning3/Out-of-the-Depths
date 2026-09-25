@@ -28,7 +28,10 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
         Button,
         HudSize,
         HudAutoHide,
-        DirectionIndicators
+        DirectionIndicators,
+        FpsLimit,
+        ViewBobbing,
+        TutorialTips
     }
 
     [Serializable]
@@ -256,7 +259,29 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
             }
 
             case RowType.HudAutoHide:
-                HudAutoHide.Enabled = MenuGUI.SwitchRow(row.label, HudAutoHide.Enabled);
+                break;   // retired: the HUD always shows
+
+            case RowType.FpsLimit:
+            {
+                int index = ComfortSettings.FpsIndex;
+                string label = QualitySettings.vSyncCount > 0 ? row.label + "  (V-Sync is on)" : row.label;
+                int pick = MenuGUI.StepperRow(label, index, ComfortSettings.FpsLabels);
+                if (pick != index)
+                    ComfortSettings.SetFpsIndex(pick);
+                break;
+            }
+
+            case RowType.ViewBobbing:
+            {
+                float amount = ComfortSettings.ViewBobbing;
+                float now = MenuGUI.SliderRow(row.label, amount, 0f, 1f, amount <= 0.001f ? "Off" : Mathf.RoundToInt(amount * 100f) + "%");
+                if (!Mathf.Approximately(now, amount))
+                    ComfortSettings.SetViewBobbing(Mathf.Round(now * 20f) / 20f);   // in 5% steps
+                break;
+            }
+
+            case RowType.TutorialTips:
+                TutorialCards.Enabled = MenuGUI.SwitchRow(row.label, TutorialCards.Enabled);
                 break;
 
             case RowType.DirectionIndicators:
@@ -371,8 +396,9 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
     {
         GameAudio.ResetMaster();
         UIScale.Reset();
-        PlayerPrefs.DeleteKey(HudAutoHide.PrefsKey);
-        HudAutoHide.Enabled = true;
+        ComfortSettings.Reset();
+        TutorialCards.Enabled = true;
+        TutorialCards.ResetSeen();   // and every tutorial card shows again
         PlayerPrefs.DeleteKey(DirectionIndicators.PrefsKey);
         DirectionIndicators.Enabled = true;
         if (swimmer != null && defaultSensitivity > 0f)
@@ -405,14 +431,25 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
             int at = rows.FindIndex(r => r.type == RowType.MouseSensitivity);
             rows.Insert(at >= 0 ? at + 1 : rows.Count, new Row { type = RowType.HudSize, label = "HUD size" });
         }
-        if (!rows.Exists(r => r.type == RowType.HudAutoHide))
+        rows.RemoveAll(r => r.type == RowType.HudAutoHide);   // the HUD always shows now: no switch for hiding it
+        if (!rows.Exists(r => r.type == RowType.FpsLimit))
         {
-            int at = rows.FindIndex(r => r.type == RowType.HudSize);
-            rows.Insert(at + 1, new Row { type = RowType.HudAutoHide, label = "Hide HUD when not needed" });
+            int at = rows.FindIndex(r => r.type == RowType.VSync);
+            rows.Insert(at >= 0 ? at + 1 : rows.Count, new Row { type = RowType.FpsLimit, label = "FPS limit" });
+        }
+        if (!rows.Exists(r => r.type == RowType.TutorialTips))
+        {
+            int at = rows.FindIndex(r => r.type == RowType.DirectionIndicators);
+            rows.Insert(at >= 0 ? at + 1 : rows.Count, new Row { type = RowType.TutorialTips, label = "Tutorial tips" });
+        }
+        if (!rows.Exists(r => r.type == RowType.ViewBobbing))
+        {
+            int at = rows.FindIndex(r => r.type == RowType.MouseSensitivity);
+            rows.Insert(at >= 0 ? at + 1 : rows.Count, new Row { type = RowType.ViewBobbing, label = "View bobbing" });
         }
         if (!rows.Exists(r => r.type == RowType.DirectionIndicators))
         {
-            int at = rows.FindIndex(r => r.type == RowType.HudAutoHide);
+            int at = rows.FindIndex(r => r.type == RowType.HudSize);
             rows.Insert(at + 1, new Row { type = RowType.DirectionIndicators, label = "Direction indicators" });
         }
     }
@@ -425,13 +462,15 @@ public class SettingsPage : MonoBehaviour, IPauseMenuPage
         rows.Add(new Row { type = RowType.Resolution, label = "Resolution" });
         rows.Add(new Row { type = RowType.Fullscreen, label = "Fullscreen" });
         rows.Add(new Row { type = RowType.VSync, label = "V-Sync" });
+        rows.Add(new Row { type = RowType.FpsLimit, label = "FPS limit" });
         rows.Add(new Row { type = RowType.Heading, label = "Audio" });
         rows.Add(new Row { type = RowType.MasterVolume, label = "Master volume" });
         rows.Add(new Row { type = RowType.Heading, label = "Controls" });
         rows.Add(new Row { type = RowType.MouseSensitivity, label = "Mouse sensitivity", min = 0.03f, max = 0.4f });
+        rows.Add(new Row { type = RowType.ViewBobbing, label = "View bobbing" });
         rows.Add(new Row { type = RowType.HudSize, label = "HUD size" });
-        rows.Add(new Row { type = RowType.HudAutoHide, label = "Hide HUD when not needed" });
         rows.Add(new Row { type = RowType.DirectionIndicators, label = "Direction indicators" });
+        rows.Add(new Row { type = RowType.TutorialTips, label = "Tutorial tips" });
         rows.Add(new Row { type = RowType.ResetToDefaults, label = "Everything above", buttonText = "Reset to defaults" });
         rows.Add(new Row { type = RowType.Note, label = "Resolution and fullscreen take effect straight away and are remembered by the game on its own." });
         rowsFilled = true;

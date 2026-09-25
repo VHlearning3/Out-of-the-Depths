@@ -190,6 +190,23 @@ public class Door : MonoBehaviour, IInteractable, IPromptTone
     }
 
     private bool lockedBehind;   // shut and locked behind the player (a one-way door), not locked by a puzzle
+    public bool LockedBehind => lockedBehind;
+    public float SwingDirection => swingDirection;
+
+    // Checkpoint Save: straight into this state, no sound, no events.
+    public void RestoreState(bool open, bool isLocked, bool behind, float direction)
+    {
+        if (motionRoutine != null)
+            StopCoroutine(motionRoutine);
+        motionRoutine = null;
+        StopLoop();
+        swingDirection = direction == 0f ? 1f : direction;
+        IsOpen = open;
+        openness = open ? 1f : 0f;
+        ApplyPose();
+        locked = isLocked;
+        lockedBehind = behind;
+    }
     public void Lock() => locked = true;
 
     // Locked, and trying it says why (a chase sealing the player in).

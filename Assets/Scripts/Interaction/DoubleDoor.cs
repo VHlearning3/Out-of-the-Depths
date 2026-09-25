@@ -115,6 +115,20 @@ public class DoubleDoor : MonoBehaviour, IInteractable, IPromptTone
     }
 
     public void Close() => SetOpen(false);
+    public float Direction => direction;
+
+    // Checkpoint Save: straight into this state, no sound, no events.
+    public void RestoreState(bool open, bool isLocked, float swingDirection)
+    {
+        if (motion != null)
+            StopCoroutine(motion);
+        motion = null;
+        direction = swingDirection == 0f ? 1f : swingDirection;
+        IsOpen = open;
+        openness = open ? 1f : 0f;
+        Pose();
+        locked = isLocked;
+    }
     public void Unlock() => locked = false;
     public void Lock() => locked = true;
 

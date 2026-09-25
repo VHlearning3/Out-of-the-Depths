@@ -212,6 +212,8 @@ public class ChaseSequence : MonoBehaviour
 
     private void Start()
     {
+        if (CheckpointSave.Remembers(CheckpointSave.Key(this) + "/cutscene"))
+            cutscenePlayed = true;
         player = FindFirstObjectByType<DamageManager>();
         death = player != null ? player.GetComponentInParent<DeathManager>() : null;
         if (death != null)
@@ -333,6 +335,14 @@ public class ChaseSequence : MonoBehaviour
         EndCredits.Play();
     }
 
+    // Checkpoint Save: the chase is over already (the rubble came down); it never starts again.
+    public void RestoreFinished()
+    {
+        IsRunning = false;
+        IsFinished = true;
+        IsArmed = false;
+    }
+
     // Start the chase now, from anywhere.
     [ContextMenu("Begin chase")]
     public void Begin()
@@ -370,6 +380,7 @@ public class ChaseSequence : MonoBehaviour
         if (cutscene)
         {
             cutscenePlayed = true;
+            CheckpointSave.Remember(CheckpointSave.Key(this) + "/cutscene");   // not again after dying and reloading
             revealRoutine = StartCoroutine(RevealCutscene());   // the hush and the turn, then Burst(), then the slow motion
         }
         else

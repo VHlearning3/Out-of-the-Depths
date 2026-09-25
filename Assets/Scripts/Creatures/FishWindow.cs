@@ -10,6 +10,8 @@ using UnityEngine;
 // With a model on it that has colliders (the porthole: its frame and its broken glass), fish only come through where a
 // fish fits past them - the hole broken in the glass - lining up square to the window before they cross it. The spots
 // are worked out once, the first time a fish needs one; without such colliders it is anywhere in Opening Scatter.
+// Iron bars across the opening (Bars, made at start) show the player it is not a way through (the Player Blocker is what
+// stops them); fish slip between them.
 public class FishWindow : MonoBehaviour
 {
     [Header("Hole")]
@@ -37,6 +39,12 @@ public class FishWindow : MonoBehaviour
     [Tooltip("How wide a fish is, in metres: fish only cross where one this wide clears the window's own colliders (the glass and frame of the porthole). Colliders named Player Blocker are not counted.")]
     [SerializeField] private float fishWidth = 0.5f;
 
+    [Header("Bars")]
+    [Tooltip("Iron bars across the opening, so the player can see it is not a way through (fish still come through them).")]
+    [SerializeField] private bool bars = true;
+    [SerializeField] private float barSpacing = 0.42f;
+    [SerializeField] private Color barColor = new Color(0.2f, 0.17f, 0.15f);
+
     public const string PlayerBlockerName = "PlayerBlocker";
     private List<Vector2> passage;   // spots in the window's plane (local x, y) where a fish fits through
 
@@ -44,6 +52,44 @@ public class FishWindow : MonoBehaviour
     {
         if (Application.isPlaying && cutHoleAtStart)
             CutHole(false);
+        if (Application.isPlaying && bars)
+            BuildBars();
+    }
+
+    // Upright bars across the opening, a hand's width apart, and one across the middle; cut to the round of a round
+    // frame (Frame Edge set), else the whole height of the hole. No colliders: they only show the way is shut.
+    private void BuildBars()
+    {
+        if (transform.Find("Bars") != null)
+            return;
+        var group = new GameObject("Bars").transform;
+        group.SetParent(transform, false);
+        bool round = frameEdge > 0f;
+        float rx = holeSize.x * 0.5f, ry = holeSize.y * 0.5f;
+        float r = Mathf.Min(rx, ry) * 0.96f;
+        const float z = -0.05f, thick = 0.06f;
+        int count = Mathf.Max(2, Mathf.FloorToInt(holeSize.x / Mathf.Max(0.1f, barSpacing)));
+        for (int i = 0; i < count; i++)
+        {
+            float x = -rx + (i + 1) * holeSize.x / (count + 1);
+            float half = round ? (Mathf.Abs(x) < r ? Mathf.Sqrt(r * r - x * x) : 0f) : ry;
+            if (half < 0.1f)
+                continue;
+            Bar(group, new Vector3(x, 0f, z), new Vector3(thick, half * 2f, thick));
+        }
+        float across = round ? r * 2f : holeSize.x;
+        Bar(group, new Vector3(0f, 0f, z), new Vector3(across, thick, thick));
+    }
+
+    private void Bar(Transform parent, Vector3 position, Vector3 size)
+    {
+        GameObject bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        DestroyImmediate(bar.GetComponent<Collider>());
+        bar.name = "Bar";
+        bar.transform.SetParent(parent, false);
+        bar.transform.localPosition = position;
+        bar.transform.localScale = size;
+        bar.AddComponent<RendererTint>().Tint = barColor;
     }
 
     // Replaces the box wall behind the window with pieces around the hole and lines the hole. Returns true if a hole was cut.

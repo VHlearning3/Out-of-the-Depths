@@ -119,6 +119,7 @@ public static class ShipGreyboxBuilder
         Step("Room 9: hallway + chase", BuildHallway);
         Step("Trident corridor", BuildColumn);
         Step("Pufferfish nests", BuildNests);
+        Step("Quests", BuildQuests);
         Step("Collectibles", BuildCollectibles);
         Step("Room lights", BuildLights);
         Step("Item models", ItemModelTools.ApplyItemModelsInOpenScene);
@@ -267,6 +268,27 @@ public static class ShipGreyboxBuilder
             lid.transform.SetParent(parent, false);
             lid.transform.SetPositionAndRotation(new Vector3(hole.centre.x, Ceiling + SlabT * 0.5f, hole.centre.y), Quaternion.Euler(0f, -hole.turn, 0f));
             lid.AddComponent<BoxCollider>().size = new Vector3(hole.radii.x * 2.7f, SlabT, hole.radii.y * 2.7f);
+
+            // A grate of iron bars across it, so it reads as shut (the lid above is what stops you; fish slip through).
+            var grate = new GameObject("RoofGrate").transform;
+            grate.SetParent(parent, false);
+            grate.SetPositionAndRotation(new Vector3(hole.centre.x, Ceiling + SlabT * 0.3f, hole.centre.y), Quaternion.Euler(0f, -hole.turn, 0f));
+            float gx = hole.radii.x * 1.2f, gz = hole.radii.y * 1.2f;
+            var iron = new Color(0.2f, 0.17f, 0.15f);
+            int bars = Mathf.Max(2, Mathf.FloorToInt(gx * 2f / 0.45f));
+            for (int b = 0; b < bars; b++)
+            {
+                float x = -gx + (b + 1) * gx * 2f / (bars + 1);
+                float half = gz * Mathf.Sqrt(Mathf.Max(0f, 1f - x * x / (gx * gx)));
+                if (half < 0.1f)
+                    continue;
+                GameObject bar = Decor("RoofBar", Vector3.zero, new Vector3(0.07f, 0.07f, half * 2f), iron, grate);
+                bar.transform.localPosition = new Vector3(x, 0f, 0f);
+                bar.transform.localRotation = Quaternion.identity;
+            }
+            GameObject cross = Decor("RoofBar", Vector3.zero, new Vector3(gx * 2f, 0.07f, 0.07f), iron, grate);
+            cross.transform.localPosition = Vector3.zero;
+            cross.transform.localRotation = Quaternion.identity;
 
             // Bent plates hanging off the rim, more round the bigger holes.
             int plates = Mathf.Clamp(Mathf.RoundToInt((hole.radii.x + hole.radii.y) * 2f), 2, 8);
@@ -446,6 +468,11 @@ public static class ShipGreyboxBuilder
         OpenOnFilled(Socket(toSymbol.LockPlate, "Item_BoneKey", 1, true, "unlock with", null, null), toSymbol);
 
         SeaweedSocket(SeaweedSpot, room);   // clear of the pillar in the north-east corner
+
+        // Walls of fish, like the one over the hatch: in front of the east door (the stone room) and the broken window
+        // into the chest room. Solid until the dagger cuts through them.
+        WallOfFish(new Vector3(6.3f, 0f, 29f + DoorGap * 0.5f), Vector3.left, DoorGap, DoorTop, room);
+        WallOfFish(new Vector3((ChestWindow.x + ChestWindow.y) * 0.5f, ChestWindow.z, 37.6f), Vector3.back, ChestWindow.y - ChestWindow.x, ChestWindow.w - ChestWindow.z, room);
 
         // Fish drop in through the holes in the roof when you come in (the bigger holes are the spawner's openings,
         // arrows pointing down), join one pack and wander the room. While you are away they pause where they are.
@@ -1346,6 +1373,123 @@ public static class ShipGreyboxBuilder
             ("Trident", new Vector3(24f, 1.8f, 28.75f), new Vector3(24f, 4.6f, 26.8f)),
         })
             Accent(name, target, from, accents);
+    }
+
+    // A wall of Wall Fish filling an opening (a doorway, a window) seen from the side it faces (`facing`): a grid about
+    // a metre apart across `width` and up `height` from `bottom` (its lowest edge; `centre.y`), all facing that way.
+    private static void WallOfFish(Vector3 centre, Vector3 facing, float width, float height, Transform parent)
+    {
+        Vector3 across = Vector3.Cross(Vector3.up, facing).normalized;
+        int columns = Mathf.Max(1, Mathf.RoundToInt(width / 0.9f));
+        int rows = Mathf.Max(1, Mathf.RoundToInt(height / 0.9f));
+        float yaw = Mathf.Atan2(facing.x, facing.z) * Mathf.Rad2Deg;
+        for (int r = 0; r < rows; r++)
+            for (int c = 0; c < columns; c++)
+            {
+                float u = (c + 0.5f) / columns - 0.5f;
+                float v = (r + 0.5f) / rows;
+                Vector3 at = centre + across * (u * width) + Vector3.up * (v * height) + facing * ((r + c) % 2 * 0.15f);
+                Spawn("WallFish", at, parent, yaw + ((r * 3 + c) % 3 - 1) * 12f);
+            }
+    }
+
+    // Where to go next (Quest Log): the level's steps in order, each finished by what it asks for (or by anything
+    // later), each pointing at the thing to go for. Everything is found by name in the ship built above.
+    private static void BuildQuests()
+    {
+        var go = new GameObject("QuestLog");
+        go.transform.SetParent(ship, false);
+        QuestLog log = go.AddComponent<QuestLog>();
+
+        T Named<T>(string name) where T : Component
+        {
+            foreach (T c in ship.GetComponentsInChildren<T>(true))
+                if (c.name == name)
+                    return c;
+            return null;
+        }
+        PickupItem Pickup(string name) => Named<Transform>(name) != null ? Named<Transform>(name).GetComponentInChildren<PickupItem>(true) : null;
+        Transform[] Where(params Component[] things)
+        {
+            var list = new List<Transform>();
+            foreach (Component c in things)
+                if (c != null)
+                    list.Add(c.transform);
+            return list.ToArray();
+        }
+        QuestLog.Condition Have(string item, int amount = 1) => new QuestLog.Condition { check = QuestLog.Check.HaveItem, item = ItemTools.Load(item), amount = amount };
+        QuestLog.Condition Is(QuestLog.Check check, Object target) => new QuestLog.Condition { check = check, target = target };
+        QuestLog.Step Step(string title, string detail, QuestLog.Condition[] done, Transform[] at, string lesson = "") => new QuestLog.Step { title = title, detail = detail, doneWhen = done, pointAt = at, lesson = lesson };
+        QuestLog.Step Teach(string title, string detail, QuestLog.Check check, int amount, string lesson) => new QuestLog.Step { title = title, detail = detail, doneWhen = new[] { new QuestLog.Condition { check = check, amount = amount } }, pointAt = new Transform[0], lesson = lesson, showHowAtOnce = true };
+
+        Transform dresser = Named<Transform>("Dresser_Key");
+        ItemSocket firstLock = Named<ItemSocket>("Lock_FirstRoomKey");
+        PickupItem dagger = Pickup("Pickup_Dagger");
+        Door hatch = Named<Door>("Hatch_Basement");
+        PickupItem symbolKey = Pickup("Pickup_SymbolKey");
+        ItemSocket chest = Named<ItemSocket>("Chest");
+        PuzzleStation pedestal = Named<PuzzleStation>("Pedestal");
+        BoneKeyTying knot = Named<BoneKeyTying>("Knot");
+        ItemSocket seaweed = knot != null ? knot.GetComponentInParent<ItemSocket>(true) : null;
+        DoubleDoor boneDoor = Named<DoubleDoor>("Door_SymbolRoom");
+        ItemSocket boneLock = boneDoor != null && boneDoor.LockPlate != null ? boneDoor.LockPlate.GetComponentInChildren<ItemSocket>(true) : null;
+        PuzzleStation runes = Named<PuzzleStation>("CodeLock");
+        Door runeDoor = Named<Door>("Door_Final");
+        ChaseSequence chase = Object.FindFirstObjectByType<ChaseSequence>();
+        Door exit = Named<Door>("Door_Exit");
+
+        var stones = new List<Component>();
+        var bones = new List<Component>();
+        foreach (PickupItem pickup in ship.GetComponentsInChildren<PickupItem>(true))
+        {
+            if (pickup.name.StartsWith("Pickup_StoneFragment_Pedestal"))
+                stones.Add(pickup);
+            else if (pickup.Item != null && pickup.Item.name == "Item_BoneKeyFragment")
+                bones.Add(pickup);
+        }
+        var window = new GameObject("QuestMarker_ChestWindow").transform;
+        window.SetParent(go.transform, false);
+        window.position = new Vector3((ChestWindow.x + ChestWindow.y) * 0.5f, (ChestWindow.z + ChestWindow.w) * 0.5f, 37.9f);
+        var stonesAndPedestal = new List<Component>(stones) { pedestal };
+        var bonesAndSeaweed = new List<Component>(bones) { seaweed };
+
+        var steps = new List<QuestLog.Step>
+        {
+            // The tutorial: the controls, one at a time, each done by doing it.
+            Teach("Look around", "Move the mouse.", QuestLog.Check.LookedAround, 120, "swim"),
+            Teach("Swim", "W A S D. You swim the way you look.", QuestLog.Check.Swam, 5, ""),
+            Teach("Swim up and down", "Space to go up, Ctrl to go down.", QuestLog.Check.Rose, 2, ""),
+            Teach("Dash", "Shift for a quick burst. It uses a little hunger.", QuestLog.Check.Dashed, 1, "dash"),
+            Step("Find a way out of this room", "The door needs a key. The old dresser has a lot of drawers.",
+                new[] { Have("Item_FirstRoomKey"), Is(QuestLog.Check.SocketFilled, firstLock) }, Where(dresser), "goals,interact"),
+            Step("Unlock the door", "Hold the key and use it on the lock beside the door.",
+                new[] { Is(QuestLog.Check.SocketFilled, firstLock) }, Where(firstLock)),
+            Step("Find something to defend yourself with", "Try the rooms off the big room.",
+                new[] { Have("Item_Dagger") }, Where(dagger)),
+            Step("Find a way down", "Something is guarded by a crowd of fish. A blade would get through them.",
+                new[] { Is(QuestLog.Check.PlayerBelow, null), Have("Item_SymbolKey"), Is(QuestLog.Check.SocketFilled, chest) }, Where(hatch), "fight"),
+            Step("Search the flooded hold", "Something down here opens a lock above. Fragments are worth picking up too.",
+                new[] { Have("Item_SymbolKey"), Is(QuestLog.Check.SocketFilled, chest) }, Where(symbolKey)),
+            Step("Find what the symbol key opens", "Not every way in is a door.",
+                new[] { Is(QuestLog.Check.SocketFilled, chest) }, Where(window, chest)),
+            Step("Piece the stone tablet together", "Three stone fragments are scattered through the ship, and a pedestal somewhere is waiting for them.",
+                new[] { Is(QuestLog.Check.PuzzleSolved, pedestal) }, Where(stonesAndPedestal.ToArray())),
+            Step("Find the last bone fragment", "The tablet opened a way somewhere.",
+                new[] { Have("Item_BoneKeyFragment", 3), Is(QuestLog.Check.SocketFilled, seaweed), Have("Item_BoneKey") }, Where(bonesAndSeaweed.ToArray())),
+            Step("Make a key from the bones", "Something in the big room could hold them together.",
+                new[] { Is(QuestLog.Check.KnotTied, knot), Have("Item_BoneKey") }, Where(seaweed)),
+            Step("Open the bone door", "One big door has a lock that looks like bone.",
+                new[] { Is(QuestLog.Check.SocketFilled, boneLock) }, Where(boneLock)),
+            Step("Solve the rune lock", "Remember the symbols you have seen along the way, and their order.",
+                new[] { Is(QuestLog.Check.PuzzleSolved, runes) }, Where(runes)),
+            Step("Go through the rune door", "Something is waiting on the other side. Be ready to swim.",
+                new[] { Is(QuestLog.Check.ChaseOver, chase) }, Where(runeDoor)),
+            Step("Find the way out", "Keep going.",
+                new[] { Is(QuestLog.Check.DoorOpen, exit) }, Where(exit)),
+        };
+        steps[7].doneWhen[0].height = -0.8f;   // under the deck: down in the hold (after the four tutorial steps)
+        log.Configure(steps.ToArray(), AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Items/Pickup_TakeChime_CC0.mp3"));
+        EditorUtility.SetDirty(log);
     }
 
     // Where the enemy pufferfish come from: red, spiny, glowing nests (Puffer Nest), easy to tell from the friendly

@@ -179,6 +179,30 @@ public class Checkpoint : MonoBehaviour, IInteractable
         Activate(death, interactor.transform);
     }
 
+    // Where the player comes back to (for Checkpoint Save).
+    public Transform RespawnTransform => respawnPoint != null ? respawnPoint : anchor;
+
+    // Checkpoint Save: the active one again, quietly, with the respawn point where it was saved.
+    public void RestoreActive(Vector3 position, Quaternion rotation, DeathManager death)
+    {
+        Checkpoint previous = Current;
+        Current = this;
+        if (previous != null && previous != this)
+            previous.ApplyState(false);
+        if (respawnPoint == null)
+        {
+            if (anchor == null)
+            {
+                anchor = new GameObject("RespawnPoint").transform;
+                anchor.SetParent(transform, false);
+            }
+            anchor.SetPositionAndRotation(position, rotation);
+        }
+        if (death != null)
+            death.SetRespawnPoint(RespawnTransform);
+        ApplyState(false);
+    }
+
     // Activate it from an event (the rune lock solved just before the chase): the player respawns where they are now.
     public void ActivateNow()
     {
@@ -197,6 +221,7 @@ public class Checkpoint : MonoBehaviour, IInteractable
             previous.ApplyState(false);
 
         death.SetRespawnPoint(respawnPoint != null ? respawnPoint : RespawnAnchor(player));
+        CheckpointSave.Save();   // a save point: dying brings the level back to how it is now
 
         if (activateSound != null)
             SoundVariety.PlayAt(activateSound, transform.position, activateVolume);

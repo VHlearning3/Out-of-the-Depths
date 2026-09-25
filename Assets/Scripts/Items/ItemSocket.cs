@@ -150,6 +150,28 @@ public class ItemSocket : MonoBehaviour, IInteractable, IPromptTone
         StartCoroutine(PlacePieces(first, place, HandPoint(interactor), HandRotation(interactor), inventory));
     }
 
+    // Checkpoint Save: this many pieces already in, each at its spot; done if that fills it. No sound, no events.
+    public void RestorePlaced(int placed)
+    {
+        StopAllCoroutines();
+        this.placing = false;
+        Placed = Mathf.Clamp(placed, 0, requiredAmount);
+        for (int i = 0; i < placedVisuals.Length; i++)
+        {
+            if (placedVisuals[i] == null)
+                continue;
+            bool on = i < Placed;
+            placedVisuals[i].SetActive(on);
+            if (on)
+            {
+                placedVisuals[i].transform.SetPositionAndRotation(restPositions[i], restRotations[i]);
+                placedVisuals[i].transform.localScale = restScales[i];
+            }
+        }
+        if (IsFilled)
+            enabled = false;
+    }
+
     // "a stone fragment", "3 stone fragments".
     public static string Things(int count, string name) => count <= 1 ? "a " + name : count + " " + name + "s";
 

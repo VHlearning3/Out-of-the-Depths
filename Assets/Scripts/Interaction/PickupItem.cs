@@ -173,8 +173,12 @@ public class PickupItem : MonoBehaviour, IInteractable
     private Transform roomIgnore;   // the player's body, which the free-space check looks past
     private static readonly RaycastHit[] roomHits = new RaycastHit[16];
 
+    // Where it was when the level loaded (Checkpoint Save finds it by this, even after a drawer has moved it).
+    public string SaveKey { get; private set; }
+
     private void Awake()
     {
+        SaveKey = CheckpointSave.PathOf(transform);
         if (useItemModel && item != null && item.WorldModel != null && (bakedFor != item || bakedVariant != modelVariant))
         {
             visual = ApplyItemModel(transform, item, visual != null ? visual : FirstChild(transform), modelSize, modelVariant);

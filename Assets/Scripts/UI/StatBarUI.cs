@@ -19,7 +19,7 @@ public class StatBarUI : MonoBehaviour
 
     [Header("Auto hide")]
     [Tooltip("Fade the meter away while it is not needed (the Settings page can turn this off for the whole HUD).")]
-    [SerializeField] private bool autoHide = true;
+    [SerializeField] private bool autoHide = false;
     [Tooltip("Always shown while the value is under this fraction of the max.")]
     [SerializeField, Range(0f, 1f)] private float showBelow = 0.5f;
     [Tooltip("A change bigger than this fraction of the max at once (not the slow drain) shows it...")]

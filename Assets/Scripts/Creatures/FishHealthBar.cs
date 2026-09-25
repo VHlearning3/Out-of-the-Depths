@@ -108,7 +108,7 @@ public class FishHealthBar : MonoBehaviour
             return;
         float scale = HudStyle.Scale;
         float width = size.x * 0.7f * scale, height = Mathf.Max(5f, size.y * 0.7f * scale);
-        float y = Mathf.Max(top * scale + 30f * scale, ChaseGuide.CardBottom + 40f * scale);
+        float y = Mathf.Max(top * scale + 30f * scale, Mathf.Max(ChaseGuide.CardBottom, QuestLog.CardBottom) + 40f * scale);
         var bar = new Rect((Screen.width - width) * 0.5f, y, width, height);
 
         // The name above the bar on the left, the health on the right.

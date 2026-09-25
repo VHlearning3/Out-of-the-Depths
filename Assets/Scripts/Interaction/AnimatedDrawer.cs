@@ -31,7 +31,7 @@ public class AnimatedDrawer : MonoBehaviour, IInteractable
     [SerializeField] private AudioClip openSound;
     [SerializeField] private AudioClip closeSound;
     [SerializeField, Range(0f, 1f)] private float volume = 0.6f;
-    [Tooltip("Opened with something stashed in it (the key): it stays open and E takes what is inside; once that is taken the drawer is done (no more E). Off = it opens and closes like the empty ones.")]
+    [Tooltip("Opened with something stashed in it (the key): it stays open and E takes what is inside; once that has been taken and looked at (the inspect view is over) it slides shut by itself, an ordinary empty drawer again. Off = it opens and closes like the empty ones.")]
     [SerializeField] private bool keepOpenWhileFull = true;
 
     [Header("Events")]
@@ -124,6 +124,27 @@ public class AnimatedDrawer : MonoBehaviour, IInteractable
         (open ? onOpened : onClosed).Invoke();
     }
 
+    private float shutAt = -1f;
+    private const float closeDelay = 0.35f;
+    private PlayerInteractor interactor;
+
+    // Every pickup that was in it is gone (in the inventory: switched off at the end of its pickup, or destroyed).
+    private bool AllTaken()
+    {
+        foreach (Transform thing in stashed)
+            if (thing != null && thing.gameObject.activeSelf && thing.GetComponent<PickupItem>() != null)
+                return false;
+        return true;
+    }
+
+    // The inspect view (or anything else that holds E) is still up.
+    private bool PlayerBusy()
+    {
+        if (interactor == null)
+            interactor = FindFirstObjectByType<PlayerInteractor>();
+        return interactor != null && interactor.Busy;
+    }
+
     // Puts something inside: at Stash Point, riding with the drawer, and hidden while it is shut.
     public void Stash(Transform thing)
     {
@@ -137,12 +158,21 @@ public class AnimatedDrawer : MonoBehaviour, IInteractable
 
     private void Update()
     {
-        // Opened with something in it and that has been taken: the drawer is done, it stays open and E ignores it.
-        if (openedFull && Time.time >= busyUntil && Inside() == null)
+        // Opened with something in it, and that has been taken and looked at (the inspect view is over and it is in
+        // the inventory): the drawer slides shut by itself, a moment later, and is an ordinary empty drawer again.
+        if (openedFull && Time.time >= busyUntil && Inside() == null && AllTaken() && !PlayerBusy())
         {
-            openedFull = false;
-            enabled = false;   // nothing for E here any more (the interactor skips a switched-off one)
+            if (shutAt < 0f)
+                shutAt = Time.time + closeDelay;
+            else if (Time.time >= shutAt)
+            {
+                shutAt = -1f;
+                openedFull = false;
+                SetOpen(false);
+            }
         }
+        else
+            shutAt = -1f;
         if (hideAt >= 0f && Time.time >= hideAt)
         {
             hideAt = -1f;

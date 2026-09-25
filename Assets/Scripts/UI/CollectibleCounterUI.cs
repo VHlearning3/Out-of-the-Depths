@@ -12,7 +12,7 @@ public class CollectibleCounterUI : MonoBehaviour
     [Tooltip("0 = count the collectible pickups in the scene at start.")]
     [SerializeField] private int total = 0;
     [Tooltip("Fade it away except for a few seconds when the count changes (the Settings page can turn this off for the whole HUD).")]
-    [SerializeField] private bool autoHide = true;
+    [SerializeField] private bool autoHide = false;
     [SerializeField] private float showSeconds = 4f;
     [Tooltip("A dark pill with a pearl and the count, in the HUD style, while the Icon child is still the white placeholder.")]
     [SerializeField] private bool generatedLook = true;

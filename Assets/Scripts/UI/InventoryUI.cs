@@ -44,7 +44,7 @@ public class InventoryUI : MonoBehaviour
 
     [Header("Auto hide")]
     [Tooltip("Fade the hotbar away while it is not needed (the Settings page can turn this off for the whole HUD).")]
-    [SerializeField] private bool autoHide = true;
+    [SerializeField] private bool autoHide = false;
     [Tooltip("How long it stays up after you switch slots or the inventory changes.")]
     [SerializeField] private float showSeconds = 3f;
 

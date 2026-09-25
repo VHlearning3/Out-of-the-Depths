@@ -238,13 +238,20 @@ public class PufferNest : MonoBehaviour, IDamageable
             Break();
     }
 
-    private void Break()
+    // Checkpoint Save: broken already.
+    public void RestoreBroken()
+    {
+        if (!Destroyed)
+            Break(false);
+    }
+
+    private void Break(bool loud = true)
     {
         Destroyed = true;
         StopAllCoroutines();
         busy = false;
         waiting.Clear();
-        if (breakSound != null)
+        if (loud && breakSound != null)
             SoundVariety.PlayAt(breakSound, transform.position, volume);
         foreach (Collider c in GetComponentsInChildren<Collider>())
             c.enabled = false;

@@ -91,6 +91,23 @@ public class RubbleFall : MonoBehaviour
             dropOnTrigger.onPlayerEnter.RemoveListener(Drop);
     }
 
+    // Checkpoint Save: down already, every rock where it landed, the gaps sealed. No sound, no events.
+    public void RestoreDropped()
+    {
+        StopAllCoroutines();
+        Dropped = true;
+        if (rocks != null && landedPositions != null)
+            for (int i = 0; i < rocks.Length && i < landedPositions.Length; i++)
+            {
+                if (rocks[i] == null)
+                    continue;
+                rocks[i].gameObject.SetActive(true);
+                rocks[i].SetPositionAndRotation(landedPositions[i], landedRotations[i]);
+            }
+        if (blocker != null)
+            blocker.enabled = true;
+    }
+
     [ContextMenu("Drop")]
     public void Drop()
     {

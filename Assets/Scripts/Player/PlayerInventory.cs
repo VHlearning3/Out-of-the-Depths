@@ -55,6 +55,28 @@ public class PlayerInventory : MonoBehaviour
         }
     }
     public int SelectedIndex { get; private set; }
+    public IEnumerable<KeyValuePair<ItemDefinition, int>> Collectibles => collectibles;
+
+    // Checkpoint Save: exactly these slots, these collectibles and this selection.
+    public void RestoreState(IList<KeyValuePair<ItemDefinition, int>> saved, IDictionary<ItemDefinition, int> savedCollectibles, int selected)
+    {
+        EnsureSlots();
+        for (int i = 0; i < slots.Length; i++)
+        {
+            bool has = saved != null && i < saved.Count && saved[i].Key != null && saved[i].Value > 0;
+            slots[i].item = has ? saved[i].Key : null;
+            slots[i].count = has ? saved[i].Value : 0;
+        }
+        collectibles.Clear();
+        if (savedCollectibles != null)
+            foreach (KeyValuePair<ItemDefinition, int> pair in savedCollectibles)
+            {
+                collectibles[pair.Key] = pair.Value;
+                onCollectibleChanged.Invoke(pair.Key, pair.Value);
+            }
+        onChanged.Invoke();
+        Select(Mathf.Clamp(selected, 0, slots.Length - 1));
+    }
     public ItemDefinition SelectedItem => GetSlot(SelectedIndex).item;
 
     public Slot GetSlot(int index)

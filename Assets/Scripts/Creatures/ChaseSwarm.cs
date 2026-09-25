@@ -16,8 +16,8 @@ using UnityEngine.Rendering;
 public class ChaseSwarm : MonoBehaviour
 {
     [Header("Moving")]
-    [Tooltip("Metres per second, all the way: it never speeds up to catch you and never slows (2.1, just under the player's 2.2: keep swimming and you stay ahead, stop to grab or place something and it closes in; a dash is much faster). Keep moving and it cannot catch you.")]
-    [SerializeField] private float speed = 2.1f;
+    [Tooltip("Metres per second, all the way: it never speeds up to catch you and never slows (2.8, just under the player's 3: keep swimming and you stay ahead, stop to grab or place something and it closes in; a dash is much faster). Keep moving and it cannot catch you.")]
+    [SerializeField] private float speed = 2.8f;
     [Tooltip("How far it pours straight out of its hole (along its start facing) before it goes after the player.")]
     [SerializeField] private float emergeDistance = 3f;
     [Tooltip("Keeps the chase close: while it is more than this far behind (metres) AND you cannot see it, it hurries (Hurry times Speed) until it is within it again. 0 = never: strictly the set speed.")]

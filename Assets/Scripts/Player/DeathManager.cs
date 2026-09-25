@@ -15,6 +15,8 @@ public class DeathManager : MonoBehaviour
 
     [Header("Respawn")]
     [SerializeField] private float respawnDelay = 3f;
+    [Tooltip("Dying reloads the level as it was when the active checkpoint was activated (Checkpoint Save), so nothing done since can leave you stuck. Off = you are just teleported back to the checkpoint.")]
+    [SerializeField] private bool useSavePoints = true;
     [SerializeField] private Text countdownLabel;
     [SerializeField] private string countdownFormat = "Respawning in {0}...";
     [Tooltip("Dress the death screen in the HUD style: it fades in over the whole HUD, deep sea blue instead of black, the title in a soft coral with a shadow, the countdown quieter under it.")]
@@ -143,6 +145,9 @@ public class DeathManager : MonoBehaviour
 
     private void Respawn()
     {
+        // Checkpoints are save points: the level loads again as it was when the checkpoint was activated.
+        if (useSavePoints && CheckpointSave.Reload())
+            return;
         if (respawnPoint != null && characterController != null)
         {
             characterController.enabled = false;
