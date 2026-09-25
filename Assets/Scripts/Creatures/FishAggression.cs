@@ -20,6 +20,8 @@ public class FishAggression : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float attackVolume = 0.7f;
 
     public bool IsChasing { get; private set; }
+    // Every fish chasing the player right now (the HUD's direction indicators point at them).
+    public static readonly System.Collections.Generic.List<FishAggression> Chasing = new System.Collections.Generic.List<FishAggression>();
 
     private FishWander wander;
     private FishKnockback knockback;
@@ -82,14 +84,18 @@ public class FishAggression : MonoBehaviour
     private void Bite()
     {
         nextAttackTime = Time.time + attackCooldown;
-        target.ApplyDamage(damage);
+        target.ApplyDamage(damage, transform.position);
         if (attackSound != null)
-            AudioSource.PlayClipAtPoint(attackSound, transform.position, attackVolume);
+            SoundVariety.PlayAt(attackSound, transform.position, attackVolume);
     }
 
     private void SetChasing(bool chasing)
     {
         IsChasing = chasing;
+        if (chasing && !Chasing.Contains(this))
+            Chasing.Add(this);
+        else if (!chasing)
+            Chasing.Remove(this);
         if (wander != null && isActiveAndEnabled)
             wander.enabled = !chasing;
     }

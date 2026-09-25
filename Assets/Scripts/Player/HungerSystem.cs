@@ -11,7 +11,7 @@ public class HungerSystem : MonoBehaviour
     [SerializeField] private float maxHunger = 100f;
     [SerializeField] private float startingHunger = 100f;
     [Tooltip("Hunger lost per second. 0.2 = a full bar lasts about eight minutes.")]
-    [SerializeField] private float depletionRate = 0.2f;
+    [SerializeField] private float depletionRate = 0.12f;
 
     [Header("Warning")]
     [Tooltip("Plays the warning once when hunger drops to this fraction of max (0.25 = 25%). Re-arms once hunger is back above it.")]
@@ -34,7 +34,7 @@ public class HungerSystem : MonoBehaviour
     public bool IsLow => HungerPercent01 <= warningThreshold01;
     public bool IsStarving => CurrentHunger <= 0f;
 
-    // Admin panel: hunger stops going down while this is on.
+    // Admin panel: hunger stops going down while this is on, and actions that cost hunger (the dash) are free.
     public bool DrainPaused { get; set; }
 
     private bool depletedEventFired;
@@ -79,8 +79,8 @@ public class HungerSystem : MonoBehaviour
     // Pay for an action (the dash): false, and nothing taken, when there is not that much left.
     public bool Spend(float amount)
     {
-        if (amount <= 0f)
-            return true;
+        if (amount <= 0f || DrainPaused)
+            return true;   // free while the admin panel has hunger switched off
         if (CurrentHunger < amount)
             return false;
         SetHunger(CurrentHunger - amount);
@@ -114,7 +114,7 @@ public class HungerSystem : MonoBehaviour
             warningFired = true;
             onHungerWarning.Invoke();
             if (warningSound != null)
-                audioSource.PlayOneShot(warningSound, warningVolume);
+                SoundVariety.OneShot(audioSource, warningSound, warningVolume);
         }
         else if (!IsLow)
         {

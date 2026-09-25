@@ -791,7 +791,7 @@ public class PauseMenu : MonoBehaviour
             audioSource.bypassListenerEffects = true;
             audioSource.bypassReverbZones = true;
         }
-        audioSource.pitch = vary ? Random.Range(0.96f, 1.04f) : 1f;
+        audioSource.pitch = vary ? Random.Range(0.94f, 1.06f) : Random.Range(0.98f, 1.02f);   // never quite the same twice
         audioSource.PlayOneShot(clip, volume);
     }
 
@@ -1042,6 +1042,7 @@ public class PauseMenu : MonoBehaviour
         MenuGUI.SwitchTrackOn = switchOn;
         MenuGUI.SwitchGlow = switchGlow;
         MenuGUI.SwitchKnob = knob;
+        MenuGUI.Accent = T.accent;
     }
 
     private static int Px(float value) => Mathf.RoundToInt(value);

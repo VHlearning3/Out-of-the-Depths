@@ -186,8 +186,8 @@ MonoBehaviour:
   wander: {fileID: 0}
   disabledWhileDead: []
   visual: {fileID: 0}
-  deathFlipDuration: 0.5
-  deathFloatSpeed: 0.15
+  deathFlipDuration: 0.9
+  deathFloatSpeed: 0.35
   deathDriftSpin: 10
   deathDriftSway: 0.12
   deathVariation: 0.45

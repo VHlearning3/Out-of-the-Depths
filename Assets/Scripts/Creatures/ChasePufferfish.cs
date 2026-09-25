@@ -58,6 +58,7 @@ public class ChasePufferfish : MonoBehaviour
     [Header("Events")]
     public UnityEvent onBite = new UnityEvent();
 
+    public AudioClip BiteSound => biteSound;
     public bool IsHunting => state == State.Emerging || state == State.Hunting || state == State.Lunging || state == State.Recovering;
     public float DistanceToPlayer => target != null ? Vector3.Distance(transform.position, TargetPoint) : float.PositiveInfinity;
 
@@ -65,6 +66,8 @@ public class ChasePufferfish : MonoBehaviour
 
     private const int TrailChecksPerFrame = 6;
     private static readonly List<ChasePufferfish> active = new List<ChasePufferfish>();
+    // The pack members that exist and are enabled (the HUD's direction indicators look through them).
+    public static IReadOnlyList<ChasePufferfish> Active => active;
     private static readonly RaycastHit[] hits = new RaycastHit[8];
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
@@ -93,6 +96,7 @@ public class ChasePufferfish : MonoBehaviour
 
     private void Awake()
     {
+        FishColors.Paint(gameObject, FishColors.Chase);   // testing colour: the chase pack
         spawnPosition = transform.position;
         // Hard spacing from the rest of the pack (Fish Space), on top of the soft Separation.
         FishSpace space = GetComponent<FishSpace>() != null ? GetComponent<FishSpace>() : gameObject.AddComponent<FishSpace>();
@@ -136,6 +140,24 @@ public class ChasePufferfish : MonoBehaviour
     }
 
     // Turn away and fade out: the rubble has come down.
+    // Set by the Chase Sequence near the end: how fast it may go (1 = normal), and a line it will not cross (the rubble,
+    // so it is still on the far side when the rubble comes down). One already over the line swims back behind it.
+    public float SpeedLimit { get; set; } = 1f;
+    private bool holding;
+    private Vector3 holdPoint;
+    private Vector3 holdAway;   // the side it must stay out of
+    private float holdMargin;
+
+    public void HoldBehind(Vector3 point, Vector3 forbidden, float margin)
+    {
+        holding = true;
+        holdPoint = point;
+        holdAway = forbidden.normalized;
+        holdMargin = margin;
+    }
+
+    public void StopHolding() => holding = false;
+
     public void Dismiss()
     {
         if (state == State.Dormant || state == State.Fleeing)
@@ -258,6 +280,21 @@ public class ChasePufferfish : MonoBehaviour
 
     private void Move(Vector3 move)
     {
+        move *= Mathf.Clamp01(SpeedLimit);
+        if (holding)
+        {
+            // How far over the line it would be (positive = over): never further than Margin short of it, and one that
+            // is over already drifts back behind it.
+            float over = Vector3.Dot(transform.position + move - holdPoint, holdAway) + holdMargin;
+            if (over > 0f)
+            {
+                float into = Mathf.Max(0f, Vector3.Dot(move, holdAway));
+                move -= holdAway * Mathf.Min(into, over);
+                float stillOver = Vector3.Dot(transform.position + move - holdPoint, holdAway) + holdMargin;
+                if (stillOver > 0f)
+                    move -= holdAway * Mathf.Min(stillOver, speed * Time.deltaTime);
+            }
+        }
         transform.position += FishSteering.ClampMove(transform.position, move, bodyRadius, obstacleMask, target != null ? target.transform : null);
     }
 
@@ -335,7 +372,7 @@ public class ChasePufferfish : MonoBehaviour
     {
         bitThisLunge = true;
         float damage = health != null ? Mathf.Ceil(health.MaxHealth / hitsToKill + 0.01f) : 34f;
-        target.ApplyDamage(damage);
+        target.ApplyDamage(damage, transform.position);
         if (swimmer != null)
         {
             swimmer.AddImpulse(lungeDirection * knockback + Vector3.up * 0.5f);
@@ -388,7 +425,7 @@ public class ChasePufferfish : MonoBehaviour
     private void Play(AudioClip clip)
     {
         if (clip != null)
-            AudioSource.PlayClipAtPoint(clip, transform.position, volume);
+            SoundVariety.PlayAt(clip, transform.position, volume);
     }
 
     private void OnDrawGizmos()

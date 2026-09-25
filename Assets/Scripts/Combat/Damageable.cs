@@ -67,12 +67,12 @@ public class Damageable : MonoBehaviour, IDamageable
         if (!IsDead)
         {
             if (hitSound != null)
-                AudioSource.PlayClipAtPoint(hitSound, transform.position, soundVolume);
+                SoundVariety.PlayAt(hitSound, transform.position, soundVolume);
             return;
         }
 
         if (deathSound != null)
-            AudioSource.PlayClipAtPoint(deathSound, transform.position, soundVolume);
+            SoundVariety.PlayAt(deathSound, transform.position, soundVolume);
 
         onDeath.Invoke();
         if (destroyOnDeath)

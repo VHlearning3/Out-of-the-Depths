@@ -7,7 +7,7 @@ using UnityEngine.Events;
 // outer edges of the opening, each with a Visual panel to swap for the real art (the frame round it is built by the
 // scene builders). Press E on it, or drive it from an Item Socket (On Filled -> Open): that unlocks it and opens
 // both leaves. The lock plate sits on the right leaf, so it swings with the door.
-public class DoubleDoor : MonoBehaviour, IInteractable
+public class DoubleDoor : MonoBehaviour, IInteractable, IPromptTone
 {
     [Header("Leaves")]
     [Tooltip("The hinge at the left edge of the opening; its Visual child is the panel.")]
@@ -33,6 +33,8 @@ public class DoubleDoor : MonoBehaviour, IInteractable
     [SerializeField] private AudioClip openSound;
     [SerializeField] private AudioClip closeSound;
     [SerializeField] private AudioClip lockedSound;
+    [Tooltip("The tip shown when someone tries it while it is locked: what opens it.")]
+    [SerializeField] private string lockedHint = "It's locked. Something nearby must open it.";
     [SerializeField, Range(0f, 1f)] private float volume = 0.8f;
 
     public UnityEvent onOpened = new UnityEvent();
@@ -41,7 +43,24 @@ public class DoubleDoor : MonoBehaviour, IInteractable
     public bool IsOpen { get; private set; }
     public bool IsLocked => locked;
     public GameObject LockPlate => lockPlate;
-    public string Prompt => locked ? openPrompt + " (locked)" : IsOpen ? closePrompt : openPrompt;
+    // While locked, the whole door stands in for its lock plate: the doorway's trigger is what the reticle finds, so
+    // the plate's socket would never be reached on its own. Its prompt and colour show, and E with the key uses it.
+    public string Prompt => LockSocket != null ? LockSocket.Prompt : locked ? openPrompt + " (locked)" : IsOpen ? closePrompt : openPrompt;
+    public PromptTone Tone => LockSocket != null ? LockSocket.Tone : locked ? PromptTone.Blocked : PromptTone.Normal;
+
+    // The lock plate's Item Socket while the door is locked and the key is not in yet, else null.
+    private ItemSocket LockSocket
+    {
+        get
+        {
+            if (!locked || lockPlate == null)
+                return null;
+            if (lockSocket == null)
+                lockSocket = lockPlate.GetComponent<ItemSocket>();
+            return lockSocket != null && lockSocket.isActiveAndEnabled && !lockSocket.IsFilled ? lockSocket : null;
+        }
+    }
+    private ItemSocket lockSocket;
 
     private Quaternion leftRest = Quaternion.identity;
     private Quaternion rightRest = Quaternion.identity;
@@ -60,9 +79,21 @@ public class DoubleDoor : MonoBehaviour, IInteractable
 
     public void Interact(GameObject interactor)
     {
+        ItemSocket socket = LockSocket;
+        if (socket != null && socket.RequiredItem != null)
+        {
+            // Carrying the key: it goes into the lock plate (which opens the door through its On Filled).
+            var inventory = interactor != null ? interactor.GetComponentInParent<PlayerInventory>() : null;
+            if (inventory != null && inventory.Count(socket.RequiredItem) > 0)
+            {
+                socket.Interact(interactor);
+                return;
+            }
+        }
         if (locked)
         {
             Play(lockedSound);
+            HintPopup.Show(lockedHint, 2.5f);
             return;
         }
         if (!IsOpen && swingAwayFromPlayer && interactor != null)
@@ -143,6 +174,6 @@ public class DoubleDoor : MonoBehaviour, IInteractable
             source.maxDistance = 30f;
             source.rolloffMode = AudioRolloffMode.Linear;
         }
-        source.PlayOneShot(clip, volume);
+        SoundVariety.OneShot(source, clip, volume);
     }
 }

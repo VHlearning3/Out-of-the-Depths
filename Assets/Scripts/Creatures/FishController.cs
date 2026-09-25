@@ -15,9 +15,13 @@ public class FishController : MonoBehaviour
     [Tooltip("The mesh child. Swap this object for real fish art; nothing else needs to change.")]
     [SerializeField] private Transform visual;
 
+    [Header("Size")]
+    [Tooltip("Each fish is a random size between these (1 = its size as placed), picked once when it spawns. Both 1 = all the same.")]
+    [SerializeField] private Vector2 sizeRange = new Vector2(0.6f, 1.6f);
+
     [Header("Death")]
-    [SerializeField] private float deathFlipDuration = 0.5f;
-    [SerializeField] private float deathFloatSpeed = 0.25f;
+    [SerializeField] private float deathFlipDuration = 0.9f;
+    [SerializeField] private float deathFloatSpeed = 0.35f;
     [Tooltip("Slow roll while drifting up, degrees per second. 0 = none.")]
     [SerializeField] private float deathDriftSpin = 10f;
     [Tooltip("Sideways wobble while drifting up, metres per second.")]
@@ -30,9 +34,9 @@ public class FishController : MonoBehaviour
 
     [Header("Food")]
     [Tooltip("Every this many kills (all fish together), the fish killed is left as food: edible while it drifts up. 1 = every kill is food.")]
-    [SerializeField, Min(1)] private int killsPerFood = 4;
+    [SerializeField, Min(1)] private int killsPerFood = 2;
     [Tooltip("A kill that is not food fades after drifting this many seconds.")]
-    [SerializeField] private float noFoodFadeAfter = 2.5f;
+    [SerializeField] private float noFoodFadeAfter = 6f;
 
     private static int kills;
     private bool isFood;
@@ -63,11 +67,24 @@ public class FishController : MonoBehaviour
     {
         damageable = GetComponent<Damageable>();
         edible = GetComponent<EdibleFish>();
+        if (!sized)
+            SetSizeFraction(Random.value);   // a school may already have picked one (Fish School spreads its fish over the range)
         if (GetComponent<FishKnockback>() == null)
             gameObject.AddComponent<FishKnockback>();   // shoved back and dazed by a hit
         if (GetComponent<FishHealthDisplay>() == null)
             gameObject.AddComponent<FishHealthDisplay>();   // pips over a hurt fish and the damage each hit does
         renderers = GetComponentsInChildren<Renderer>();
+        // No mesh child assigned (a fish placed by hand): roll the first child that draws something, so it still
+        // turns belly-up when it dies.
+        if (visual == null)
+            foreach (Renderer r in renderers)
+                if (r.transform != transform && !(r is ParticleSystemRenderer))
+                {
+                    visual = r.transform;
+                    while (visual.parent != transform)
+                        visual = visual.parent;
+                    break;
+                }
         block = new MaterialPropertyBlock();
         spawnPosition = transform.position;
         spawnRotation = transform.rotation;
@@ -78,7 +95,30 @@ public class FishController : MonoBehaviour
         }
 
         edible.enabled = false;
+        PaintByKind();
     }
+
+    private bool sized;
+    private float size = 1f;
+    private Vector3 placedScale;
+
+    // Its size: 0 = the small end of Size Range, 1 = the big end. The whole fish (model, collider) scales, and its body
+    // for steering follows. Can be called before Awake (a school sorting out its members) and again later.
+    public void SetSizeFraction(float t)
+    {
+        if (!sized)
+            placedScale = transform.localScale;
+        sized = true;
+        float now = Mathf.Max(0.05f, Mathf.Lerp(Mathf.Min(sizeRange.x, sizeRange.y), Mathf.Max(sizeRange.x, sizeRange.y), Mathf.Clamp01(t)));
+        transform.localScale = placedScale * now;
+        FishWander body = wander != null ? wander : GetComponent<FishWander>();
+        if (body != null)
+            body.ScaleBody(now / size);
+        size = now;
+    }
+
+    // The testing colour for what this fish is right now (Fish Colors): its kind while alive, food or not once dead.
+    public void PaintByKind() => FishColors.Paint(gameObject, IsAlive ? FishColors.Alive(gameObject) : isFood ? FishColors.Food : FishColors.NotFood);
 
     private void OnEnable()
     {
@@ -127,6 +167,7 @@ public class FishController : MonoBehaviour
         kills++;
         isFood = killsPerFood <= 1 || kills % killsPerFood == 0;
         edible.enabled = isFood;
+        PaintByKind();
         StartCoroutine(FlipBellyUp());
     }
 
@@ -135,13 +176,20 @@ public class FishController : MonoBehaviour
         if (visual == null)
             yield break;
 
+        // Like a real dead fish: it rolls over onto its back (either way), the nose dipping a little as it goes,
+        // overshoots and rocks back to rest belly-up, head slightly down.
         Quaternion from = visual.localRotation;
-        Quaternion to = visualRestRotation * Quaternion.Euler(0f, 0f, 180f);
+        float roll = Random.value < 0.5f ? 180f : -180f;
+        float noseDown = Random.Range(8f, 18f);
         float t = 0f;
         while (t < 1f)
         {
             t += Time.deltaTime / Mathf.Max(0.01f, flipTime);
-            visual.localRotation = Quaternion.Slerp(from, to, Mathf.SmoothStep(0f, 1f, t));
+            float k = Mathf.Clamp01(t);
+            float over = 1f + 0.12f * Mathf.Sin(k * Mathf.PI) * (1f - k) * 2f;   // a little past, then back
+            float eased = Mathf.SmoothStep(0f, 1f, k) * over;
+            Quaternion rolled = visualRestRotation * Quaternion.Euler(noseDown * Mathf.Sin(k * Mathf.PI * 0.5f), 0f, roll * eased);
+            visual.localRotation = Quaternion.Slerp(from, rolled, Mathf.SmoothStep(0f, 1f, Mathf.Min(1f, k * 3f)));
             yield return null;
         }
     }
@@ -234,6 +282,7 @@ public class FishController : MonoBehaviour
         SetBehavioursEnabled(true);
         IsFading = false;
         IsAlive = true;
+        PaintByKind();
     }
 
     private void SetBehavioursEnabled(bool value)

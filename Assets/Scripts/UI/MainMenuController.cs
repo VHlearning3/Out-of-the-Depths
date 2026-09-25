@@ -18,11 +18,6 @@ public class MainMenuController : MonoBehaviour
     [SerializeField] private Button creditsButton;
     [SerializeField] private Button quitButton;
 
-    [Header("Info Panel (not used any more: Settings and Credits open the menu panel)")]
-    [SerializeField] private GameObject infoPanel;
-    [SerializeField] private Text infoPanelText;
-    [SerializeField] private Button infoPanelBackButton;
-
     [Header("Look")]
     [Tooltip("The pause menu's theme: the Settings / Credits panel uses it, and the buttons take its colours. Empty = the built-in defaults.")]
     [SerializeField] private PauseMenuTheme theme;
@@ -41,10 +36,6 @@ public class MainMenuController : MonoBehaviour
         settingsButton.onClick.AddListener(OnSettings);
         creditsButton.onClick.AddListener(OnCredits);
         quitButton.onClick.AddListener(OnQuit);
-        if (infoPanelBackButton != null && infoPanel != null)
-            infoPanelBackButton.onClick.AddListener(() => infoPanel.SetActive(false));
-        if (infoPanel != null)
-            infoPanel.SetActive(false);
 
         menu = PauseMenu.CreateFrontEnd(theme, inputActions);
         if (restyleButtons)

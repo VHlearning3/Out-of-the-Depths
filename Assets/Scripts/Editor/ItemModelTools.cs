@@ -26,12 +26,13 @@ public static class ItemModelTools
 
     // How the weapons sit: in a pickup (size on top of the pickup's 0.35 m fit) and in your hand (length, grip), applied
     // once per Weapon Fit Version (the tip direction is read from the mesh).
-    private static readonly (string item, float pickupScale, float heldLength, float heldGrip, Vector3 heldRotation)[] WeaponFits =
+    // Flip Tip: the end the mesh test picks is the wrong one (the trident's side prongs make its top wider than its butt).
+    private static readonly (string item, float pickupScale, float heldLength, float heldGrip, Vector3 heldRotation, bool flipTip)[] WeaponFits =
     {
-        ("Item_Dagger", 0.9f, 0.3f, 0.2f, new Vector3(-8f, -6f, 0f)),
-        ("Item_Trident", 3.2f, 1.5f, 0.35f, new Vector3(-4f, -4f, 0f)),
+        ("Item_Dagger", 0.9f, 0.3f, 0.2f, new Vector3(-8f, -6f, 0f), false),
+        ("Item_Trident", 3.2f, 1.5f, 0.35f, new Vector3(-4f, -4f, 0f), true),
     };
-    private const int WeaponFitVersion = 2;
+    private const int WeaponFitVersion = 3;
 
     private const int IconRetries = 20;
     private static int iconRetriesLeft;
@@ -121,7 +122,7 @@ public static class ItemModelTools
                     so.FindProperty("heldLength").floatValue = fit.heldLength;
                     so.FindProperty("heldGrip").floatValue = fit.heldGrip;
                     so.FindProperty("heldRotation").vector3Value = fit.heldRotation;
-                    so.FindProperty("heldTipAxis").vector3Value = TipAxis(weaponModel);
+                    so.FindProperty("heldTipAxis").vector3Value = TipAxis(weaponModel) * (fit.flipTip ? -1f : 1f);
                     fitVersion.intValue = WeaponFitVersion;
                     changed = true;
                 }

@@ -154,7 +154,8 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
             GUILayout.Label($"Last swim input raw {swimmer.LastRawMoveInput:0.00} / after deadzone {swimmer.LastMoveInput:0.00}   velocity {swimmer.CurrentVelocity:0.00}", noteStyle);
             swimmer.Frozen = MenuGUI.SwitchRow("Freeze swim movement (debug)", swimmer.Frozen);
             swimmer.ShowMovementDebug = MenuGUI.SwitchRow("Show movement debug line at the bottom of the screen (stays on after closing this panel)", swimmer.ShowMovementDebug);
-            PickupItem.QuickPickups = MenuGUI.SwitchRow("Quick pickups: no inspect, items fly straight in (testing)", PickupItem.QuickPickups);
+            PuzzleBoard.ShowAnswer = MenuGUI.SwitchRow("Show the rune puzzle's answer on its board (testing)", PuzzleBoard.ShowAnswer);
+            HelloFish.Always = MenuGUI.SwitchRow("Hello fish on every inspect (testing the easter egg)", HelloFish.Always);
         }
         DrawInputDevices();
     }
@@ -308,6 +309,15 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
         string state = chase.IsRunning ? "running" : chase.IsFinished ? "over (rubble down)" : "waiting";
         GUILayout.Label($"{chase.name}: {state}   danger {chase.Danger01:0.00}", noteStyle);
         GUILayout.BeginHorizontal();
+        if (MenuGUI.Button("Go to its start") && chase.StartSpot(out Vector3 spot, out Vector3 vent))
+        {
+            Teleport(spot);
+            if (swimmer != null)
+            {
+                Vector2 look = swimmer.AnglesToward(vent);
+                swimmer.SetLookAngles(look.x, look.y);
+            }
+        }
         if (MenuGUI.Button("Start")) chase.Begin();
         if (MenuGUI.Button("End (pack leaves)")) chase.End();
         if (MenuGUI.Button("Reset")) chase.ResetChase();
@@ -354,6 +364,7 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
                 d.TakeDamage(d.MaxHealth);
         GUILayout.EndHorizontal();
 
+        FishColors.Enabled = MenuGUI.SwitchRow("Colour fish by type (testing): blue wanderer, red pufferfish, yellow wall fish, purple chase pack, green dead = food, grey dead = not food", FishColors.Enabled);
         GUILayout.Label("Fish colour");
         fishTint.r = LabeledSlider("R", fishTint.r);
         fishTint.g = LabeledSlider("G", fishTint.g);

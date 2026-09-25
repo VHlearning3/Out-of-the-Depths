@@ -59,6 +59,8 @@ public class SwimController : MonoBehaviour
     [SerializeField] private float shakeDecay = 2.5f;
     [Tooltip("How hard a look pull (the chase reveal) drags the view toward its target, per second. The mouse can still fight it.")]
     [SerializeField] private float lookPullRate = 5f;
+    [Tooltip("The eyes never get closer than this, in metres, to a wall, floor or ceiling (the camera sits above the body, so without it they would poke through a ceiling you swim up against and you would see through it). 0 = off.")]
+    [SerializeField] private float cameraClearance = 0.2f;
 
     private CharacterController controller;
     private InputAction moveAction;
@@ -199,6 +201,19 @@ public class SwimController : MonoBehaviour
         HandleLook();
         HandleSwim();
         ApplyCameraFeel();
+        ShowBodyToPlants();
+    }
+
+    private static readonly int PlantPusherId = Shader.PropertyToID("_PlantPusher");
+    private static readonly int PlantPusherHalfId = Shader.PropertyToID("_PlantPusherHalf");
+
+    // Where the player's body is, for the seaweed (the Swaying Plant shader parts the leaves round it): the middle of
+    // the Character Controller's capsule, its radius and half its height.
+    private void ShowBodyToPlants()
+    {
+        Vector3 middle = transform.TransformPoint(controller.center);
+        Shader.SetGlobalVector(PlantPusherId, new Vector4(middle.x, middle.y, middle.z, controller.radius));
+        Shader.SetGlobalFloat(PlantPusherHalfId, controller.height * 0.5f);
     }
 
     // In the editor, Escape frees the cursor and nothing can lock it again until the Game view is clicked. So when
@@ -253,6 +268,8 @@ public class SwimController : MonoBehaviour
     }
 
     // A burst the way you are swimming (or looking, when still), gliding away through the water; paid for in hunger.
+    private static bool dashHintShown;
+
     private void TryDash(Vector3 wishVelocity)
     {
         if (Time.time < nextDashAt)
@@ -268,9 +285,15 @@ public class SwimController : MonoBehaviour
         currentVelocity += direction * dashSpeed;
         nextDashAt = Time.time + dashCooldown;
         LastDashAt = Time.time;
+        // The first dash that costs something (this session) says what it cost.
+        if (!dashHintShown && hunger != null && !hunger.DrainPaused && dashHungerCost > 0f)
+        {
+            dashHintShown = true;
+            HintPopup.Show($"Dashing uses {dashHungerCost:0} hunger. Eat fish to fill it back up.");
+        }
         AddShake(dashShake);
         if (dashSound != null)
-            AudioSource.PlayClipAtPoint(dashSound, transform.position, dashVolume);
+            SoundVariety.PlayAt(dashSound, transform.position, dashVolume);
     }
 
     private void HandleSwim()
@@ -371,6 +394,36 @@ public class SwimController : MonoBehaviour
         cameraPivot.localRotation = Quaternion.Euler(pitch + shakePitch, 0f, currentRoll + sway + shakeRoll);
 
         float bob = Mathf.Sin(bobPhase * Mathf.PI * 2f) * bobAmplitude * (1f + panic);
-        cameraPivot.localPosition = cameraPivotRestLocalPosition + Vector3.up * bob + Random.insideUnitSphere * (0.08f * jolt);
+        cameraPivot.localPosition = OutOfWalls(cameraPivotRestLocalPosition + Vector3.up * bob + Random.insideUnitSphere * (0.08f * jolt));
+    }
+
+    private readonly RaycastHit[] cameraHits = new RaycastHit[16];
+
+    // Where the eyes can go: from the middle of the body out to where they want to be, stopping Camera Clearance short
+    // of anything solid in the way (static geometry: walls, floors, ceilings, doors; not triggers, fish or pickups).
+    private Vector3 OutOfWalls(Vector3 local)
+    {
+        Transform parent = cameraPivot.parent;
+        if (cameraClearance <= 0f || parent == null || controller == null)
+            return local;
+        Vector3 from = transform.TransformPoint(controller.center);
+        Vector3 to = parent.TransformPoint(local);
+        Vector3 offset = to - from;
+        float length = offset.magnitude;
+        if (length < 1e-4f)
+            return local;
+        Vector3 direction = offset / length;
+        int count = Physics.SphereCastNonAlloc(from, cameraClearance, direction, cameraHits, length, ~0, QueryTriggerInteraction.Ignore);
+        float allowed = length;
+        for (int i = 0; i < count; i++)
+        {
+            Collider hit = cameraHits[i].collider;
+            if (hit == null || hit.attachedRigidbody != null || PlayerBody.Is(hit) || hit.transform.IsChildOf(transform))
+                continue;
+            if (cameraHits[i].distance <= 0f && cameraHits[i].point == Vector3.zero)
+                continue;   // already touching at the start: the body is against it, the eyes stay where they are
+            allowed = Mathf.Min(allowed, cameraHits[i].distance);
+        }
+        return allowed >= length ? local : parent.InverseTransformPoint(from + direction * allowed);
     }
 }

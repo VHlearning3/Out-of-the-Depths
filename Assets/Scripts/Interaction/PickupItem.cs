@@ -14,9 +14,6 @@ using UnityEngine.InputSystem;
 public class PickupItem : MonoBehaviour, IInteractable
 {
     public const string VisualName = "Visual";
-    // Testing switch (admin panel): no inspect at all, every pickup flies straight in.
-    public static bool QuickPickups { get; set; }
-    private static readonly System.Collections.Generic.HashSet<ItemDefinition> seenThisSession = new System.Collections.Generic.HashSet<ItemDefinition>();
 
 
     [Header("Item")]
@@ -78,10 +75,8 @@ public class PickupItem : MonoBehaviour, IInteractable
     [SerializeField] private float inspectDamping = 4f;
     [Tooltip("The item stays up until you press E (Interact) to take it; Hold Seconds is then the minimum before E counts. Off = it is taken by itself after Hold Seconds.")]
     [SerializeField] private bool waitForInteract = true;
-    [Tooltip("Inspect only the first time an item is picked up in a session; later pickups of the same item just fly straight in.")]
-    [SerializeField] private bool inspectOnlyFirstTime = true;
-    [Tooltip("Keep E held this long after picking up and the item is taken without the inspect (tap E = inspect, hold E = grab and go). 0 = off.")]
-    [SerializeField] private float holdToSkipSeconds = 0.25f;
+    [Tooltip("Every pickup is inspected (only the chase skips it): E and right click do nothing until it has been up this long, in seconds.")]
+    [SerializeField] private float minInspectSeconds = 0.6f;
     [Tooltip("Where it hangs vertically: metres above the eye line (negative = below).")]
     [SerializeField] private float holdHeight = 0.05f;
     [Tooltip("Scroll wheel while inspecting: metres closer / further per notch...")]
@@ -116,12 +111,17 @@ public class PickupItem : MonoBehaviour, IInteractable
     [Tooltip("Where it flies to, as an offset from the torso (the middle of the Character Controller) in the body local space. Zero = straight into the torso.")]
     [SerializeField] private Vector3 collectOffset = Vector3.zero;
 
+    [Header("Stand out")]
+    [Tooltip("A soft glow and a small pulsing light round it, coloured by the kind of item (Pickup Beacon, added at start), so it stands out in the murk.")]
+    [SerializeField] private bool beacon = true;
+
     [Header("Events")]
     public UnityEvent onPickedUp = new UnityEvent();
 
     public ItemDefinition Item => item;
     public int Amount => amount;
     public string Prompt => item != null ? "pick up " + item.DisplayName : "pick up";
+    public bool Collected => collected;   // on its way into the inventory (or already in it)
 
     // For a pickup made at runtime (the bone key the tying minigame hands over): another item, its model swapped in
     // for whatever the prefab showed. Call before Interact.
@@ -134,6 +134,11 @@ public class PickupItem : MonoBehaviour, IInteractable
             visual = ApplyItemModel(transform, item, visual != null ? visual : FirstChild(transform), modelSize, modelVariant);
             bakedFor = item;
             bakedVariant = modelVariant;
+        }
+        else if (useItemModel && item != null && item.WorldModel != null && visual != null
+                 && Quaternion.Angle(visual.localRotation, Quaternion.Euler(item.WorldModelRotation)) > 0.5f)
+        {
+            FitItemModel(transform, item, visual.gameObject, null, modelSize);   // the item's rotation changed since the bake
         }
         if (visual != null)
         {
@@ -193,6 +198,8 @@ public class PickupItem : MonoBehaviour, IInteractable
             visualRestRotation = visual.localRotation;
         }
         phase = Random.value * 10f;
+        if (beacon && GetComponent<PickupBeacon>() == null)
+            gameObject.AddComponent<PickupBeacon>();
     }
 
     private static Transform FirstChild(Transform root) => root.childCount > 0 ? root.GetChild(0) : null;
@@ -304,7 +311,12 @@ public class PickupItem : MonoBehaviour, IInteractable
 
         int space = inventory.SpaceFor(item, amount);
         if (space == 0)
+        {
+            // Its kind of slot is full (weapons have their own slots at the end of the bar): say so.
+            bool weapon = item.Kind == ItemDefinition.Category.Weapon;
+            HintPopup.Show($"No room for the {item.DisplayName}: your {(weapon ? "weapon" : "item")} slots are full.", 2.5f);
             return;
+        }
 
         // Room for only part of a stack: hand that part over now, the rest stays here for later.
         if (space < amount)
@@ -318,7 +330,7 @@ public class PickupItem : MonoBehaviour, IInteractable
         pendingInventory = inventory;
 
         if (pickupSound != null)
-            SlicedOneShot.Play(pickupSound, transform.position, pickupVolume, 1f, 0f, 0.05f, 0.5f, 20f);
+            SlicedOneShot.Play(pickupSound, transform.position, SoundVariety.Volume(pickupVolume), SoundVariety.Pitch(), 0f, 0.05f, 0.5f, 20f);
 
         if (pickedUpVfx != null)
             Instantiate(pickedUpVfx, transform.position, transform.rotation);
@@ -385,7 +397,7 @@ public class PickupItem : MonoBehaviour, IInteractable
             visual.localScale = startScale * Mathf.Lerp(1f, holdScale, k);
             StepView(swimmer);
             yield return null;
-            if (CloseRequested(interactor))
+            if (!inspecting && CloseRequested(interactor))   // no inspect (the chase): E sends it straight in
             {
                 closedEarly = true;
                 break;
@@ -405,11 +417,12 @@ public class PickupItem : MonoBehaviour, IInteractable
             Vector2 spin = Vector2.zero;   // degrees per second, from the mouse
             float holdTarget = holdNow;
             float held = 0f;
-            float heldE = 0f;   // how long E has stayed down: hold it to skip the inspect
+            float shown = 0f;   // how long it has been up: E counts after Min Inspect Seconds
             while (true)
             {
                 Mouse mouse = Mouse.current;
-                bool dragging = inspectAllowed && mouse != null && mouse.leftButton.isPressed;
+                bool petting = HelloFish.HasMouse;   // a press on the hello fish is for the fish, not the item
+                bool dragging = inspectAllowed && mouse != null && mouse.leftButton.isPressed && !petting;
                 if (dragging && Time.deltaTime > 0f)
                 {
                     spin = Vector2.ClampMagnitude(mouse.delta.ReadValue() * (inspectSensitivity / Time.deltaTime), 900f);
@@ -437,18 +450,17 @@ public class PickupItem : MonoBehaviour, IInteractable
                 if (eye != null && spin.sqrMagnitude > 0.01f)
                     handled = Quaternion.AngleAxis(spin.x * Time.deltaTime, eye.up) * Quaternion.AngleAxis(-spin.y * Time.deltaTime, eye.right) * handled;
                 if (swimmer != null && lockLookWhileInspecting == false)
-                    swimmer.LookLocked = inspectLookWas || dragging;   // camera free, except while you are dragging the item
+                    swimmer.LookLocked = inspectLookWas || dragging || petting;   // camera free, except while you are dragging the item or petting
 
                 visual.position = HoldPoint(eye, startPosition) + Vector3.up * (holdBobAmount * Mathf.Sin(Time.time * holdBobSpeed * Mathf.PI * 2f));
                 visual.rotation = handled * Showcase(showcase, eye, turned);
                 visual.localScale = startScale * holdScale;
 
-                InputAction eKey = interactor != null ? interactor.InteractAction : null;
-                heldE = eKey != null && eKey.IsPressed() ? heldE + Time.unscaledDeltaTime : 0f;
-                if (holdToSkipSeconds > 0f && heldE >= holdToSkipSeconds)
-                    break;
-                // E (or a right click) closes it at once; with Wait For Interact off it goes by itself after Hold Seconds.
-                if (needsInteract ? CloseRequested(interactor) : held >= holdSeconds)
+                // E (or a right click) takes it once it has been up Min Inspect Seconds; with Wait For Interact off it
+                // goes by itself after Hold Seconds.
+                shown += Time.unscaledDeltaTime;
+                bool close = CloseRequested(interactor);
+                if (shown >= minInspectSeconds && (needsInteract ? close : held >= holdSeconds))
                     break;
                 yield return null;
             }
@@ -461,7 +473,7 @@ public class PickupItem : MonoBehaviour, IInteractable
 
 
         if (takeSound != null)
-            SlicedOneShot.Play(takeSound, visual.position, takeVolume, 1f, 0f, 0.05f, 0.3f, 20f);
+            SlicedOneShot.Play(takeSound, visual.position, SoundVariety.Volume(takeVolume), SoundVariety.Pitch(), 0f, 0.05f, 0.3f, 20f);
         // Absorb: from where it hangs straight into the torso, easing in and out, shrinking to nothing. Both ends
         // follow the player, so it stays put in the view even if you turn on the way.
         Vector3 hangOffset = visual.position - HoldPoint(eye, startPosition);
@@ -539,6 +551,8 @@ public class PickupItem : MonoBehaviour, IInteractable
                 InspectLight.Show(camera);
             if (outlineWhileInspecting && interactor != null && interactor.OutlineMaterial != null)
                 OutlineHull.Show(gameObject, interactor.OutlineMaterial);
+            if (camera != null && visual != null)
+                HelloFish.Maybe(camera, visual);   // the easter egg: now and then a fish comes by to say hello
         }
     }
 
@@ -548,6 +562,7 @@ public class PickupItem : MonoBehaviour, IInteractable
         if (!inspectActive)
             return;
         inspectActive = false;
+        HelloFish.Hurry();   // taken before the hello fish was done: it leaves at once
         if (inspectSwimmer != null)
         {
             inspectSwimmer.LookLocked = inspectLookWas;
@@ -609,20 +624,8 @@ public class PickupItem : MonoBehaviour, IInteractable
         return char.ToUpperInvariant(name[0]) + name.Substring(1);
     }
 
-    // Skip the inspect for testing (admin panel), or for an item already looked at this session.
-    private bool ShouldInspect()
-    {
-        if (QuickPickups)
-            return false;
-        // Mid-chase nothing stops to be looked at: it flies straight in, and still counts as unseen, so the first pickup
-        // of that item after the chase shows the inspect view.
-        if (ChaseSequence.Active != null && ChaseSequence.Active.IsRunning)
-            return false;
-        bool seenBefore = item != null && seenThisSession.Contains(item);
-        if (item != null)
-            seenThisSession.Add(item);
-        return !(inspectOnlyFirstTime && seenBefore);
-    }
+    // Every pickup is inspected, every time, except mid-chase: then nothing stops to be looked at, it flies straight in.
+    private static bool ShouldInspect() => !(ChaseSequence.Active != null && ChaseSequence.Active.IsRunning);
 
     // Hands the item over at the end of the animation. False if the inventory filled up while it was flying: what is
     // left stays here, ready to be picked up again.

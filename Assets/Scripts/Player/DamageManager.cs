@@ -10,6 +10,9 @@ public class DamageManager : MonoBehaviour, IDamageable
 
     public UnityEvent<float> onDamageTaken = new UnityEvent<float>();
 
+    // A hit that came from somewhere (a bite): where from. The direction indicators flash that way.
+    public static event System.Action<Vector3> HitFrom;
+
     public bool IsInvulnerable => GodMode || Time.time < invulnerableUntil;
     public bool GodMode { get; set; }
 
@@ -22,11 +25,24 @@ public class DamageManager : MonoBehaviour, IDamageable
 
     public void ApplyDamage(float amount)
     {
+        TryApply(amount);
+    }
+
+    // Damage from something at `from` (a biting fish): the same, and the HUD shows which way it came from.
+    public void ApplyDamage(float amount, Vector3 from)
+    {
+        if (TryApply(amount))
+            HitFrom?.Invoke(from);
+    }
+
+    private bool TryApply(float amount)
+    {
         if (amount <= 0f || healthSystem == null || healthSystem.IsDead || IsInvulnerable)
-            return;
+            return false;
 
         invulnerableUntil = Time.time + invulnerabilityDuration;
         healthSystem.TakeDamage(amount);
         onDamageTaken.Invoke(amount);
+        return true;
     }
 }

@@ -12,7 +12,9 @@ using UnityEngine.InputSystem;
 //      Finished wraps never come undone: letting go, stopping or going back only undoes the circle in progress.
 //   2. Pull tight: keep holding (or press again) and drag away from the joint until the bar is in the green; hold it
 //      there for a moment and the joint ties by itself. Too hard just waits until you ease off; nothing comes loose.
-// Both joints tied, the key pulls together with a flash and a burst of sparks, the reward (the bone key) is shown in
+// It is all under water: murky teal water lit from above, slanting sun rays, drifting specks and rising bubbles
+// behind a board with sunlight rippling over it (caustics), pieces swaying gently in the swell.
+// Both joints tied, the key pulls together with a soft glow and a burst of bubbles, the reward (the bone key) is shown in
 // the inspect view (or goes straight into the inventory) and On Tied fires (the seaweed swoops). Escape puts it down
 // with the wraps kept; press E on the seaweed to carry on.
 // Freezes the player, hides the system cursor (the strand's end is the cursor) and captures Escape while it is up,
@@ -57,17 +59,27 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
 
     [Header("Look")]
     [SerializeField] private Color strandColor = new Color(0.3f, 0.64f, 0.26f);
-    [SerializeField] private Color boardColor = new Color(0.05f, 0.08f, 0.12f, 0.94f);
-    [SerializeField] private Color accent = new Color(0.35f, 0.85f, 0.95f);
+    [SerializeField] private Color boardColor = new Color(0.03f, 0.13f, 0.15f, 0.88f);
+    [SerializeField] private Color accent = new Color(0.4f, 0.95f, 0.78f);
     [SerializeField] private Color warnColor = new Color(0.9f, 0.4f, 0.3f);
-    [SerializeField] private Color textColor = new Color(0.93f, 0.96f, 1f);
-    [SerializeField] private Color backdropCentre = new Color(0f, 0.02f, 0.05f, 0.6f);
-    [SerializeField] private Color backdropEdge = new Color(0f, 0.01f, 0.03f, 0.9f);
+    [SerializeField] private Color textColor = new Color(0.88f, 0.98f, 0.94f);
+    [SerializeField] private Color backdropCentre = new Color(0.02f, 0.12f, 0.14f, 0.55f);
+    [SerializeField] private Color backdropEdge = new Color(0f, 0.03f, 0.06f, 0.92f);
     [Tooltip("Size of the pieces on the board, in pixels at 900p, and the gap between them (where the joints are).")]
     [SerializeField] private float pieceSize = 150f;
     [SerializeField] private float pieceGap = 140f;
     [Tooltip("Seconds the finish plays before the board goes: the pieces glide together, a soft flash and a few sparks, the key settles in with its name, then the board fades and the key is shown in the inspect view.")]
     [SerializeField, Min(1.6f)] private float finishDuration = 3f;
+
+    [Header("Water")]
+    [Tooltip("The underwater look round the board: sun rays, drifting specks, rising bubbles, light rippling over the board and pieces swaying. Off = a plain dark board.")]
+    [SerializeField] private bool waterEffects = true;
+    [Tooltip("The rippling sunlight (caustics) on the board: colour, and alpha = how strong.")]
+    [SerializeField] private Color causticColor = new Color(0.55f, 1f, 0.9f, 0.1f);
+    [Tooltip("The slanting sun rays from above: colour, and alpha = how strong.")]
+    [SerializeField] private Color rayColor = new Color(0.6f, 1f, 0.92f, 0.07f);
+    [SerializeField, Range(0, 60)] private int bubbleCount = 26;
+    [SerializeField, Range(0, 80)] private int speckCount = 45;
 
     [Header("Sound")]
     [Tooltip("A slice of this plays every quarter circle (rope friction), louder on a full wrap.")]
@@ -104,6 +116,12 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
     private bool cursorKnown;
     private Vector2[] sparkDirections;
     private float[] sparkSpeeds;
+    // The water round the board, in board units: rising bubbles (position, speed, size, wobble phase) and drifting specks.
+    private Vector2[] bubbles;
+    private Vector3[] bubbleLook;   // x = rise speed, y = size, z = wobble phase
+    private Vector2[] specks;
+    private Vector3[] speckLook;    // x = sink speed, y = size, z = drift phase
+    private float waterTime = -1f;
 
     private SwimController swimmer;
     private PlayerInteractor interactor;
@@ -116,6 +134,9 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
     private Texture2D dotTex;
     private Texture2D capsuleTex;
     private Texture2D barTex;
+    private Texture2D causticTex;
+    private Texture2D rayTex;
+    private Texture2D bubbleTex;
     private readonly Dictionary<int, Texture2D> rings = new Dictionary<int, Texture2D>();
     private GUIStyle titleStyle;
     private GUIStyle hintStyle;
@@ -569,7 +590,13 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
         GUI.DrawTexture(new Rect(0f, 0f, width, height), backdropTex, ScaleMode.StretchToFill);
         Vector2 origin = BoardOrigin();
         var board = new Rect(origin.x, origin.y, BoardWidth, BoardHeight);
+        if (waterEffects && Event.current.type == EventType.Repaint)
+            DrawWaterBehind(width, height, fade);
+        GUI.color = Tint(Color.white, fade);
         GUI.Box(board, GUIContent.none, boardStyle);
+        if (waterEffects && Event.current.type == EventType.Repaint)
+            DrawCaustics(board, fade);
+        GUI.color = Tint(Color.white, fade);
 
         bool met = done && since >= MeetAt;
         GUI.Label(new Rect(board.x, board.y + 24f, board.width, 36f), met ? "Bone key tied" : title, titleStyle);
@@ -599,10 +626,7 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
 
         GUI.color = Color.white;
         for (int i = 0; i < 3; i++)
-        {
-            Vector2 c = PieceCentre(i, 0f);
-            DrawSprite(new Rect(c.x - pieceSize * 0.5f, c.y - pieceSize * 0.5f, pieceSize, pieceSize), PieceIcon(i), new Color(0.85f, 0.82f, 0.7f));
-        }
+            DrawPiece(i, PieceCentre(i, 0f), 1f);
 
         int next = NextJoint();
         for (int j = 0; j < 2; j++)
@@ -692,7 +716,18 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
             DrawRing(c, TrackRadius + (1f - wrapFlash) * 22f, 4f, 1f, Tint(Color.white, wrapFlash * 0.7f));
         float pop = 1f - Mathf.Clamp01((now - tiedAt[j]) / 0.6f);
         if (pop > 0f)
+        {
             DrawRing(c, 40f + (1f - pop) * 80f, 5f, 1f, Tint(Color.Lerp(strandColor, Color.white, 0.4f), pop));
+            if (waterEffects && bubbleTex != null)
+                for (int b = 0; b < 6; b++)   // and a few bubbles squeezed out of the knot, wobbling up
+                {
+                    float k = 1f - pop;
+                    Vector2 p = c + new Vector2((b - 2.5f) * 9f + Mathf.Sin(k * 9f + b) * 4f, -k * (70f + b * 14f));
+                    float size = 5f + (b % 3) * 3f;
+                    GUI.color = Tint(Color.white, pop * 0.8f);
+                    GUI.DrawTexture(new Rect(p.x - size * 0.5f, p.y - size * 0.5f, size, size), bubbleTex);
+                }
+        }
 
         float tight = phase[j] == Phase.Pulling ? tension[j] * 0.3f : (phase[j] == Phase.Tied ? 0.2f : 0f);
         DrawCoils(c, full, 0f, tight, 1f);
@@ -807,10 +842,7 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
 
         GUI.color = Tint(Color.white, (1f - keyIn) * fade);
         for (int i = 0; i < 3; i++)
-        {
-            Vector2 c = PieceCentre(i, slide);
-            DrawSprite(new Rect(c.x - pieceSize * 0.5f, c.y - pieceSize * 0.5f, pieceSize, pieceSize), PieceIcon(i), new Color(0.85f, 0.82f, 0.7f));
-        }
+            DrawPiece(i, PieceCentre(i, slide), 1f - slide);   // the sway settles as they come together
         float coilAlpha = 1f - Mathf.Clamp01((since - MeetAt * 0.6f) / (MeetAt * 0.4f));
         if (coilAlpha > 0f)
             for (int j = 0; j < 2; j++)
@@ -824,15 +856,18 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
             GUI.DrawTexture(new Rect(middle.x - glow * 0.5f, middle.y - glow * 0.5f, glow, glow), dotTex);
             DrawRing(middle, 70f + e * 280f, 3f, 1f, Tint(Color.white, (1f - e) * 0.6f * fade));
 
-            float st = Mathf.Clamp01(after / 1.1f);
+            // A burst of bubbles: out from where the pieces meet, then wobbling up and away, growing as they rise.
+            float st = Mathf.Clamp01(after / 1.6f);
             float travel = 1f - (1f - st) * (1f - st);
             if (st < 1f && sparkDirections != null)
                 for (int i = 0; i < sparkDirections.Length; i++)
                 {
-                    Vector2 p = middle + sparkDirections[i] * sparkSpeeds[i] * travel;
-                    float size = Mathf.Lerp(7f, 2f, st);
-                    GUI.color = Tint(i % 2 == 0 ? Color.white : accent, (1f - st) * 0.9f * fade);
-                    GUI.DrawTexture(new Rect(p.x - size * 0.5f, p.y - size * 0.5f, size, size), dotTex);
+                    float rise = after * after * (40f + sparkSpeeds[i] * 0.35f);
+                    Vector2 p = middle + sparkDirections[i] * sparkSpeeds[i] * 0.55f * travel
+                                + new Vector2(Mathf.Sin(after * 6f + i) * 5f, -rise);
+                    float size = Mathf.Lerp(6f, 12f + (i % 4) * 3f, travel);
+                    GUI.color = Tint(i % 3 == 0 ? accent : Color.white, (1f - st) * 0.85f * fade);
+                    GUI.DrawTexture(new Rect(p.x - size * 0.5f, p.y - size * 0.5f, size, size), bubbleTex != null ? bubbleTex : dotTex);
                 }
         }
 
@@ -876,6 +911,174 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
     }
 
     private static Color Tint(Color colour, float alpha) => new Color(colour.r, colour.g, colour.b, alpha);
+
+    // ---- water ------------------------------------------------------------------------------------------------------
+
+    // A piece, swaying a little in the swell (sway 0..1: how much): a slow bob and a slight rock, each piece its own.
+    private void DrawPiece(int i, Vector2 c, float sway)
+    {
+        float now = Time.unscaledTime;
+        sway = waterEffects ? sway : 0f;
+        c.y += Mathf.Sin(now * 1.3f + i * 1.9f) * 4f * sway;
+        float rock = Mathf.Sin(now * 0.9f + i * 2.3f) * 3f * sway;
+        Matrix4x4 keep = GUI.matrix;
+        if (Mathf.Abs(rock) > 0.01f)
+            RotateAround(rock, c);
+        DrawSprite(new Rect(c.x - pieceSize * 0.5f, c.y - pieceSize * 0.5f, pieceSize, pieceSize), PieceIcon(i), new Color(0.85f, 0.82f, 0.7f));
+        GUI.matrix = keep;
+    }
+
+    // Behind the board: sun rays slanting down from the surface, specks drifting down and bubbles rising, all moving
+    // on their own clock (the game is frozen meanwhile).
+    private void DrawWaterBehind(float width, float height, float fade)
+    {
+        float now = Time.unscaledTime;
+        float dt = waterTime < 0f ? 0f : Mathf.Min(0.1f, now - waterTime);
+        waterTime = now;
+        SeedWater(width, height);
+
+        // Rays: wide soft beams leaning the same way, each breathing on its own.
+        if (rayTex != null)
+        {
+            Matrix4x4 keep = GUI.matrix;
+            for (int i = 0; i < 6; i++)
+            {
+                float x = width * (0.08f + i * 0.17f) + Mathf.Sin(now * 0.13f + i) * 30f;
+                float beam = 120f + (i % 3) * 70f;
+                float strength = 0.55f + 0.45f * Mathf.Sin(now * (0.35f + i * 0.07f) + i * 1.7f);
+                GUI.matrix = keep;
+                RotateAround(22f + Mathf.Sin(now * 0.1f + i) * 2f, new Vector2(x, -40f));
+                GUI.color = Tint(rayColor, rayColor.a * strength * fade);
+                GUI.DrawTexture(new Rect(x - beam * 0.5f, -40f, beam, height * 1.25f), rayTex);
+            }
+            GUI.matrix = keep;
+        }
+
+        // Specks (marine snow): tiny, pale, sinking slowly and drifting side to side.
+        for (int i = 0; i < specks.Length; i++)
+        {
+            Vector3 look = speckLook[i];
+            specks[i].y += look.x * dt;
+            if (specks[i].y > height + 10f)
+                specks[i] = new Vector2(Random.Range(0f, width), -10f);
+            float x = specks[i].x + Mathf.Sin(now * 0.4f + look.z) * 12f;
+            GUI.color = new Color(0.8f, 1f, 0.95f, 0.22f * fade);
+            GUI.DrawTexture(new Rect(x - look.y * 0.5f, specks[i].y - look.y * 0.5f, look.y, look.y), dotTex);
+        }
+
+        // Bubbles: rising, wobbling, a little faster as they go; back to the bottom once they are off the top.
+        if (bubbleTex != null)
+            for (int i = 0; i < bubbles.Length; i++)
+            {
+                Vector3 look = bubbleLook[i];
+                bubbles[i].y -= look.x * dt;
+                if (bubbles[i].y < -20f)
+                    bubbles[i] = new Vector2(Random.Range(0f, width), height + Random.Range(10f, 120f));
+                float x = bubbles[i].x + Mathf.Sin(now * 2.2f + look.z) * (3f + look.y * 0.3f);
+                GUI.color = Tint(Color.white, 0.5f * fade);
+                GUI.DrawTexture(new Rect(x - look.y * 0.5f, bubbles[i].y - look.y * 0.5f, look.y, look.y), bubbleTex);
+            }
+        GUI.color = Tint(Color.white, fade);
+    }
+
+    // Sunlight rippling over the board: the caustic pattern twice, drifting different ways at different sizes, so it
+    // never repeats. Kept inside the board's rounded corners.
+    private void DrawCaustics(Rect board, float fade)
+    {
+        if (causticTex == null || causticColor.a <= 0f)
+            return;
+        float now = Time.unscaledTime;
+        var inside = new Rect(board.x + 14f, board.y + 14f, board.width - 28f, board.height - 28f);
+        GUI.color = Tint(causticColor, causticColor.a * fade);
+        GUI.DrawTextureWithTexCoords(inside, causticTex, new Rect(now * 0.021f, now * 0.013f, inside.width / 300f, inside.height / 300f), true);
+        GUI.color = Tint(causticColor, causticColor.a * 0.7f * fade);
+        GUI.DrawTextureWithTexCoords(inside, causticTex, new Rect(-now * 0.017f + 0.37f, now * 0.024f + 0.61f, inside.width / 420f, inside.height / 420f), true);
+    }
+
+    // The bubbles and specks, scattered once over the screen when the board first draws (or the screen changes size).
+    private void SeedWater(float width, float height)
+    {
+        if (bubbles != null && bubbles.Length == bubbleCount && specks != null && specks.Length == speckCount)
+            return;
+        bubbles = new Vector2[bubbleCount];
+        bubbleLook = new Vector3[bubbleCount];
+        for (int i = 0; i < bubbleCount; i++)
+        {
+            bubbles[i] = new Vector2(Random.Range(0f, width), Random.Range(0f, height));
+            float size = Random.Range(4f, 15f);
+            bubbleLook[i] = new Vector3(Random.Range(35f, 80f) + size * 2.5f, size, Random.Range(0f, Tau));
+        }
+        specks = new Vector2[speckCount];
+        speckLook = new Vector3[speckCount];
+        for (int i = 0; i < speckCount; i++)
+        {
+            specks[i] = new Vector2(Random.Range(0f, width), Random.Range(0f, height));
+            speckLook[i] = new Vector3(Random.Range(6f, 18f), Random.Range(2f, 4.5f), Random.Range(0f, Tau));
+        }
+    }
+
+    // A tiling caustic pattern: bright wavy lines where two warped wave fields cross near zero, like sunlight
+    // focused by ripples. Whole-number frequencies over one tile, so it repeats seamlessly.
+    private static Texture2D CausticTexture(int size)
+    {
+        Texture2D tex = NewTexture(size, size);
+        tex.wrapMode = TextureWrapMode.Repeat;
+        var pixels = new Color32[size * size];
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = (x + 0.5f) / size * Tau, v = (y + 0.5f) / size * Tau;
+                float a = Mathf.Sin(3f * u + 1.6f * Mathf.Sin(2f * v) + 0.8f * Mathf.Sin(u + v));
+                float b = Mathf.Sin(3f * v + 1.6f * Mathf.Sin(2f * u + 1f) + 0.8f * Mathf.Sin(u - 2f * v));
+                float lines = Mathf.Pow(1f - Mathf.Min(Mathf.Abs(a), 1f), 7f) + Mathf.Pow(1f - Mathf.Min(Mathf.Abs(b), 1f), 7f);
+                pixels[y * size + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(lines) * 255f));
+            }
+        tex.SetPixels32(pixels);
+        tex.Apply(false, true);
+        return tex;
+    }
+
+    // One sun ray: soft across, brightest at the top and fading out downwards.
+    private static Texture2D RayTexture()
+    {
+        const int w = 32, h = 128;
+        Texture2D tex = NewTexture(w, h);
+        var pixels = new Color32[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float across = (x + 0.5f) / w * 2f - 1f;
+                float down = 1f - (y + 0.5f) / h;   // 0 at the top
+                float a = Mathf.Exp(-across * across * 3.5f) * Mathf.Pow(1f - down, 1.6f);
+                pixels[y * w + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(a) * 255f));
+            }
+        tex.SetPixels32(pixels);
+        tex.Apply(false, true);
+        return tex;
+    }
+
+    // A bubble: a thin bright rim round a faint inside, with a small highlight up and to the left.
+    private static Texture2D BubbleTexture(int size)
+    {
+        Texture2D tex = NewTexture(size, size);
+        var pixels = new Color32[size * size];
+        float half = size * 0.5f, r = half - 1.5f;
+        var shine = new Vector2(-0.38f, 0.38f) * r;
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                var p = new Vector2(x + 0.5f - half, y + 0.5f - half);
+                float d = p.magnitude;
+                float inside = Mathf.Clamp01(r - d + 0.5f);
+                float rim = Mathf.Clamp01(1.6f - Mathf.Abs(d - (r - 1.2f))) * 0.85f;
+                float glint = Mathf.Clamp01(1f - (p - shine).magnitude / (r * 0.28f)) * 0.9f;
+                float a = Mathf.Max(inside * 0.1f, Mathf.Max(rim, glint)) * inside;
+                pixels[y * size + x] = new Color32(235, 255, 250, (byte)(Mathf.Clamp01(a) * 255f));
+            }
+        tex.SetPixels32(pixels);
+        tex.Apply(false, true);
+        return tex;
+    }
 
     // A smooth ring: an anti-aliased annulus texture (one per thickness-to-radius ratio, made once and kept) stretched
     // to size; squash < 1 flattens it into an ellipse, so it reads as wrapping round a bar.
@@ -986,7 +1189,10 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
         if (boardTex != null)
             return;
         backdropTex = Vignette(backdropCentre, backdropEdge);
-        boardTex = Rounded(96, 24f, boardColor, new Color(1f, 1f, 1f, 0.08f), 1.5f);
+        boardTex = Rounded(96, 24f, boardColor, new Color(0.7f, 1f, 0.9f, 0.14f), 2f);
+        causticTex = CausticTexture(128);
+        rayTex = RayTexture();
+        bubbleTex = BubbleTexture(48);
         dotTex = Dot(32);
         capsuleTex = Rounded(32, 16f, Color.white, Color.clear, 0f);
         barTex = Rounded(20, 5f, Color.white, Color.clear, 0f);
@@ -997,9 +1203,9 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
         titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 28, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = false };
         titleStyle.normal.textColor = textColor;
         hintStyle = new GUIStyle(GUI.skin.label) { fontSize = 17, alignment = TextAnchor.MiddleCenter, wordWrap = true };
-        hintStyle.normal.textColor = new Color(0.72f, 0.8f, 0.87f);
+        hintStyle.normal.textColor = new Color(0.7f, 0.88f, 0.84f);
         footStyle = new GUIStyle(hintStyle) { fontSize = 13, wordWrap = false };
-        footStyle.normal.textColor = new Color(0.45f, 0.53f, 0.6f);
+        footStyle.normal.textColor = new Color(0.42f, 0.6f, 0.58f);
         footStyle.alignment = TextAnchor.MiddleLeft;
         footRightStyle = new GUIStyle(footStyle) { alignment = TextAnchor.MiddleRight };
         subtitleStyle = new GUIStyle(GUI.skin.label) { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
@@ -1061,7 +1267,12 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
                 float u = (x + 0.5f) / size * 2f - 1f;
                 float v = (y + 0.5f) / size * 2f - 1f;
                 float d = Mathf.Clamp01(Mathf.Sqrt(u * u + v * v) / 1.25f);
-                pixels[y * size + x] = Color.Lerp(centre, edge, Mathf.SmoothStep(0f, 1f, d));
+                Color c = Color.Lerp(centre, edge, Mathf.SmoothStep(0f, 1f, d));
+                // Lighter towards the top, where the surface and the sun are; darker into the deep below.
+                float up = (y + 0.5f) / size;
+                c = Color.Lerp(c, new Color(0.12f, 0.36f, 0.36f, c.a * 0.85f), up * up * 0.45f);
+                c = Color.Lerp(c, new Color(0f, 0.01f, 0.03f, c.a), (1f - up) * (1f - up) * 0.35f);
+                pixels[y * size + x] = c;
             }
         tex.SetPixels(pixels);
         tex.Apply(false, true);

@@ -5,7 +5,7 @@ using UnityEngine.Events;
 // where the runes go in. E opens the board with Puzzle. Required Item / Amount is what you must be carrying to start
 // (the three stone fragments), taken from you when it is solved if Consume is on. On Solved fires once (a door opens
 // or unlocks); solved stays solved. Needs a collider, and an Interactable Highlight makes it light up like the rest.
-public class PuzzleStation : MonoBehaviour, IInteractable
+public class PuzzleStation : MonoBehaviour, IInteractable, IPromptTone
 {
     [SerializeField] private PuzzleDefinition puzzle;
     [Tooltip("What E says.")]
@@ -38,10 +38,26 @@ public class PuzzleStation : MonoBehaviour, IInteractable
         }
     }
 
+    // Red until you carry what it needs, then green. Nothing needed (or solved): the normal colour.
+    public PromptTone Tone
+    {
+        get
+        {
+            if (IsSolved || requiredItem == null || requiredAmount <= 0)
+                return PromptTone.Normal;
+            return HasItems(out _) ? PromptTone.Ready : PromptTone.Blocked;
+        }
+    }
+
     public void Interact(GameObject interactor)
     {
-        if (IsSolved || puzzle == null || !HasItems(out _))
+        if (IsSolved || puzzle == null)
             return;
+        if (!HasItems(out int have))
+        {
+            HintPopup.Show($"You need {ItemSocket.Things(requiredAmount, requiredItem.DisplayName)} for this (you have {have}).", 2.5f);
+            return;
+        }
         PuzzleBoard.Show(puzzle, Solved);
     }
 
@@ -67,7 +83,7 @@ public class PuzzleStation : MonoBehaviour, IInteractable
                 inventory.Remove(requiredItem, requiredAmount);
         }
         if (solvedSound != null)
-            AudioSource.PlayClipAtPoint(solvedSound, transform.position, solvedVolume);
+            SoundVariety.PlayAt(solvedSound, transform.position, solvedVolume);
         onSolved.Invoke();
     }
 

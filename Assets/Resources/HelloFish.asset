@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 74333daeb052498f92a8a9ae32babda3, type: 3}
+  m_Name: HelloFish
+  m_EditorClassIdentifier: Assembly-CSharp::HelloFishSettings
+  chance: 0.1
+  staySeconds: 3.5
+  stayAfterTouch: 1.6
+  helloText: Hello!
+  rubPerHeart: 220
+  petLines:
+  - Hehe!
+  - Aww!
+  - That tickles!
+  - More pets!
+  - I like you!
+  heartPicture: {fileID: 0}
+  heartColor: {r: 1, g: 0.36, b: 0.52, a: 1}
+  heartSize: {x: 34, y: 48}
+  heartRise: 150
+  heartSeconds: 1.4
+  pokeLines:
+  - Hey!
+  - "Ow! Don't poke me!"
+  - Stop poking!
+  - "Rude! I'm leaving!"
+  leaveAfterPokes: 4
+  pokePuff: 0.35
+  complainColor: {r: 0.62, g: 0.1, b: 0.08, a: 1}
+  pokeSeconds: 0.35
+  helloSound: {fileID: 0}
+  petSound: {fileID: 8300000, guid: 2912c4db67449388d9d6bfc5e2e7db6c, type: 3}
+  pokeSound: {fileID: 8300000, guid: ee363df367bb16fb5ecd5e581cd7e59f, type: 3}
+  volume: 0.55

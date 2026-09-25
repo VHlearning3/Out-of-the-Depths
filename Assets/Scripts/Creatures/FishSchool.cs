@@ -35,6 +35,8 @@ public class FishSchool : MonoBehaviour
 
     private Vector3 heading;
     private Vector3 target;
+    private int members;        // fish that have joined so far, for spreading their sizes
+    private float sizeStart = -1f;
 
     private void Awake()
     {
@@ -53,6 +55,18 @@ public class FishSchool : MonoBehaviour
     public void Add(FishWander fish)
     {
         fish.JoinSchool(this, SlotOffset(), Random.Range(speedVariation.x, speedVariation.y));
+
+        // Sizes spread over the fish's Size Range, not left to chance: each new member steps round the range by the
+        // golden ratio from a random start, so any few of them are clearly different (a small one, a big one, one
+        // in between...), never three alike.
+        var body = fish.GetComponent<FishController>();
+        if (body != null)
+        {
+            if (sizeStart < 0f)
+                sizeStart = Random.value;
+            body.SetSizeFraction(Mathf.Repeat(sizeStart + members * 0.618034f, 1f));
+            members++;
+        }
     }
 
     private void Update()

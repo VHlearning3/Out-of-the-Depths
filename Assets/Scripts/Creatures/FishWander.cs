@@ -31,9 +31,9 @@ public class FishWander : MonoBehaviour
     [Tooltip("Dart away from the player when attacked nearby.")]
     [SerializeField] private bool fleesWhenAttacked = true;
     [Tooltip("How much faster than its normal speed it flees.")]
-    [SerializeField] private float fleeSpeedMultiplier = 3f;
+    [SerializeField] private float fleeSpeedMultiplier = 1.6f;   // just under the player's swim speed: a chase you can win
     [Tooltip("Roughly how long it flees, in seconds.")]
-    [SerializeField] private float fleeSeconds = 2.5f;
+    [SerializeField] private float fleeSeconds = 1.8f;
 
     [Header("In a pack")]
     [Tooltip("Beyond this distance from its slot a fish pulls hard toward it; within it, it mostly just swims along with the pack.")]
@@ -45,6 +45,15 @@ public class FishWander : MonoBehaviour
 
     public LayerMask ObstacleMask => obstacleMask;
     public float BodyRadius => bodyRadius;
+
+    // The fish was made bigger or smaller (Fish Controller's random size): its body for steering and spacing follows.
+    public void ScaleBody(float factor)
+    {
+        bodyRadius *= factor;
+        FishSpace space = GetComponent<FishSpace>();
+        if (space != null)
+            space.Setup(bodyRadius, obstacleMask);
+    }
     public float LookAhead => lookAhead;
     public bool IsEntering => entering;
 

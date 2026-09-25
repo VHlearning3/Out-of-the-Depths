@@ -23,6 +23,6 @@ MonoBehaviour:
   worldModelVariants: []
   heldLength: 1.5
   heldGrip: 0.35
-  heldTipAxis: {x: 0, y: -1, z: 0}
+  heldTipAxis: {x: -0, y: 1, z: -0}
   heldRotation: {x: -4, y: -4, z: 0}
-  heldFitVersion: 2
+  heldFitVersion: 3

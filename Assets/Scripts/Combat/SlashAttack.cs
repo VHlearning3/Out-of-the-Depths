@@ -47,12 +47,12 @@ public class SlashAttack : MonoBehaviour
     [SerializeField] private float comboReset = 1f;
     [SerializeField] private LayerMask hitMask = ~0;
     [Tooltip("Fish within this distance of the swing dart away when you slash (metres).")]
-    [SerializeField] private float scareRadius = 4f;
+    [SerializeField] private float scareRadius = 2.5f;
     [Tooltip("How hard a hit shoves a fish away from you (metres per second at first) and how long it is dazed (a pufferfish cannot chase or bite meanwhile).")]
     [SerializeField] private float knockback = 6f;
     [SerializeField] private float knockbackStun = 0.7f;
     [Tooltip("When a slash hits, every fish within this distance of what it hit darts away (metres).")]
-    [SerializeField] private float hitScareRadius = 7f;
+    [SerializeField] private float hitScareRadius = 4.5f;
 
     [Header("Feedback")]
     [SerializeField] private AudioClip swingSound;
