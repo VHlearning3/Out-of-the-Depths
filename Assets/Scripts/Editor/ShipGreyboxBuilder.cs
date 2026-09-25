@@ -1941,9 +1941,68 @@ public static class ShipGreyboxBuilder
         AddKnotMinigame(seaweed, socket, weed);
     }
 
-    // A bone carcass on the floor: a spine `length` long (before `scale`) with a pair of ribs every 0.8 m along most
-    // of it, the biggest at the head end (-x before the turn) shrinking toward the tail, turned by yaw.
+    private const string CarcassPrefabPath = "Assets/Prefabs/Bone_Carcass.prefab";
+    private const float CarcassMaxHeight = 4f;   // under the basement ceiling, with room to swim over
+
+    // A bone carcass on the floor, `length` x `scale` metres long, running along x before the turn (yaw): Vili's
+    // Bone_Carcass (model, bone texture, collider), turned so its long side runs that way, scaled to that length (no
+    // taller than Carcass Max Height), centred on the spot and resting on the ground. Without the prefab, a stand-in
+    // made of boxes.
     private static void Carcass(Vector3 position, float yaw, Transform parent, float scale = 1f, float length = 5f)
+    {
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(CarcassPrefabPath);
+        if (prefab == null)
+        {
+            BoxCarcass(position, yaw, parent, scale, length);
+            return;
+        }
+        var holder = new GameObject("BoneCarcass");
+        holder.transform.SetParent(parent, false);
+        holder.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, yaw, 0f));
+        var model = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent.gameObject.scene);
+        model.transform.SetParent(holder.transform, false);
+        model.transform.localPosition = Vector3.zero;   // its own turn and scale are kept (the model lies down through them)
+
+        Bounds bounds = CarcassBounds(holder.transform);
+        if (bounds.size.z > bounds.size.x)
+        {
+            model.transform.localRotation = Quaternion.Euler(0f, 90f, 0f) * model.transform.localRotation;   // long side along x
+            bounds = CarcassBounds(holder.transform);
+        }
+        float fit = length * scale / Mathf.Max(0.01f, bounds.size.x);
+        fit = Mathf.Min(fit, CarcassMaxHeight / Mathf.Max(0.01f, bounds.size.y));
+        model.transform.localScale *= fit;
+        bounds = CarcassBounds(holder.transform);
+        model.transform.localPosition -= new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+    }
+
+    // The carcass model's bounds in the holder's own space (from its meshes, so the turn does not blow them up).
+    private static Bounds CarcassBounds(Transform holder)
+    {
+        var bounds = new Bounds();
+        bool any = false;
+        foreach (MeshFilter filter in holder.GetComponentsInChildren<MeshFilter>())
+        {
+            if (filter.sharedMesh == null)
+                continue;
+            Bounds mesh = filter.sharedMesh.bounds;
+            for (int i = 0; i < 8; i++)
+            {
+                var corner = new Vector3((i & 1) == 0 ? mesh.min.x : mesh.max.x, (i & 2) == 0 ? mesh.min.y : mesh.max.y, (i & 4) == 0 ? mesh.min.z : mesh.max.z);
+                Vector3 local = holder.InverseTransformPoint(filter.transform.TransformPoint(corner));
+                if (any)
+                    bounds.Encapsulate(local);
+                else
+                    bounds = new Bounds(local, Vector3.zero);
+                any = true;
+            }
+        }
+        return bounds;
+    }
+
+    // The stand-in: a spine with a pair of ribs every 0.8 m along most of it, the biggest at the head end (-x before
+    // the turn) shrinking toward the tail, turned by yaw.
+    private static void BoxCarcass(Vector3 position, float yaw, Transform parent, float scale, float length)
     {
         var carcass = new GameObject("BoneCarcass");
         carcass.transform.SetParent(parent, false);
