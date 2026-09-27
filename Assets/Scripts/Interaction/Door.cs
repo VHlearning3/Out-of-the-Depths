@@ -191,6 +191,8 @@ public class Door : MonoBehaviour, IInteractable, IPromptTone
 
     private bool lockedBehind;   // shut and locked behind the player (a one-way door), not locked by a puzzle
     public bool LockedBehind => lockedBehind;
+    // The way through the doorway in the world: the side a one-way door lets you into (Through Axis, turned with it).
+    public Vector3 ThroughDirection => transform.TransformDirection(throughAxis.normalized);
     public float SwingDirection => swingDirection;
 
     // Checkpoint Save: straight into this state, no sound, no events.

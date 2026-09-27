@@ -118,13 +118,17 @@ public class ChaseSequence : MonoBehaviour
     [SerializeField] private float fovBoost = 8f;
 
     [Header("The ending")]
-    [Tooltip("Opening the End Door (the way out at the far end of the trident corridor) ends the game: after Credits Delay the screen fades to black and the credits roll (End Credits), then back to the main menu.")]
+    [Tooltip("Going through the End Door (the way out at the far end of the trident corridor) into the room beyond it ends the game, as does the door swinging all the way open: after Credits Delay the screen fades to black and the credits roll (End Credits), then back to the main menu.")]
     [UnityEngine.Serialization.FormerlySerializedAs("creditsOnTrident")]
     [SerializeField] private bool creditsOnEndDoor = true;
-    [Tooltip("The last door. Empty = the door named Door_Exit.")]
+    [Tooltip("The last door. Empty = the door named Door_Exit. Its Through Axis (the blue arrow's way) points into the last room.")]
     [SerializeField] private Door endDoor;
-    [Tooltip("Seconds between the door swinging open and the fade.")]
+    [Tooltip("Seconds between getting through (or the door swinging open) and the fade.")]
     [SerializeField] private float creditsDelay = 0.8f;
+    [Tooltip("How far past the End Door's doorway (metres) counts as in the last room.")]
+    [SerializeField] private float lastRoomDepth = 0.6f;
+
+    private bool creditsRolled;
 
     [Header("Sealed in")]
     [Tooltip("When the chase starts the Start Door slams shut behind the player and stays locked until Unseal When is filled, so there is no way back out before the fragments are in. Dying opens it again.")]
@@ -322,11 +326,26 @@ public class ChaseSequence : MonoBehaviour
         return true;
     }
 
-    // The last door is open: the ending (End Credits).
+    // The last door is open, or the player is through it: the ending (End Credits), once.
     private void RollCredits()
     {
-        if (!EndCredits.Playing)
-            StartCoroutine(CreditsLater());
+        if (creditsRolled || EndCredits.Playing)
+            return;
+        creditsRolled = true;
+        StartCoroutine(CreditsLater());
+    }
+
+    // In the last room: through the End Door, whether or not it finished opening. The door is one-way and shuts behind
+    // the player the moment they are past it, which can cut its swing short, so its On Opened alone never came.
+    private void CheckLastRoom()
+    {
+        if (!creditsOnEndDoor || creditsRolled || endDoor == null || player == null)
+            return;
+        Vector3 offset = player.transform.position - endDoor.transform.position;
+        if (offset.y < -1f || offset.y > 6f || new Vector2(offset.x, offset.z).sqrMagnitude > 64f)
+            return;   // somewhere else in the level (the basement under it, another room)
+        if (Vector3.Dot(offset, endDoor.ThroughDirection) > lastRoomDepth)
+            RollCredits();
     }
 
     private IEnumerator CreditsLater()
@@ -625,6 +644,8 @@ public class ChaseSequence : MonoBehaviour
 
     private void Update()
     {
+        CheckLastRoom();
+
         // The start trigger (after the start door, if there is one): once the player's middle is inside it.
         if (startTrigger != null && (startDoor == null || IsArmed) && !IsRunning && !IsFinished && !restartPending && PlayerInTrigger())
             Begin();

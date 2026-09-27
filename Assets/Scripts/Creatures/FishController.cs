@@ -4,7 +4,7 @@ using UnityEngine;
 // Alive: wanders, can be slashed. Dead: flips belly-up and drifts upward until it meets a Dead Fish Barrier or times
 // out, then fades away and respawns like an eaten fish would (EdibleFish → Respawn Time). Not every kill is food (the
 // GDD: one slash cuts a whole school, so for every Kills Per Food fish killed, counted across all fish, one is left
-// as food): that one is edible the whole way up; the rest fade after No Food Fade After.
+// as food): that one is edible the whole way up; the rest are gone within about a second (No Food Despawn After, No Food Fade Seconds).
 [RequireComponent(typeof(Damageable), typeof(EdibleFish))]
 public class FishController : MonoBehaviour
 {
@@ -35,8 +35,10 @@ public class FishController : MonoBehaviour
     [Header("Food")]
     [Tooltip("Every this many kills (all fish together), the fish killed is left as food: edible while it drifts up. 1 = every kill is food.")]
     [SerializeField, Min(1)] private int killsPerFood = 2;
-    [Tooltip("A kill that is not food fades after drifting this many seconds.")]
-    [SerializeField] private float noFoodFadeAfter = 6f;
+    [Tooltip("A kill that is not food (nothing to eat) starts fading after drifting this many seconds...")]
+    [SerializeField] private float noFoodDespawnAfter = 0.6f;
+    [Tooltip("...and is gone this many seconds later (a food fish keeps the slower Fade Duration).")]
+    [SerializeField] private float noFoodFadeSeconds = 0.45f;
 
     private static int kills;
     private bool isFood;
@@ -147,7 +149,7 @@ public class FishController : MonoBehaviour
         if (spinSpeed != 0f)
             transform.Rotate(0f, spinSpeed * Time.deltaTime, 0f, Space.World);
 
-        if (TouchingBarrier(radius) || (driftTimeout > 0f && drifted >= driftTimeout) || (!isFood && drifted >= noFoodFadeAfter))
+        if (TouchingBarrier(radius) || (driftTimeout > 0f && drifted >= driftTimeout) || (!isFood && drifted >= noFoodDespawnAfter))
             StartCoroutine(FadeOut());
     }
 
@@ -213,9 +215,10 @@ public class FishController : MonoBehaviour
         IsFading = true;
         edible.enabled = false;
 
-        for (float t = 0f; t < fadeDuration; t += Time.deltaTime)
+        float seconds = isFood ? fadeDuration : Mathf.Max(0.05f, noFoodFadeSeconds);   // nothing to eat: out of the way fast
+        for (float t = 0f; t < seconds; t += Time.deltaTime)
         {
-            SetVisibility(1f - Ease.InOutSine(t / fadeDuration));
+            SetVisibility(1f - Ease.InOutSine(t / seconds));
             yield return null;
         }
 
