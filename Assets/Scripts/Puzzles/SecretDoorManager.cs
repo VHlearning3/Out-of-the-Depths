@@ -6,13 +6,21 @@ public class SecretDoorManager : MonoBehaviour
     public PressurePlates plate2;
     public PressurePlates plate3;
 
-    public GameObject door;
+    public Door door;
+
+    private bool doorOpened = false;
 
     private void Update()
     {
-        if (plate1.isPressed && plate2.isPressed && plate3.isPressed)
+        bool allPressed =
+            plate1.isPressed &&
+            plate2.isPressed &&
+            plate3.isPressed;
+
+        if (allPressed && !doorOpened)
         {
-            door.SetActive(false);
+            door.SetOpen(true);
+            doorOpened = true;
         }
     }
 }
