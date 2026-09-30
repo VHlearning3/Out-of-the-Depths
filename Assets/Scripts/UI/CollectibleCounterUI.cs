@@ -69,6 +69,22 @@ public class CollectibleCounterUI : MonoBehaviour
 
         int have = inventory != null ? inventory.TotalCollectibles : 0;
         label.text = goal > 0 ? $"{have} / {goal}" : have.ToString();
+        Fit();
+    }
+
+    // The pill as wide as its count needs (any font, any number): the pearl, the count, a margin. Its right edge stays
+    // put, so it keeps its place in the corner and grows to the left.
+    private void Fit()
+    {
+        if (!dressed)
+            return;
+        var rect = (RectTransform)transform;
+        float width = Mathf.Ceil(PearlSpace + label.preferredWidth + EndMargin);
+        float old = rect.sizeDelta.x;
+        if (Mathf.Abs(width - old) < 0.5f)
+            return;
+        rect.sizeDelta = new Vector2(width, rect.sizeDelta.y);
+        rect.anchoredPosition += new Vector2((1f - rect.pivot.x) * (old - width), 0f);
     }
 
     private void Update()
@@ -80,6 +96,10 @@ public class CollectibleCounterUI : MonoBehaviour
         label.rectTransform.localScale = new Vector3(pop, pop, 1f);
     }
 
+    private const float PearlSpace = 32f;   // the pearl's room at the left end of the pill
+    private const float EndMargin = 13f;    // after the count, before the pill's round right end
+    private bool dressed;
+
     // A dark pill, a pearl on the left, the count on the right.
     private void Dress()
     {
@@ -89,6 +109,7 @@ public class CollectibleCounterUI : MonoBehaviour
             return;
         var rect = (RectTransform)transform;
         rect.sizeDelta = new Vector2(96f, 32f);
+        dressed = true;
 
         var back = new GameObject("Backdrop", typeof(RectTransform)).AddComponent<Image>();
         back.transform.SetParent(transform, false);
@@ -121,10 +142,10 @@ public class CollectibleCounterUI : MonoBehaviour
             RectTransform text = label.rectTransform;
             text.anchorMin = Vector2.zero;
             text.anchorMax = Vector2.one;
-            text.offsetMin = new Vector2(32f, 0f);
-            text.offsetMax = new Vector2(-13f, 0f);
-            text.pivot = new Vector2(1f, 0.5f);
-            label.alignment = TextAnchor.MiddleRight;
+            text.offsetMin = new Vector2(PearlSpace, 0f);
+            text.offsetMax = new Vector2(-EndMargin, 0f);
+            text.pivot = new Vector2(0.5f, 0.5f);
+            label.alignment = TextAnchor.MiddleCenter;
             label.fontSize = 17;
             label.color = HudStyle.Text;
             label.horizontalOverflow = HorizontalWrapMode.Overflow;

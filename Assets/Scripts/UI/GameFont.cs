@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// The game's font: the one file in Assets/Resources/Fonts (AldotheApache.ttf today). Everything that shows text uses
+// The game's font: the one file in Assets/Resources/Fonts (SuperCarnival.ttf today). Everything that shows text uses
 // it: the HUD, the signs and the prompts get it when they are built, the pause menu takes it when its theme names no
 // font, and when a scene loads every Text still on Unity's built-in font is switched over, so a scene or prefab that
 // Tools > Out of the Depths > Use Game Font never touched shows it all the same. To change the font, put one other

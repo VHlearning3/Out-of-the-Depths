@@ -476,12 +476,12 @@ MonoBehaviour:
     licence: CC0
     source: https://freesound.org/s/757328/
     hidden: 0
-  - file: Fonts/AldotheApache.ttf
+  - file: Fonts/SuperCarnival.ttf
     category: Fonts
-    what: AldotheApache
+    what: Super Carnival
     author: 
-    licence: 
-    source: 
+    licence: Freeware
+    source: https://www.fontspace.com/super-carnival-font-f120517
     hidden: 0
   - file: environment/checkpoint/checkpoint_book_left.obj
     category: Models
