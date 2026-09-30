@@ -125,6 +125,8 @@ public class TutorialCards : MonoBehaviour
             picture = new[] { K("Interact", "eat") }, doneBy = new[] { "Interact" } },
         ["checkpoint"] = new Lesson { title = "Checkpoints", text = "Use a checkpoint pillar to save. Dying takes you back to it.",
             picture = new[] { K("Interact", "save") }, doneBy = new[] { "Interact" } },
+        ["push"] = new Lesson { title = "Pushing boxes", text = "Swim into the side of a box to push it along. You can't pull them back, so mind the walls and corners.",
+            picture = new[] { new Glyph { kind = Kind.Wasd, caption = "swim into it" } }, doneBy = new[] { "Move" } },
         ["danger"] = new Lesson { title = "Pufferfish", text = "They chase and bite. Slash them or dash away; break their red nests to stop more coming.",
             picture = new[] { M(Button.Left, "slash"), K("Sprint", "dash") }, doneBy = new[] { "Attack", "Sprint" } },
     };

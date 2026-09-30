@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4a523fb91ba343579f60176454a61f2d, type: 3}
+  m_Name: PushSprites
+  m_EditorClassIdentifier: 
+  frames: []
+  framesPerSecond: 10
+  loop: 1
+  screenHeight: 0.8
+  centreX: 0.5
+  tint: {r: 0.82, g: 0.9, b: 0.95, a: 1}
+  fadeSeconds: 0.15
+  hideHands: 1

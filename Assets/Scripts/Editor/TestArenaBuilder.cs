@@ -74,6 +74,12 @@ public static class TestArenaBuilder
 
         Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
         failedSteps = 0;
+        // Work done by hand inside the old arena (the box puzzle) is lifted out first and put back at the end.
+        GameObject oldArena = null;
+        foreach (GameObject root in scene.GetRootGameObjects())
+            if (root.name == "Arena")
+                oldArena = root;
+        HandMadeKeeper.Kept handMade = HandMadeKeeper.Lift(oldArena != null ? oldArena.transform : null);
         RemoveOldArena(scene);
         RemoveStrayPlaceholders(scene);
 
@@ -105,6 +111,7 @@ public static class TestArenaBuilder
         Step("Warning thresholds", TuneWarningThresholds);
         Step("Underwater look", UnderwaterTools.ApplyToOpenScene);
         Step("Lighting", BuildLighting);
+        Step("Hand-made work", () => HandMadeKeeper.PutBack(handMade, arenaRoot));
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);

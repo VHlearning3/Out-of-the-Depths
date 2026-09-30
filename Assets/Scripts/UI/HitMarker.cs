@@ -2,8 +2,9 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // The reticle. Punches out and tints for a moment on a hit (SlashAttack only calls Show()). With Generated Look, a
-// reticle that is still the plain white square becomes a small round dot with a soft dark halo (it reads on bright and
-// dark water alike), and a thin ring eases in round it while the dot is on something you can use (E). It fades out
+// reticle that is still the plain white square becomes the drawn reticle (Assets/Resources/Reticle.png: a pale blue
+// diamond ring with a diamond in the middle, shown as drawn, Reticle Size across) or, without that picture, a small round
+// dot with a soft dark halo (it reads on bright and dark water alike), and a thin ring eases in round it while the dot is on something you can use (E). It fades out
 // during the chase's reveal cutscene. Swap the visuals freely.
 public class HitMarker : MonoBehaviour
 {
@@ -17,6 +18,8 @@ public class HitMarker : MonoBehaviour
     [Tooltip("Dot size and the ring's size, in canvas units.")]
     [SerializeField] private float dotSize = 11f;
     [SerializeField] private float ringSize = 26f;
+    [Tooltip("How big the drawn reticle (Resources/Reticle) is, in canvas units; the use ring grows to fit round it.")]
+    [SerializeField] private float reticleSize = 22f;
 
     private Vector3 restScale;
     private Color restColor;
@@ -46,11 +49,14 @@ public class HitMarker : MonoBehaviour
 
     private void Dress(Image image)
     {
-        image.sprite = HudStyle.Dot;
+        Sprite drawn = Resources.Load<Sprite>("Reticle");
+        image.sprite = drawn != null ? drawn : HudStyle.Dot;
         image.type = Image.Type.Simple;
         image.preserveAspect = true;
-        image.color = Color.white;
-        target.sizeDelta = new Vector2(dotSize, dotSize);
+        image.color = Color.white;   // the drawing keeps its own colour
+        float size = drawn != null ? reticleSize : dotSize;
+        target.sizeDelta = new Vector2(size, size);
+        float ringAcross = drawn != null ? Mathf.Max(ringSize, reticleSize * 1.6f) : ringSize;
 
         var go = new GameObject("TargetRing", typeof(RectTransform));
         go.transform.SetParent(target, false);
@@ -60,7 +66,7 @@ public class HitMarker : MonoBehaviour
         ring.color = new Color(1f, 1f, 1f, 0f);
         RectTransform rect = ring.rectTransform;
         rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(ringSize, ringSize);
+        rect.sizeDelta = new Vector2(ringAcross, ringAcross);
     }
 
     public void Show()

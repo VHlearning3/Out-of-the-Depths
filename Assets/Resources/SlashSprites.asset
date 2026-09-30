@@ -1,0 +1,54 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c878a16a5d573ce4a6d9bc0253ef9a93, type: 3}
+  m_Name: SlashSprites
+  m_EditorClassIdentifier: 
+  side:
+  - {fileID: 5654550454710384570, guid: 3eac2472c87a986448e0befd70be732a, type: 3}
+  - {fileID: 539441362, guid: 3eac2472c87a986448e0befd70be732a, type: 3}
+  - {fileID: -735338468, guid: 3eac2472c87a986448e0befd70be732a, type: 3}
+  - {fileID: -688929972, guid: 3eac2472c87a986448e0befd70be732a, type: 3}
+  - {fileID: 1783395993, guid: 3eac2472c87a986448e0befd70be732a, type: 3}
+  - {fileID: -1832673196, guid: 3eac2472c87a986448e0befd70be732a, type: 3}
+  down:
+  - {fileID: -4247788319655153402, guid: fbed647b913ad534e8d26679ec0f01cf, type: 3}
+  - {fileID: -2080287335, guid: fbed647b913ad534e8d26679ec0f01cf, type: 3}
+  - {fileID: -1608245698, guid: fbed647b913ad534e8d26679ec0f01cf, type: 3}
+  - {fileID: -2046838345, guid: fbed647b913ad534e8d26679ec0f01cf, type: 3}
+  - {fileID: 2003236809, guid: fbed647b913ad534e8d26679ec0f01cf, type: 3}
+  - {fileID: -1873917550, guid: fbed647b913ad534e8d26679ec0f01cf, type: 3}
+  sideTips:
+  - {x: 0, y: 0.57}
+  - {x: 0, y: 0.58}
+  - {x: 0, y: 0.49}
+  - {x: 0, y: 0.99}
+  - {x: 0.38, y: 0.9}
+  - {x: 0, y: 1}
+  downTips:
+  - {x: 0.33, y: 1}
+  - {x: 0.39, y: 1}
+  - {x: 0.32, y: 1}
+  - {x: 0.64, y: 0.99}
+  - {x: 0.73, y: 0}
+  - {x: 0.5, y: 0}
+  framesPerSecond: 20
+  holdFirst: 1.6
+  holdLast: 2.2
+  slideIn: 0.05
+  slideOut: 0.12
+  afterimage: 0.35
+  sideHeight: 0.95
+  sideMargin: -0.02
+  downHeight: 1.15
+  downCentreX: 0.58
+  tint: {r: 0.82, g: 0.9, b: 0.95, a: 1}
+  weaponItem: Item_Dagger
