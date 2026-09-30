@@ -121,7 +121,7 @@ public class TutorialCards : MonoBehaviour
             picture = new[] { K("#1", "hold"), K("Interact", "use") }, doneBy = new[] { "Interact" } },
         ["fight"] = new Lesson { title = "Fighting", text = "Click to slash. One slash cuts everything in its arc.",
             picture = new[] { M(Button.Left, "slash") }, doneBy = new[] { "Attack" } },
-        ["eat"] = new Lesson { title = "Hunger", text = "Hunger drains slowly. Eat the green fish that float up after a kill.",
+        ["eat"] = new Lesson { title = "Hunger", text = "Your fish drains as you swim. Eat the green fish that float up after a kill to fill it.",
             picture = new[] { K("Interact", "eat") }, doneBy = new[] { "Interact" } },
         ["checkpoint"] = new Lesson { title = "Checkpoints", text = "Use a checkpoint pillar to save. Dying takes you back to it.",
             picture = new[] { K("Interact", "save") }, doneBy = new[] { "Interact" } },

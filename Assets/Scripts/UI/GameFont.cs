@@ -7,6 +7,9 @@ using UnityEngine.UI;
 // font, and when a scene loads every Text still on Unity's built-in font is switched over, so a scene or prefab that
 // Tools > Out of the Depths > Use Game Font never touched shows it all the same. To change the font, put one other
 // file in that folder and run that tool once (All Scenes) so the scenes and prefabs say so too.
+// No bold with it: a font file has one weight, so Unity makes "bold" by smearing the letters wider, which on a heavy
+// display font like Super Carnival looks thick and blotchy. Code asks for GameFont.Bold (plain while the game font is
+// in), and every Text on the game font that a scene or prefab set to bold is made plain as the scene loads.
 public static class GameFont
 {
     public const string ResourcesFolder = "Fonts";
@@ -33,6 +36,21 @@ public static class GameFont
     // The font to use: the game's, else Unity's built-in one.
     public static Font Font => Custom != null ? Custom : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
+    // Use instead of FontStyle.Bold: plain with the game font (it has no bold of its own), bold with Unity's.
+    public static FontStyle Bold => Custom != null ? FontStyle.Normal : FontStyle.Bold;
+
+    // A text's style without the faked bold, when it is on the game font. True when it changed.
+    public static bool Unbold(Text text)
+    {
+        if (text == null || Custom == null || text.font != Custom)
+            return false;
+        FontStyle plain = text.fontStyle == FontStyle.Bold ? FontStyle.Normal : text.fontStyle == FontStyle.BoldAndItalic ? FontStyle.Italic : text.fontStyle;
+        if (plain == text.fontStyle)
+            return false;
+        text.fontStyle = plain;
+        return true;
+    }
+
     // After a font was added to or removed from the folder in the editor.
     public static void Forget()
     {
@@ -55,10 +73,15 @@ public static class GameFont
         int changed = 0;
         foreach (Text text in root.GetComponentsInChildren<Text>(true))
         {
-            if (text.font == font || (onlyBuiltIn && !IsBuiltIn(text.font)))
-                continue;
-            text.font = font;
-            changed++;
+            bool now = false;
+            if (text.font != font && !(onlyBuiltIn && !IsBuiltIn(text.font)))
+            {
+                text.font = font;
+                now = true;
+            }
+            now |= Unbold(text);
+            if (now)
+                changed++;
         }
         return changed;
     }

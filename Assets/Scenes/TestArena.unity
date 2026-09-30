@@ -23108,7 +23108,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   maxHunger: 100
   startingHunger: 100
-  depletionRate: 0.12
+  depletionRate: 0.4
   warningThreshold01: 0.25
   warningSound: {fileID: 8300000, guid: c0ffee00a11ce5b0d1e5c0ffee5eab1e, type: 3}
   warningVolume: 0.5

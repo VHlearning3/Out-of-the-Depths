@@ -129,11 +129,24 @@ internal static class HandMadeKeeper
             return true;
         if (go.CompareTag("PushableObject"))
             return true;
-        // A plain object (not one of the builder's prefabs) carrying a hand-made script: made by hand as a whole.
+        // A plain object (not a prefab instance) whose scripts are all hand-made ones: made by hand as a whole. One that
+        // also carries a game script (a door the builder made, with a Secret Door Manager put on it) is the builder's:
+        // only the hand-added script is kept, below.
         if (!PrefabUtility.IsPartOfPrefabInstance(go))
+        {
+            bool handMade = false, builders = false;
             foreach (MonoBehaviour script in go.GetComponents<MonoBehaviour>())
-                if (script != null && Array.IndexOf(HandMadeScripts, script.GetType().Name) >= 0)
-                    return true;
+            {
+                if (script == null)
+                    continue;
+                if (Array.IndexOf(HandMadeScripts, script.GetType().Name) >= 0)
+                    handMade = true;
+                else
+                    builders = true;
+            }
+            if (handMade && !builders)
+                return true;
+        }
         if (!PrefabUtility.IsAnyPrefabInstanceRoot(go))
             return false;
         GameObject source = PrefabUtility.GetCorrespondingObjectFromSource(go);

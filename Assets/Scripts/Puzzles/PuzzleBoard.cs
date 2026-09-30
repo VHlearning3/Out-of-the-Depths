@@ -273,7 +273,7 @@ public class PuzzleBoard : MonoBehaviour
         foreach (string id in puzzle.solution)
             names.Add(System.Text.RegularExpressions.Regex.Replace(id ?? "", @"(\p{L})(\d)", "$1 $2"));   // "symbol1" reads "symbol 1"
         Text line = NewText("Answer", board, "Answer (testing):  " + string.Join("  >  ", names), 24, AnswerColor);
-        line.fontStyle = FontStyle.Bold;
+        line.fontStyle = GameFont.Bold;
         line.raycastTarget = false;
         Place(line.rectTransform, Middle, new Vector2(0f, y), new Vector2(puzzle.boardSize.x - 200f, 34f));
     }
@@ -311,7 +311,7 @@ public class PuzzleBoard : MonoBehaviour
         if (at.Count == 0)
             return;
         Text badge = NewText("AnswerNumber", tile, string.Join(",", at), 30, AnswerColor);
-        badge.fontStyle = FontStyle.Bold;
+        badge.fontStyle = GameFont.Bold;
         badge.alignment = TextAnchor.UpperLeft;
         badge.raycastTarget = false;
         Stretch(badge.rectTransform);

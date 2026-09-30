@@ -75,13 +75,13 @@ public class PauseMenuTheme : ScriptableObject
     [Header("Type")]
     [Tooltip("Empty = the game font (the file in Assets/Resources/Fonts), else the default font.")]
     public Font font;
-    public int titleFontSize = 30;
-    public int pageTitleFontSize = 24;
-    public int navFontSize = 17;
-    public int bodyFontSize = 15;
-    public int buttonFontSize = 14;
-    public int noteFontSize = 13;
-    public int sectionFontSize = 12;
+    public int titleFontSize = 26;
+    public int pageTitleFontSize = 21;
+    public int navFontSize = 15;
+    public int bodyFontSize = 13;
+    public int buttonFontSize = 12;
+    public int noteFontSize = 11;
+    public int sectionFontSize = 11;
 
     [Header("Motion")]
     [Tooltip("Seconds for the menu to fade and ease in, and out again.")]

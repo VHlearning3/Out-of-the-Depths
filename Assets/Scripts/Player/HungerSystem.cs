@@ -10,8 +10,8 @@ public class HungerSystem : MonoBehaviour
     [Header("Hunger")]
     [SerializeField] private float maxHunger = 100f;
     [SerializeField] private float startingHunger = 100f;
-    [Tooltip("Hunger lost per second. 0.2 = a full bar lasts about eight minutes.")]
-    [SerializeField] private float depletionRate = 0.12f;
+    [Tooltip("Hunger lost per second. 0.4 = a full fish empties in about four minutes, draining visibly as you watch.")]
+    [SerializeField] private float depletionRate = 0.4f;
 
     [Header("Warning")]
     [Tooltip("Plays the warning once when hunger drops to this fraction of max (0.25 = 25%). Re-arms once hunger is back above it.")]

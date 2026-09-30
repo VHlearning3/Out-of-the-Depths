@@ -105,6 +105,7 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
     public void DrawPage()
     {
         EnsureStyles();
+        MeasureWidth();
         DrawPlayer();
         DrawGive();
         DrawSpawn();
@@ -117,7 +118,7 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
     {
         if (headerStyle != null)
             return;
-        headerStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 12 };
+        headerStyle = new GUIStyle(GUI.skin.label) { fontStyle = GameFont.Bold, fontSize = 12 };
         headerStyle.normal.textColor = new Color(0.35f, 0.85f, 0.95f);
         noteStyle = new GUIStyle(GUI.skin.label) { fontSize = 11, wordWrap = true };
         noteStyle.normal.textColor = new Color(0.7f, 0.76f, 0.82f);
@@ -139,14 +140,14 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
             hunger.DrainPaused = MenuGUI.SwitchRow("No hunger drain", hunger.DrainPaused);
 
         GUILayout.BeginHorizontal();
-        if (MenuGUI.Button("Fill health") && health != null) health.Heal(health.MaxHealth);
-        if (MenuGUI.Button("Hurt 25") && health != null) health.TakeDamage(25f);
-        if (MenuGUI.Button("Kill") && health != null) health.TakeDamage(health.MaxHealth);
+        if (MenuGUI.Button("Fill health", Cell(3)) && health != null) health.Heal(health.MaxHealth);
+        if (MenuGUI.Button("Hurt 25", Cell(3)) && health != null) health.TakeDamage(25f);
+        if (MenuGUI.Button("Kill", Cell(3)) && health != null) health.TakeDamage(health.MaxHealth);
         GUILayout.EndHorizontal();
         GUILayout.BeginHorizontal();
-        if (MenuGUI.Button("Fill hunger") && hunger != null) hunger.Eat(hunger.MaxHunger);
-        if (MenuGUI.Button("Starve") && hunger != null) { hunger.ResetHunger(); hunger.Starve(); }
-        if (MenuGUI.Button("To checkpoint") && Checkpoint.Current != null) Teleport(Checkpoint.Current.transform.position + Vector3.up * 1.6f);
+        if (MenuGUI.Button("Fill hunger", Cell(3)) && hunger != null) hunger.Eat(hunger.MaxHunger);
+        if (MenuGUI.Button("Starve", Cell(3)) && hunger != null) { hunger.ResetHunger(); hunger.Starve(); }
+        if (MenuGUI.Button("To checkpoint", Cell(3)) && Checkpoint.Current != null) Teleport(Checkpoint.Current.transform.position + Vector3.up * 1.6f);
         GUILayout.EndHorizontal();
         if (swimmer != null)
         {
@@ -212,9 +213,11 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
                 ItemDefinition item = items[j];
                 if (item == null)
                     continue;
-                if (MenuGUI.Button(item.DisplayName))
+                bool three = item.MaxStack >= 3;
+                float x3 = 60f + Mathf.Max(GUI.skin.button.margin.left, GUI.skin.button.margin.right);
+                if (MenuGUI.Button(item.DisplayName, Cell(perRow, three ? x3 : 0f)))
                     inventory.Add(item, 1);
-                if (item.MaxStack >= 3 && MenuGUI.Button("x3", GUILayout.Width(60f)))
+                if (three && MenuGUI.Button("x3", GUILayout.Width(60f)))
                     inventory.Add(item, 3);
             }
             GUILayout.EndHorizontal();
@@ -230,6 +233,24 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
         }
     }
 
+    // The page's width, measured on every repaint (a strip across it); rows of buttons are cut to fit it exactly.
+    private float rowWidth = 600f;
+
+    private void MeasureWidth()
+    {
+        Rect strip = GUILayoutUtility.GetRect(0f, 0f, GUILayout.ExpandWidth(true));
+        if (Event.current.type == EventType.Repaint && strip.width > 50f)
+            rowWidth = strip.width;
+    }
+
+    // One of `n` buttons side by side, all the same width, the row exactly as wide as the page (a long name is cut
+    // at its button's edge rather than pushing the row off the page). Less = a smaller share, e.g. beside an x3.
+    private GUILayoutOption Cell(int n, float less = 0f)
+    {
+        float gap = Mathf.Max(GUI.skin.button.margin.left, GUI.skin.button.margin.right);
+        return GUILayout.Width(Mathf.Max(24f, (rowWidth - gap * (n + 1)) / n - less - 1f));
+    }
+
     private void DrawSpawn()
     {
         MenuGUI.Heading("Spawn in front of you");
@@ -238,14 +259,14 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
             GUILayout.Label("(nothing in Spawnables)", noteStyle);
             return;
         }
-        int perRow = 3;
+        int perRow = 2;
         for (int i = 0; i < spawnables.Length; i += perRow)
         {
             GUILayout.BeginHorizontal();
             for (int j = i; j < Mathf.Min(spawnables.Length, i + perRow); j++)
             {
                 Spawnable s = spawnables[j];
-                if (s.prefab != null && MenuGUI.Button(string.IsNullOrEmpty(s.label) ? s.prefab.name : s.label))
+                if (s.prefab != null && MenuGUI.Button(string.IsNullOrEmpty(s.label) ? s.prefab.name : s.label, Cell(perRow)))
                     Spawn(s.prefab);
             }
             GUILayout.EndHorizontal();
@@ -277,7 +298,7 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
                     continue;
                 string label = sign.name.StartsWith("Sign_") ? sign.name.Substring(5) : sign.name;
                 // Signs float above head height: stand on the floor 2.5 m in front of the board, looking at it.
-                if (MenuGUI.Button(label))
+                if (MenuGUI.Button(label, Cell(perRow)))
                 {
                     Vector3 p = sign.transform.position - sign.transform.forward * 2.5f;
                     Teleport(new Vector3(p.x, 1.6f, p.z));
@@ -291,7 +312,7 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
             for (int j = i; j < Mathf.Min(checkpoints.Length, i + perRow); j++)
             {
                 Checkpoint plate = checkpoints[j];
-                if (plate != null && MenuGUI.Button(plate.name.Replace("Checkpoint_", "Plate: ")))
+                if (plate != null && MenuGUI.Button(plate.name.Replace("Checkpoint_", "Plate: "), Cell(perRow)))
                     Teleport(plate.transform.position + Vector3.up * 1.6f);
             }
             GUILayout.EndHorizontal();
@@ -309,7 +330,7 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
         string state = chase.IsRunning ? "running" : chase.IsFinished ? "over (rubble down)" : "waiting";
         GUILayout.Label($"{chase.name}: {state}   danger {chase.Danger01:0.00}", noteStyle);
         GUILayout.BeginHorizontal();
-        if (MenuGUI.Button("Go to its start") && chase.StartSpot(out Vector3 spot, out Vector3 vent))
+        if (MenuGUI.Button("Go to its start", Cell(4)) && chase.StartSpot(out Vector3 spot, out Vector3 vent))
         {
             Teleport(spot);
             if (swimmer != null)
@@ -318,9 +339,9 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
                 swimmer.SetLookAngles(look.x, look.y);
             }
         }
-        if (MenuGUI.Button("Start")) chase.Begin();
-        if (MenuGUI.Button("End (pack leaves)")) chase.End();
-        if (MenuGUI.Button("Reset")) chase.ResetChase();
+        if (MenuGUI.Button("Start", Cell(4))) chase.Begin();
+        if (MenuGUI.Button("End (pack leaves)", Cell(4))) chase.End();
+        if (MenuGUI.Button("Reset", Cell(4))) chase.ResetChase();
         GUILayout.EndHorizontal();
         if (MenuGUI.Button("Play the ending (credits)"))
         {
@@ -342,29 +363,29 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
         RequestedTimeScale = timeScale;   // applied by the pause menu when the game resumes
 
         GUILayout.BeginHorizontal();
-        if (MenuGUI.Button($"Unlock + open all doors ({doors.Length + doubleDoors.Length})"))
+        if (MenuGUI.Button($"Open all doors ({doors.Length + doubleDoors.Length})", Cell(3)))
         {
             foreach (Door door in doors)
                 if (door != null) { door.Unlock(); door.Open(); }
             foreach (DoubleDoor door in doubleDoors)
                 if (door != null) door.Open();
         }
-        if (MenuGUI.Button("Close all doors"))
+        if (MenuGUI.Button("Close all doors", Cell(3)))
         {
             foreach (Door door in doors)
                 if (door != null) door.Close();
             foreach (DoubleDoor door in doubleDoors)
                 if (door != null) door.Close();
         }
-        if (MenuGUI.Button($"Solve all puzzles ({puzzles.Length})"))
+        if (MenuGUI.Button($"Solve all puzzles ({puzzles.Length})", Cell(3)))
             foreach (PuzzleStation puzzle in puzzles)
                 if (puzzle != null) puzzle.SolveNow();
         GUILayout.EndHorizontal();
         GUILayout.BeginHorizontal();
-        if (MenuGUI.Button($"Drop all rubble ({rubble.Length})"))
+        if (MenuGUI.Button($"Drop all rubble ({rubble.Length})", Cell(2)))
             foreach (RubbleFall pile in rubble)
                 if (pile != null) pile.Drop();
-        if (MenuGUI.Button("Kill all fish"))
+        if (MenuGUI.Button("Kill all fish", Cell(2)))
             foreach (var d in FindObjectsByType<Damageable>(FindObjectsSortMode.None))
                 d.TakeDamage(d.MaxHealth);
         GUILayout.EndHorizontal();
@@ -375,8 +396,8 @@ public class AdminPanel : MonoBehaviour, IPauseMenuPage
         fishTint.g = LabeledSlider("G", fishTint.g);
         fishTint.b = LabeledSlider("B", fishTint.b);
         GUILayout.BeginHorizontal();
-        if (MenuGUI.Button("Apply to all fish")) TintAllFish(fishTint);
-        if (MenuGUI.Button("Reset")) { fishTint = Color.white; TintAllFish(fishTint); }
+        if (MenuGUI.Button("Apply to all fish", Cell(2))) TintAllFish(fishTint);
+        if (MenuGUI.Button("Reset", Cell(2))) { fishTint = Color.white; TintAllFish(fishTint); }
         GUILayout.EndHorizontal();
     }
 

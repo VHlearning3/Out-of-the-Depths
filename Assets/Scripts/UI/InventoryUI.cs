@@ -184,7 +184,7 @@ public class InventoryUI : MonoBehaviour
             icons[i].raycastTarget = false;
             icons[i].enabled = false;
 
-            monograms[i] = MakeText("Monogram", slot, TextAnchor.MiddleCenter, new Vector2(2f, 2f), styled ? Mathf.RoundToInt(slotSize * 0.26f) : monogramSize, styled ? FontStyle.Normal : FontStyle.Bold, textColor);
+            monograms[i] = MakeText("Monogram", slot, TextAnchor.MiddleCenter, new Vector2(2f, 2f), styled ? Mathf.RoundToInt(slotSize * 0.26f) : monogramSize, styled ? FontStyle.Normal : GameFont.Bold, textColor);
 
             Text key = MakeText("Key", slot, TextAnchor.UpperLeft, new Vector2(6f, 4f), styled ? Mathf.Max(8, Mathf.RoundToInt(slotSize * 0.19f)) : smallSize, FontStyle.Normal, new Color(1f, 1f, 1f, styled ? 0.4f : 0.45f));
             key.text = (i + 1).ToString();
@@ -200,7 +200,7 @@ public class InventoryUI : MonoBehaviour
             badges[i].color = selectedColor;
             badges[i].raycastTarget = false;
             badges[i].enabled = false;
-            counts[i] = MakeText("Count", badge, TextAnchor.MiddleCenter, Vector2.zero, smallSize, FontStyle.Bold, new Color(0.02f, 0.05f, 0.08f));
+            counts[i] = MakeText("Count", badge, TextAnchor.MiddleCenter, Vector2.zero, smallSize, GameFont.Bold, new Color(0.02f, 0.05f, 0.08f));
             if (styled)
                 Object.Destroy(counts[i].GetComponent<Shadow>());   // dark on a light pill: no shadow
         }

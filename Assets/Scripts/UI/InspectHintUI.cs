@@ -141,7 +141,7 @@ public class InspectHintUI : MonoBehaviour
         captionBody.horizontalOverflow = HorizontalWrapMode.Wrap;
         captionBody.alignment = TextAnchor.LowerCenter;
         PlaceCaption(captionBody.rectTransform, 12f, captionWidth, bodyHeight);
-        captionTitle = MakeText(transform, string.Empty, font, titleSize, FontStyle.Bold, captionColor);
+        captionTitle = MakeText(transform, string.Empty, font, titleSize, GameFont.Bold, captionColor);
         PlaceCaption(captionTitle.rectTransform, 12f + bodyHeight + 4f, captionWidth, titleSize + 10f);
     }
 
@@ -187,7 +187,7 @@ public class InspectHintUI : MonoBehaviour
 
         if (!string.IsNullOrEmpty(onIcon))
         {
-            Text key = MakeText(icon.transform, onIcon, font, Mathf.RoundToInt(iconHeight * 0.5f), FontStyle.Bold, color);
+            Text key = MakeText(icon.transform, onIcon, font, Mathf.RoundToInt(iconHeight * 0.5f), GameFont.Bold, color);
             var keyRect = key.rectTransform;
             keyRect.anchorMin = Vector2.zero;
             keyRect.anchorMax = Vector2.one;

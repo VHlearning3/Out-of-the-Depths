@@ -20,6 +20,9 @@ public class DoubleDoor : MonoBehaviour, IInteractable, IPromptTone
     [SerializeField] private float swingAngle = 95f;
     [Tooltip("Seconds for a full swing.")]
     [SerializeField] private float duration = 1.8f;
+    [Tooltip("E is ignored while the doors are moving and this many seconds after, so they cannot be spammed open and shut. Scripts and puzzles are not held back.")]
+    [SerializeField] private float useCooldown = 0.35f;
+    private float nextUseAt;
     [SerializeField] private AnimationCurve curve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
     [Tooltip("Swing away from whoever opens it, so the leaves never come at the player. Off = always toward -Z.")]
     [SerializeField] private bool swingAwayFromPlayer = true;
@@ -96,6 +99,9 @@ public class DoubleDoor : MonoBehaviour, IInteractable, IPromptTone
             HintPopup.Show(lockedHint, 2.5f);
             return;
         }
+        if (Time.time < nextUseAt)
+            return;   // still moving from the last press: no spamming
+        nextUseAt = Time.time + duration + useCooldown;
         if (!IsOpen && swingAwayFromPlayer && interactor != null)
             direction = SideOf(interactor.transform.position);
         SetOpen(!IsOpen);

@@ -569,6 +569,20 @@ public static class TestArenaBuilder
         instance.name = name;
         var door = instance.GetComponent<DoubleDoor>();
         SetField(door, "locked", p => p.boolValue = locked);
+        // Each leaf wears its half of the team's double door (Double_Doors), in place of the plain panel.
+        PrefabUtility.UnpackPrefabInstance(instance, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+        Material doubleMaterial = AssetDatabase.LoadAssetAtPath<Material>(DoorMaterialFolder + "M_double_doors.mat");
+        foreach (var (leafName, part, panelX) in new[] { ("Leaf_Left", 0, 1.2f), ("Leaf_Right", 1, -1.2f) })
+        {
+            Transform leaf = instance.transform.Find(leafName);
+            if (leaf == null)
+                continue;
+            Transform panel = leaf.Find("Visual");
+            if (panel != null)
+                Object.DestroyImmediate(panel.gameObject);
+            Transform visual = FittedModel(leaf, "Visual", "Double_Doors", part, doubleMaterial, new Vector3(panelX, 2f, 0f), new Vector3(2.4f, 4f, 0.15f), new Color(0.4f, 0.26f, 0.16f));
+            visual.SetAsFirstSibling();
+        }
         FramePiece("Frame_Post", centre, rotation, new Vector3(-2.6f, 2.2f, 0f), new Vector3(0.4f, 4.4f, 0.5f), parent);
         FramePiece("Frame_Post", centre, rotation, new Vector3(2.6f, 2.2f, 0f), new Vector3(0.4f, 4.4f, 0.5f), parent);
         FramePiece("Frame_Top", centre, rotation, new Vector3(0f, 4.2f, 0f), new Vector3(5.6f, 0.4f, 0.5f), parent);
@@ -709,10 +723,22 @@ public static class TestArenaBuilder
 
     // The Door_Placeholder prefab (made on first use) at a hinge point, with a frame around the 2 x 3 opening.
     // yaw turns the whole thing: 0 = the door spans +X and you pass through along Z, 90 = it spans -Z and you pass along X.
-    internal static Door SpawnDoor(string name, Vector3 hinge, bool locked, bool closeBehind, Transform parent, float yaw = 0f)
+    // Which of the team's door models a door wears (Assets/Prefabs: Single_Door, Single_Door_With_Lock, Slide_Up_Door 1)
+    // and so how it moves: the plain and the lock door swing on their hinge, the slide-up door slides up.
+    internal enum DoorLook { Plain, Lock, SlideUp }
+
+    private const string DoorModelFolder = "Assets/Prefabs/";
+    private const string DoorMaterialFolder = "Assets/Prefabs/Door models and textures/";
+
+    // A door, its hinge at `hinge` (the leaf spans +X from it, 2 x 3 m). Look: which model; left out, a door that locks
+    // or shuts behind you (a puzzle's or a one-way door) slides up, any other door swings (the plain single door).
+    internal static Door SpawnDoor(string name, Vector3 hinge, bool locked, bool closeBehind, Transform parent, float yaw = 0f, DoorLook? look = null)
     {
         GameObject prefab = EnsureDoorPrefab();
         var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent.gameObject.scene);
+        // Its own object from here on: the look is built into it (the prefab keeps whatever visual it has, for doors
+        // placed by hand).
+        PrefabUtility.UnpackPrefabInstance(instance, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
         instance.transform.SetParent(parent, true);
         Quaternion rotation = Quaternion.Euler(0f, yaw, 0f);
         instance.transform.SetPositionAndRotation(hinge, rotation);
@@ -722,10 +748,119 @@ public static class TestArenaBuilder
         SetField(door, "locked", p => p.boolValue = locked);
         SetField(door, "closeBehindPlayer", p => p.boolValue = closeBehind);
 
+        DoorLook wears = look ?? (locked || closeBehind ? DoorLook.SlideUp : DoorLook.Plain);
+        for (int i = instance.transform.childCount - 1; i >= 0; i--)
+            Object.DestroyImmediate(instance.transform.GetChild(i).gameObject);
+        string model = wears == DoorLook.SlideUp ? "Slide_Up_Door 1" : wears == DoorLook.Lock ? "Single_Door_With_Lock" : "Single_Door";
+        Material material = wears == DoorLook.SlideUp ? null : AssetDatabase.LoadAssetAtPath<Material>(DoorMaterialFolder + "Material_single_door.mat");
+        Transform visual = FittedModel(instance.transform, "Visual", model, -1, material, new Vector3(1f, 1.5f, 0f), new Vector3(2f, 3f, 0.15f), new Color(0.45f, 0.3f, 0.2f));
+        // The hinged models have their knob on the edge they would hinge on here: mirrored (left to right, round the
+        // leaf's middle, still facing the same way) so the knob is on the edge that swings.
+        Transform fitted = wears != DoorLook.SlideUp ? visual.Find("Fit") : null;
+        if (fitted != null)
+        {
+            fitted.localScale = Vector3.Scale(fitted.localScale, new Vector3(-1f, 1f, 1f));
+            fitted.localPosition = Vector3.Scale(fitted.localPosition, new Vector3(-1f, 1f, 1f));
+        }
+        SetField(door, "visual", p => p.objectReferenceValue = visual);
+        SetField(door, "motion", p => p.enumValueIndex = (int)(wears == DoorLook.SlideUp ? Door.Motion.Slide : Door.Motion.Swing));
+
         FramePiece("Frame_Post", hinge, rotation, new Vector3(-0.2f, 1.5f, 0f), new Vector3(0.4f, 3f, 0.5f), parent);
         FramePiece("Frame_Post", hinge, rotation, new Vector3(2.2f, 1.5f, 0f), new Vector3(0.4f, 3f, 0.5f), parent);
         FramePiece("Frame_Top", hinge, rotation, new Vector3(1f, 3.2f, 0f), new Vector3(2.8f, 0.4f, 0.5f), parent);   // as deep as a wall, so no cut face shows beside the frame
         return door;
+    }
+
+    // A door model (a prefab in Door Model Folder) fitted into a leaf: a "Visual" under `parent`, its middle at `centre`,
+    // the model stretched to fill `size` across and up (the leaf; its depth scaled along in proportion), turned so its
+    // thin side faces through the doorway, with a solid box collider the size of the leaf (the model's own colliders
+    // go). Part = which piece of a model with several (the double doors' two leaves, left to right), -1 = all of it.
+    // No model found: the plain placeholder panel, as before.
+    internal static Transform FittedModel(Transform parent, string name, string modelPrefab, int part, Material material, Vector3 centre, Vector3 size, Color fallback)
+    {
+        var visual = new GameObject(name).transform;
+        visual.SetParent(parent, false);
+        visual.localPosition = centre;
+        var solid = visual.gameObject.AddComponent<BoxCollider>();
+
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(DoorModelFolder + modelPrefab + ".prefab");
+        if (prefab == null)
+        {
+            Debug.LogWarning($"Door model {DoorModelFolder}{modelPrefab}.prefab not found: {parent.name} gets the plain panel.");
+            GameObject panel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            Object.DestroyImmediate(panel.GetComponent<Collider>());
+            panel.name = "Panel";
+            panel.transform.SetParent(visual, false);
+            panel.transform.localScale = size;
+            panel.AddComponent<RendererTint>().Tint = fallback;
+            solid.size = size;
+            return visual;
+        }
+
+        // visual > Fit (stretches, along the leaf's own axes) > Turn (quarter turns only) > the model as its prefab has it.
+        var fit = new GameObject("Fit").transform;
+        fit.SetParent(visual, false);
+        var turn = new GameObject("Turn").transform;
+        turn.SetParent(fit, false);
+        var model = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+        PrefabUtility.UnpackPrefabInstance(model, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+        model.transform.SetParent(turn, false);
+        model.transform.localPosition = Vector3.zero;
+        foreach (Collider c in model.GetComponentsInChildren<Collider>(true))
+            Object.DestroyImmediate(c);
+
+        // Only the one piece (left to right as the model stands).
+        if (part >= 0)
+        {
+            var pieces = new System.Collections.Generic.List<Renderer>(model.GetComponentsInChildren<Renderer>(true));
+            pieces.Sort((a, b) => visual.InverseTransformPoint(a.bounds.center).x.CompareTo(visual.InverseTransformPoint(b.bounds.center).x));
+            for (int i = 0; i < pieces.Count; i++)
+                if (i != part && pieces[i].gameObject != model)
+                    Object.DestroyImmediate(pieces[i].gameObject);
+        }
+        if (material != null)
+            foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true))
+                r.sharedMaterial = material;
+
+        // Its thin side through the doorway (along Z): a model lying the other way is turned a quarter.
+        Bounds b = LocalBounds(model, visual);
+        if (b.size.x < b.size.z * 0.8f)
+        {
+            turn.localRotation = Quaternion.Euler(0f, 90f, 0f);
+            b = LocalBounds(model, visual);
+        }
+        if (b.size.x < 0.0001f || b.size.y < 0.0001f)
+            return visual;
+        float across = size.x / b.size.x, up = size.y / b.size.y;
+        fit.localScale = new Vector3(across, up, Mathf.Sqrt(across * up));
+        b = LocalBounds(model, visual);
+        fit.localPosition = -b.center;   // centred on the leaf's middle
+        solid.size = new Vector3(size.x, size.y, Mathf.Max(size.z, b.size.z));
+        return visual;
+    }
+
+    // The renderers' box in `space` (from their meshes' own bounds, so it is exact whatever the rotations).
+    private static Bounds LocalBounds(GameObject model, Transform space)
+    {
+        bool any = false;
+        var result = new Bounds();
+        foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true))
+        {
+            Bounds own = r.localBounds;
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 corner = own.center + Vector3.Scale(own.extents, new Vector3((i & 1) == 0 ? -1f : 1f, (i & 2) == 0 ? -1f : 1f, (i & 4) == 0 ? -1f : 1f));
+                Vector3 p = space.InverseTransformPoint(r.transform.TransformPoint(corner));
+                if (!any)
+                {
+                    result = new Bounds(p, Vector3.zero);
+                    any = true;
+                }
+                else
+                    result.Encapsulate(p);
+            }
+        }
+        return result;
     }
 
     private static void FramePiece(string name, Vector3 hinge, Quaternion rotation, Vector3 offset, Vector3 size, Transform parent)
@@ -1131,7 +1266,7 @@ public static class TestArenaBuilder
         float pad = padding / scale;
         float titleRows = titleHeight / scale;
 
-        RectTransform titleRect = SignText(face.transform, "Title", title.ToUpperInvariant(), titleFont, FontStyle.Bold, SignAccent, TextAnchor.MiddleCenter);
+        RectTransform titleRect = SignText(face.transform, "Title", title.ToUpperInvariant(), titleFont, GameFont.Bold, SignAccent, TextAnchor.MiddleCenter);
         titleRect.anchorMin = new Vector2(0f, 1f);
         titleRect.anchorMax = new Vector2(1f, 1f);
         titleRect.pivot = new Vector2(0.5f, 1f);

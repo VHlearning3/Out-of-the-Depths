@@ -104,7 +104,7 @@ public class FishHealthDisplay : MonoBehaviour
         }
         if (numberStyle == null)
         {
-            numberStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, wordWrap = false, clipping = TextClipping.Overflow };
+            numberStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = GameFont.Bold, wordWrap = false, clipping = TextClipping.Overflow };
             numberStyle.normal.textColor = Color.white;
             numberStyle.font = GameFont.Font;
         }

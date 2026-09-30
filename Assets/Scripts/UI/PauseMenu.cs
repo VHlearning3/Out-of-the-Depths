@@ -745,8 +745,9 @@ public class PauseMenu : MonoBehaviour
         // The page fades and rises in on a page change.
         float pageEase = 1f - Mathf.Pow(1f - pageVisibility, 3f);
         GUI.color = new Color(1f, 1f, 1f, ease * pageEase);
-        Vector2 result = GUILayout.BeginScrollView(new Vector2(0f, scrollNow));
-        GUILayout.BeginVertical();
+        // Up and down only: a page never scrolls sideways, it is held to the view's width (rows of buttons share it).
+        Vector2 result = GUILayout.BeginScrollView(new Vector2(0f, scrollNow), false, false, GUIStyle.none, GUI.skin.verticalScrollbar);
+        GUILayout.BeginVertical(GUILayout.Width(Mathf.Max(0f, area.width - GUI.skin.verticalScrollbar.fixedWidth - GUI.skin.verticalScrollbar.margin.horizontal - 6f)));
         GUILayout.Space((1f - pageEase) * 12f);
         if (pages.Count > 0)
             DrawPageSafely(pages[pageIndex]);
@@ -916,10 +917,10 @@ public class PauseMenu : MonoBehaviour
         skin.textField.border = new RectOffset(8, 8, 8, 8);
         skin.textField.padding = new RectOffset(12, 12, 8, 8);
 
-        titleStyle = new GUIStyle(skin.label) { fontSize = T.titleFontSize, fontStyle = FontStyle.Bold, wordWrap = false };
+        titleStyle = new GUIStyle(skin.label) { fontSize = T.titleFontSize, fontStyle = GameFont.Bold, wordWrap = false };
         titleStyle.normal.textColor = Color.white;
         titleStyle.padding = new RectOffset(Px(22f * sp), 4, 0, 0);
-        pageTitleStyle = new GUIStyle(skin.label) { fontSize = T.pageTitleFontSize, fontStyle = FontStyle.Bold, wordWrap = false };
+        pageTitleStyle = new GUIStyle(skin.label) { fontSize = T.pageTitleFontSize, fontStyle = GameFont.Bold, wordWrap = false };
         pageTitleStyle.normal.textColor = Color.white;
         noteStyle = new GUIStyle(skin.label) { fontSize = T.noteFontSize, wordWrap = false };
         noteStyle.normal.textColor = T.mutedColor;
@@ -947,7 +948,7 @@ public class PauseMenu : MonoBehaviour
         navStyle.onFocused.background = null;
         navStyle.onFocused.textColor = Color.white;
 
-        resumeStyle = new GUIStyle(skin.button) { fontSize = T.buttonFontSize + 2, fontStyle = FontStyle.Bold, fixedHeight = 46f };
+        resumeStyle = new GUIStyle(skin.button) { fontSize = T.buttonFontSize + 2, fontStyle = GameFont.Bold, fixedHeight = 46f };
         SetBackgrounds(resumeStyle, pillOn, pillOn, Rounded(36, T.buttonCorner, Color.white, Color.clear, 0f), pillOn);
         resumeStyle.normal.textColor = Color.black;
         resumeStyle.hover.textColor = Color.black;
@@ -983,7 +984,7 @@ public class PauseMenu : MonoBehaviour
         footQuietStyle = new GUIStyle(quietStyle) { fixedHeight = 44f, margin = new RectOffset(0, 0, 1, 1) };
         footDangerStyle = new GUIStyle(dangerStyle) { fixedHeight = 44f, margin = new RectOffset(0, 0, 1, 1) };
 
-        var sectionStyle = new GUIStyle(skin.label) { fontSize = T.sectionFontSize, fontStyle = FontStyle.Bold, wordWrap = false };
+        var sectionStyle = new GUIStyle(skin.label) { fontSize = T.sectionFontSize, fontStyle = GameFont.Bold, wordWrap = false };
         sectionStyle.normal.textColor = T.accent;
         sectionStyle.padding = new RectOffset(2, 2, 2, 2);
         var rowLabelStyle = new GUIStyle(skin.label) { fontSize = T.bodyFontSize, alignment = TextAnchor.MiddleLeft, fixedHeight = MenuGUI.RowHeight, wordWrap = false };
@@ -996,7 +997,7 @@ public class PauseMenu : MonoBehaviour
         var switchStyle = new GUIStyle { fixedWidth = 52f, fixedHeight = 28f };
         switchStyle.margin = new RectOffset(0, 0, switchGap, switchGap);
 
-        var keyStyle = new GUIStyle(skin.button) { fontSize = T.buttonFontSize, fontStyle = FontStyle.Bold, fixedHeight = 32f };
+        var keyStyle = new GUIStyle(skin.button) { fontSize = T.buttonFontSize, fontStyle = GameFont.Bold, fixedHeight = 32f };
         SetBackgrounds(keyStyle, key, key, keyListen, key);
         keyStyle.border = new RectOffset(10, 10, 10, 10);
         keyStyle.padding = new RectOffset(14, 14, 0, 0);

@@ -973,7 +973,7 @@ public class ChaseSequence : MonoBehaviour
             float t = (Time.unscaledTime - runTextAt) / runTextSeconds;
             if (runTextStyle == null)
             {
-                runTextStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, font = GameFont.Font };
+                runTextStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = GameFont.Bold, font = GameFont.Font };
                 runTextStyle.normal.textColor = Color.white;
             }
             runTextStyle.fontSize = Mathf.RoundToInt(Screen.height * 0.075f * (1f + 0.25f * (1f - Ease.OutCubic(Mathf.Clamp01(t * 4f)))));

@@ -28,6 +28,8 @@ public class Door : MonoBehaviour, IInteractable, IPromptTone
     [SerializeField] private bool swingAwayFromPlayer = true;
     [Tooltip("Seconds for the full travel.")]
     [SerializeField] private float duration = 1f;
+    [Tooltip("E is ignored while the door is moving and this many seconds after, so it cannot be spammed open and shut. Scripts and puzzles are not held back.")]
+    [SerializeField] private float useCooldown = 0.35f;
     [Tooltip("Shape of the opening move (x = time 0..1, y = how far along 0..1). Default eases in and out, like something heavy being pushed.")]
     [SerializeField] private AnimationCurve openCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
     [Tooltip("Shape of the closing move. Default starts slow and picks up speed, like a hatch dropping under its own weight.")]
@@ -100,8 +102,29 @@ public class Door : MonoBehaviour, IInteractable, IPromptTone
 
     public bool IsOpen { get; private set; }
     public bool IsLocked => locked;
-    public string Prompt => locked ? openPrompt + " (locked)" : IsOpen ? closePrompt : openPrompt;
-    public PromptTone Tone => locked ? PromptTone.Blocked : PromptTone.Normal;
+    // A lock built into the door (an Item Socket on the door or under it, e.g. the key lock on the first room's door):
+    // while the door is locked and the lock still wants its key, the door is the lock. E on any part of it, its prompt
+    // and its red / green colour are the lock's, so the key works wherever the aim lands on the door.
+    private ItemSocket KeyLock
+    {
+        get
+        {
+            if (!locked || lockedBehind)
+                return null;
+            if (!lookedForLock)
+            {
+                lookedForLock = true;
+                keyLock = GetComponentInChildren<ItemSocket>(true);
+            }
+            return keyLock != null && keyLock.isActiveAndEnabled && !keyLock.IsFilled ? keyLock : null;
+        }
+    }
+    private ItemSocket keyLock;
+    private bool lookedForLock;
+    private float nextUseAt;   // E works again from here (see Use Cooldown)
+
+    public string Prompt => KeyLock != null ? KeyLock.Prompt : locked ? openPrompt + " (locked)" : IsOpen ? closePrompt : openPrompt;
+    public PromptTone Tone => KeyLock != null ? KeyLock.Tone : locked ? PromptTone.Blocked : PromptTone.Normal;
 
     private Vector3 closedPosition;
     private Quaternion closedRotation;
@@ -163,12 +186,23 @@ public class Door : MonoBehaviour, IInteractable, IPromptTone
         if (!interactable)
             return;
 
+        if (KeyLock != null)
+        {
+            KeyLock.Interact(interactor);
+            return;
+        }
+
         if (locked)
         {
             Play(lockedSound);
             HintPopup.Show(lockedBehind ? "It won't open from this side." : lockedHint, 2.5f);
             return;
         }
+
+        // Still moving from the last press (or only just stopped): no spamming it open and shut.
+        if (Time.time < nextUseAt)
+            return;
+        nextUseAt = Time.time + duration + useCooldown;
 
         // Opening: swing toward the side the player is NOT on. Closing keeps the same arc.
         if (!IsOpen && swingAwayFromPlayer && motion == Motion.Swing)

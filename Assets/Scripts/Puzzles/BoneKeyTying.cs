@@ -1203,7 +1203,7 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
         boardStyle.normal.background = boardTex;
         barStyle = new GUIStyle { border = new RectOffset(8, 8, 8, 8) };
         barStyle.normal.background = barTex;
-        titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 28, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = false };
+        titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 28, fontStyle = GameFont.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = false };
         titleStyle.normal.textColor = textColor;
         hintStyle = new GUIStyle(GUI.skin.label) { fontSize = 17, alignment = TextAnchor.MiddleCenter, wordWrap = true };
         hintStyle.normal.textColor = new Color(0.7f, 0.88f, 0.84f);
@@ -1211,9 +1211,9 @@ public class BoneKeyTying : MonoBehaviour, IInteractable
         footStyle.normal.textColor = new Color(0.42f, 0.6f, 0.58f);
         footStyle.alignment = TextAnchor.MiddleLeft;
         footRightStyle = new GUIStyle(footStyle) { alignment = TextAnchor.MiddleRight };
-        subtitleStyle = new GUIStyle(GUI.skin.label) { fontSize = 22, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+        subtitleStyle = new GUIStyle(GUI.skin.label) { fontSize = 22, fontStyle = GameFont.Bold, alignment = TextAnchor.MiddleCenter };
         subtitleStyle.normal.textColor = Color.white;
-        stateStyle = new GUIStyle(GUI.skin.label) { fontSize = 15, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = false };
+        stateStyle = new GUIStyle(GUI.skin.label) { fontSize = 15, fontStyle = GameFont.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = false };
         stateStyle.normal.textColor = Color.white;
 
         // The same font as the rest of the game.

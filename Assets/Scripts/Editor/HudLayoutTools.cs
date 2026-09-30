@@ -130,7 +130,7 @@ public static class HudLayoutTools
             element.preferredWidth = 36f;
             element.preferredHeight = 36f;
             Text keyText = NewText("E", keycap, font, 22, TextAnchor.MiddleCenter);
-            keyText.fontStyle = FontStyle.Bold;
+            keyText.fontStyle = GameFont.Bold;
             Stretch(keyText.rectTransform);
 
             if (label != null)

@@ -451,11 +451,22 @@ public static class ShipGreyboxBuilder
             UnityEditor.Events.UnityEventTools.AddBoolPersistentListener(drawer.onOpened, key.SetActive, true);
         }
 
-        // The one-way door: unlocked by the key (lock box beside it), shuts and locks behind you.
-        Door oneWay = DoorZ("Door_Room1_Exit", -12.25f, 24f, true, true, room);
-        SetField(oneWay, "lockedHint", p => p.stringValue = "Locked. The lock box beside it takes the key hidden in this room.");
-        GameObject lockBox = Box("Lock_FirstRoomKey", new Vector3(-12.6f, 1.3f, 23.4f), new Vector3(0.25f, 0.5f, 0.5f), new Color(0.8f, 0.7f, 0.3f), room);
-        OpenOnFilled(Socket(lockBox, "Item_FirstRoomKey", 1, true, "unlock with", null, null), oneWay);
+        // The one-way door: the key goes straight into the lock on the door (the door with the lock); it swings open,
+        // then shuts and locks behind you. The lock is a see-through area over the door's face (both sides), moving with
+        // it: aim anywhere on the door, E with the key in hand. Once the key is in it switches off, and E is the door's.
+        Door oneWay = DoorZ("Door_Room1_Exit", -12.25f, 24f, true, true, room, DoorLook.Lock);
+        SetField(oneWay, "lockedHint", p => p.stringValue = "Locked. The key to it is hidden somewhere in this room.");
+        Transform doorFace = oneWay.transform.Find("Visual");
+        var keyLock = new GameObject("Lock_FirstRoomKey");
+        keyLock.transform.SetParent(doorFace != null ? doorFace : oneWay.transform, false);
+        var lockArea = keyLock.AddComponent<BoxCollider>();
+        lockArea.isTrigger = true;
+        // The door's own solid box (as deep as the model, padlock and all) and 20 cm proud of both faces, so the aim
+        // reaches the lock before the door.
+        BoxCollider solid = doorFace != null ? doorFace.GetComponent<BoxCollider>() : null;
+        lockArea.center = solid != null ? solid.center : Vector3.zero;
+        lockArea.size = (solid != null ? solid.size : new Vector3(2f, 3f, 0.15f)) + new Vector3(0.02f, 0.02f, 0.4f);
+        OpenOnFilled(Socket(keyLock, "Item_FirstRoomKey", 1, true, "unlock with", null, null), oneWay);
 
         CreateSchool("Fish_Wanderer", 3, new Vector3(-22f, 2.5f, 18f), room);
         Spawn("DeadFish", new Vector3(-16f, 1f, 14f), room, 30f);
@@ -1702,13 +1713,13 @@ public static class ShipGreyboxBuilder
     }
 
     // A door in a wall along X at z, its gap starting at gapStart (the wall must have the matching gap).
-    private static Door DoorX(string name, float z, float gapStart, bool locked, bool closeBehind, Transform parent) =>
-        SpawnDoor(name, new Vector3(gapStart + 0.4f, 0f, z), locked, closeBehind, parent, 0f);
+    private static Door DoorX(string name, float z, float gapStart, bool locked, bool closeBehind, Transform parent, DoorLook? look = null) =>
+        SpawnDoor(name, new Vector3(gapStart + 0.4f, 0f, z), locked, closeBehind, parent, 0f, look);
 
     // A door in a wall along Z at x: the door spans -Z from its hinge, so the hinge sits 0.4 m (a frame post) short
     // of the gap's far end and the frame fills the gap exactly.
-    private static Door DoorZ(string name, float x, float gapStart, bool locked, bool closeBehind, Transform parent) =>
-        SpawnDoor(name, new Vector3(x, 0f, gapStart + DoorGap - 0.4f), locked, closeBehind, parent, 90f);
+    private static Door DoorZ(string name, float x, float gapStart, bool locked, bool closeBehind, Transform parent, DoorLook? look = null) =>
+        SpawnDoor(name, new Vector3(x, 0f, gapStart + DoorGap - 0.4f), locked, closeBehind, parent, 90f, look);
 
     private static void Slab(string name, float x1, float z1, float x2, float z2, float top, Transform parent)
     {

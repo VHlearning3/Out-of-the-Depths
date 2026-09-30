@@ -41,13 +41,13 @@ MonoBehaviour:
   panelCorner: 26
   buttonCorner: 10
   font: {fileID: 0}
-  titleFontSize: 30
-  pageTitleFontSize: 24
-  navFontSize: 17
-  bodyFontSize: 15
-  buttonFontSize: 14
-  noteFontSize: 13
-  sectionFontSize: 12
+  titleFontSize: 26
+  pageTitleFontSize: 21
+  navFontSize: 15
+  bodyFontSize: 13
+  buttonFontSize: 12
+  noteFontSize: 11
+  sectionFontSize: 11
   fadeSeconds: 0.28
   riseDistance: 24
   startScale: 0.96
