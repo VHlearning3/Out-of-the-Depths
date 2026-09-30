@@ -61,7 +61,7 @@ public class SlashAttack : MonoBehaviour
     [Tooltip("Camera jolt when a slash connects (0..1), a bit more for each extra thing it cuts.")]
     [SerializeField, Range(0f, 1f)] private float hitShake = 0.18f;
     [Tooltip("Until the hand art shows the slashes: a see-through ribbon over the area each slash sweeps (Slash Trail, added at start), warm when it cuts something.")]
-    [SerializeField] private bool placeholderTrail = true;
+    [SerializeField] private bool placeholderTrail = false;
 
     [Header("Hit Feedback")]
     [SerializeField] private AudioClip hitSound;
@@ -118,6 +118,18 @@ public class SlashAttack : MonoBehaviour
         // The weapon's real model in the hand (dagger, trident) in place of the placeholder stick.
         if (handAnimator != null && handAnimator.GetComponent<HeldWeapon>() == null)
             handAnimator.gameObject.AddComponent<HeldWeapon>().Setup(inventory, weaponVisual);
+
+        // The hand-drawn slash frames (Resources/SlashSprites) play over the view for the dagger; any other weapon keeps
+        // the hand animator's own swing (Sprite Slash Animator passes those on to it).
+        var drawn = Resources.Load<SlashSprites>("SlashSprites");
+        if (drawn != null && handAnimator != null && hands != null)
+        {
+            var sprite = handAnimator.GetComponent<SpriteSlashAnimator>();
+            if (sprite == null)
+                sprite = handAnimator.gameObject.AddComponent<SpriteSlashAnimator>();
+            sprite.Setup(drawn, hands, handAnimator.GetComponent<HeldWeapon>(), inventory);
+            hands = sprite;
+        }
 
         if (handAnimator != null && hands == null)
             Debug.LogError($"{name}: Hand Animator must implement IHandAnimator.", this);

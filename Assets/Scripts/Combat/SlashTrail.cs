@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -8,6 +9,8 @@ using UnityEngine.Rendering;
 // is what you attack. (Not the swept plane itself: that passes through the eye, so on screen it has no width.)
 // Drawn straight onto the screen in OnGUI with GL, over everything, the way the rest of the game's IMGUI is drawn.
 // Added to the player by Slash Attack (Placeholder Trail); switch that off once the hands show the slashes.
+// While the hand-drawn slash plays (Sprite Slash Animator, with the dagger) the ribbon follows the drawn blade's tip
+// through the frames instead, so it streaks behind the drawing.
 public class SlashTrail : MonoBehaviour
 {
     [Tooltip("How far out along the reach the path is drawn (0..1): where most things get hit.")]
@@ -33,6 +36,9 @@ public class SlashTrail : MonoBehaviour
     private static Material lineMaterial;
 
     private SlashAttack slash;
+    private SpriteSlashAnimator drawn;
+    private readonly List<Vector2> drawnPoints = new List<Vector2>();
+    private readonly List<float> drawnAlong = new List<float>();
     private Camera view;
     private Vector2[] path = new Vector2[0];
     private float[] along = new float[0];
@@ -124,6 +130,24 @@ public class SlashTrail : MonoBehaviour
         Vector3 across = direction == SlashAttack.Direction.LeftRight ? slash.Origin.up : slash.Origin.right;
         Vector3 a = view.WorldToScreenPoint(middle), b = view.WorldToScreenPoint(middle + across * slash.BladeRadius);
         halfWidth = Mathf.Max(a.z > 0f && b.z > 0f ? Vector2.Distance(a, b) * bandWidth : 0f, minWidth * 0.5f * scale);
+
+        // The hand-drawn slash is showing: follow its blade instead.
+        if (drawn == null)
+            drawn = GetComponentInChildren<SpriteSlashAnimator>(true);
+        if (drawn != null && drawn.BladePath(drawnPoints, drawnAlong))
+        {
+            if (path.Length < drawnPoints.Count)
+            {
+                path = new Vector2[drawnPoints.Count];
+                along = new float[drawnPoints.Count];
+            }
+            for (int i = 0; i < drawnPoints.Count; i++)
+            {
+                path[i] = new Vector2(drawnPoints[i].x, Screen.height - drawnPoints[i].y);   // GL in OnGUI counts from the top
+                along[i] = drawnAlong[i];
+            }
+            used = drawnPoints.Count;
+        }
 
         if (logSlashes && !logged && used >= 2)
         {

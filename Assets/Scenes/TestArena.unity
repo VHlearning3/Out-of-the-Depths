@@ -3983,6 +3983,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 163572559}
+  - component: {fileID: 902900001}
   - component: {fileID: 900100007}
   - component: {fileID: 901700007}
   - component: {fileID: 901700008}
@@ -24441,7 +24442,7 @@ MonoBehaviour:
   swingVolume: 0.3
   pitchVariation: 0.12
   hitShake: 0.18
-  placeholderTrail: 1
+  placeholderTrail: 0
   hitSound: {fileID: 8300000, guid: bf7bfda6a0c6c52f61d011b4b2db4c6a, type: 3}
   hitVolume: 0.6
   hitMarker: {fileID: 900300005}
@@ -55549,3 +55550,15 @@ SceneRoots:
   - {fileID: 901000002}
   - {fileID: 901200002}
   - {fileID: 1003098295}
+--- !u!114 &902900001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 163572558}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: db052d83f7af4460ad3ddc18acee5595, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerManager

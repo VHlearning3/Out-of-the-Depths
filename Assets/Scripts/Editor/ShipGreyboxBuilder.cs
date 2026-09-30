@@ -45,6 +45,16 @@ public static class ShipGreyboxBuilder
 
     // The hatch through the deck: room 3 down to the basement (room 5 is reached through the Chest Window instead).
     private static readonly Rect HatchFish = new Rect(-27f, 40.25f, 2f, 2f);
+    // The box room's three pressure plates sit in these shallow pits in the deck (a row east of the treasure room's
+    // door): a box pushed over one drops in and stays. Plate Pit Depth deep; the plates (hand-placed, Pressure Plate
+    // prefab) lie on the pit floors.
+    private static readonly Rect[] PlatePits =
+    {
+        new Rect(-4.7f, 9.3f, 1.4f, 1.4f),
+        new Rect(-4.7f, 11.5f, 1.4f, 1.4f),
+        new Rect(-4.7f, 13.7f, 1.4f, 1.4f),
+    };
+    private const float PlatePitDepth = 0.3f;
     // The window you swim through from the middle room into the chest room: in the wall between them (z 38.25), just
     // east of the bone key double door, clear of the pillar in the middle room's north-east corner (x from, x to, sill
     // height, top).
@@ -96,6 +106,13 @@ public static class ShipGreyboxBuilder
         ItemTools.EnsureItemDefinitions();
 
         Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        // Work done by hand inside the old ship (the box room's plates and box, a script put on a door) is lifted out
+        // first and put back at the end (Hand Made Keeper).
+        GameObject oldShip = null;
+        foreach (GameObject root in scene.GetRootGameObjects())
+            if (root.name == RootName)
+                oldShip = root;
+        HandMadeKeeper.Kept handMade = HandMadeKeeper.Lift(oldShip != null ? oldShip.transform : null);
         RemoveOldShip(scene);
         RemoveStrayPlaceholders(scene);
         ship = new GameObject(RootName).transform;
@@ -134,6 +151,7 @@ public static class ShipGreyboxBuilder
         Step("Sun and surface", BuildSunAndSurface);
         Step("Clearance check", CheckClearance);
         Step("Map bounds", SetMapBounds);
+        Step("Hand-made work", () => HandMadeKeeper.PutBack(handMade, ship));
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -162,7 +180,9 @@ public static class ShipGreyboxBuilder
     private static void BuildDecks()
     {
         Transform decks = Group("Decks");
-        SlabWithHoles("Deck", HullW, HullS, HullE, BasementN, 0f, new[] { HatchFish }, decks);
+        var deckHoles = new List<Rect> { HatchFish };
+        deckHoles.AddRange(PlatePits);
+        SlabWithHoles("Deck", HullW, HullS, HullE, BasementN, 0f, deckHoles.ToArray(), decks);
         Slab("Deck_N", HullW, BasementN, HullE, HullN, 0f, decks);
         Slab("BasementFloor", HullW, HullS, HullE, BasementN, BasementFloor, decks);
     }
@@ -1076,17 +1096,37 @@ public static class ShipGreyboxBuilder
     private static void BuildBoxRoom()
     {
         Transform room = Group("Room_7_BoxRoom");
-        Deck(room, -12.25f, 8.5f, 7f, 19.75f, 0f, Room7Yellow);    // west of the stone room: up to the middle room's wall
+        Deck(room, -12.25f, 8.5f, 7f, 19.75f, 0f, Room7Yellow, PlatePits);    // west of the stone room: up to the middle room's wall
         Deck(room, 7f, 8.5f, 19.75f, 21.5f, 0f, Room7Yellow);      // east: up to the stone room's wall
 
-        // The closet: x 15..19.75, z 8.5..12.5, its door in its north wall.
-        WallZ("Closet_W", 15f, 8.5f, 12.5f, room);
-        WallX("Closet_N", 12.5f, 15f, 19.75f, room, 16f, 16f + DoorGap);
-        DoorX("Door_Closet", 12.5f, 16f, false, false, room);   // unlocked until the box puzzle is in
-        Box("OpenChest", new Vector3(17.4f, 0.4f, 10f), new Vector3(1.4f, 0.8f, 0.9f), Wood, room);
-        PickupVariant(CreatePickup(new Vector3(17.4f, 1.1f, 10f), "Item_BoneKeyFragment", room), 2);
+        // The pits for the pressure plates: the deck is cut away over each (Plate Pits), a floor Plate Pit Depth down.
+        for (int i = 0; i < PlatePits.Length; i++)
+        {
+            Rect pit = PlatePits[i];
+            float floorTop = -PlatePitDepth, floorBottom = -SlabT;
+            Box("PlatePit_" + (i + 1), new Vector3(pit.center.x, (floorTop + floorBottom) * 0.5f, pit.center.y),
+                new Vector3(pit.width, floorTop - floorBottom, pit.height), new Color(0.22f, 0.2f, 0.18f), room);
+        }
+
+        // The treasure room: the south-west corner, x -12.25..-7, z 8.5..13.5, its sliding door in its east wall
+        // facing the plates. Locked: the three plates open it (the Secret Door Manager a teammate put on Door_Closet).
+        WallZ("Closet_E", -7f, 8.5f, 13.5f, room, 9.5f, 9.5f + DoorGap);
+        WallX("Closet_N", 13.5f, -12.25f, -7f, room);
+        Door closet = DoorZ("Door_Closet", -7f, 9.5f, true, false, room);
+        SetField(closet, "lockedHint", p => p.stringValue = "It won't budge. Something out here must work it.");
+        Box("OpenChest", new Vector3(-10.9f, 0.4f, 11f), new Vector3(0.9f, 0.8f, 1.4f), Wood, room);
+        PickupVariant(CreatePickup(new Vector3(-10.9f, 1.1f, 11f), "Item_BoneKeyFragment", room), 2);
 
         CreateSchool("Fish_Wanderer", 3, new Vector3(-5f, 2.5f, 15f), room);
+
+        // The pushing tip: shown the first time the player swims into the room's east half (in from the stone room).
+        var zone = new GameObject("TutorialZone_Push");
+        zone.transform.SetParent(room, false);
+        zone.transform.position = new Vector3(13.375f, Ceiling * 0.5f, 15f);
+        var area = zone.AddComponent<BoxCollider>();
+        area.isTrigger = true;
+        area.size = new Vector3(19.75f - 7f - WallT, Ceiling, 21.5f - 8.5f - WallT);
+        zone.AddComponent<TutorialZone>().lesson = "push";
     }
 
     // Room 8: the symbol room (x -7..2.5, z 38.25..50) before the hallway: the three symbols and the code lock
@@ -1344,7 +1384,7 @@ public static class ShipGreyboxBuilder
             Transform w = window.transform;
             if (Mathf.Abs(w.forward.y) > 0.3f)
                 continue;   // the roof holes: the sun does those
-            bool shadows = (w.position.x < -20f && w.position.y > 0f) || w.position.y < 0f;   // the spawn and fish room windows, and the cellar's
+            bool shadows = w.position.x < -20f && w.position.y > 0f;   // the spawn and fish room windows (not the cellar's: every leaf of the kelp forest would sample four soft shadow maps)
             WindowBeam(w, shadows, water);
         }
         // The roof holes: a shaft down each along the sun's light, and a soft spot to lift the pool it lands in.
@@ -1507,7 +1547,7 @@ public static class ShipGreyboxBuilder
         NestAt("PufferNest_Basement_E", CellarGround(12f, 34f), Vector3.up, 2, nests);
         NestAt("PufferNest_ChestRoom", new Vector3(8f, 0f, 46f), Vector3.up, 1, nests);
         NestAt("PufferNest_StoneRoom", new Vector3(16.5f, 0f, 25f), Vector3.up, 1, nests);
-        NestAt("PufferNest_BoxRoom", new Vector3(-6f, 0f, 12f), Vector3.up, 2, nests);
+        NestAt("PufferNest_BoxRoom", new Vector3(18.3f, 0f, 9.9f), Vector3.up, 2, nests);   // the south-east corner
     }
 
     // Collectibles tucked away round the ship, for the counter in the corner: high corners you have to swim up to,
@@ -1696,26 +1736,29 @@ public static class ShipGreyboxBuilder
             xs.Add(Mathf.Clamp(hole.xMax, x1, x2));
         }
         xs.Sort();
+        var cuts = new List<Rect>();
         for (int i = 0; i + 1 < xs.Count; i++)
         {
             float a = xs[i], b = xs[i + 1];
             if (b - a < 0.01f)
                 continue;
             float mid = (a + b) * 0.5f;
-            bool cut = false;
+            // Every hole across this band (several can line up one behind the other), south to north.
+            cuts.Clear();
             foreach (Rect hole in holes)
+                if (mid > hole.xMin && mid < hole.xMax)
+                    cuts.Add(hole);
+            cuts.Sort((p, q) => p.yMin.CompareTo(q.yMin));
+            float z = z1;
+            foreach (Rect hole in cuts)
             {
-                if (mid <= hole.xMin || mid >= hole.xMax)
-                    continue;
-                if (hole.yMin - z1 > 0.01f)
-                    piece(a, z1, b, hole.yMin);
-                if (z2 - hole.yMax > 0.01f)
-                    piece(a, hole.yMax, b, z2);
-                cut = true;
-                break;
+                float from = Mathf.Clamp(hole.yMin, z1, z2);
+                if (from - z > 0.01f)
+                    piece(a, z, b, from);
+                z = Mathf.Max(z, Mathf.Clamp(hole.yMax, z1, z2));
             }
-            if (!cut)
-                piece(a, z1, b, z2);
+            if (z2 - z > 0.01f)
+                piece(a, z, b, z2);
         }
     }
 
