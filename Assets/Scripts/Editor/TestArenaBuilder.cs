@@ -386,7 +386,7 @@ public static class TestArenaBuilder
             if (items[i] == "Item_BoneKeyFragment")
                 PickupVariant(pickup, bonePiece++);   // the three pieces of the key, one each
         }
-        Label("PICKUPS - E to take, 1-5 / wheel selects a slot", new Vector3(18f, 3.4f, -24f), zone);   // behind the shelf, not over the pickups
+        Label("PICKUPS - E to take, 1-4 / wheel selects a slot", new Vector3(18f, 3.4f, -24f), zone);   // behind the shelf, not over the pickups
     }
 
     private static void BuildPuzzles()
@@ -586,7 +586,65 @@ public static class TestArenaBuilder
         FramePiece("Frame_Post", centre, rotation, new Vector3(-2.6f, 2.2f, 0f), new Vector3(0.4f, 4.4f, 0.5f), parent);
         FramePiece("Frame_Post", centre, rotation, new Vector3(2.6f, 2.2f, 0f), new Vector3(0.4f, 4.4f, 0.5f), parent);
         FramePiece("Frame_Top", centre, rotation, new Vector3(0f, 4.2f, 0f), new Vector3(5.6f, 0.4f, 0.5f), parent);
+        // The double door's leaves have their top outer corners cut off (a slant DoubleDoorCut of the leaf across and
+        // down): the frame fills those corners, so the doorway is the door's own shape and nothing shows round it.
+        FrameCorner("Frame_Corner_L", centre, rotation, new Vector3(-2.4f, 4f, 0f), 1f, parent);
+        FrameCorner("Frame_Corner_R", centre, rotation, new Vector3(2.4f, 4f, 0f), -1f, parent);
         return door;
+    }
+
+    // How much of each double-door leaf (2.4 x 4 m) the model's slanted top corner cuts away: 45 % across, 30 % down
+    // (Double_Doors: a 4 x 6 leaf with its corner cut 1.8 by 1.8).
+    private static readonly Vector2 DoubleDoorCut = new Vector2(2.4f * 0.45f, 4f * 0.3f);
+
+    // A solid wedge filling a top corner of a doorway: the corner at `offset` (from the door's centre, in its frame),
+    // running `side` (+1 right, -1 left) along the lintel and down the post by Double Door Cut, as deep as the frame.
+    private static void FrameCorner(string name, Vector3 centre, Quaternion rotation, Vector3 offset, float side, Transform parent)
+    {
+        GameObject piece = Box(name, centre + rotation * offset, Vector3.one, PropColor, parent);
+        piece.transform.rotation = rotation;
+        Object.DestroyImmediate(piece.GetComponent<Collider>());
+        Mesh wedge = Wedge(DoubleDoorCut.x * side, DoubleDoorCut.y, 0.5f);
+        wedge.name = name;
+        piece.GetComponent<MeshFilter>().sharedMesh = wedge;
+        var solid = piece.AddComponent<MeshCollider>();
+        solid.sharedMesh = wedge;
+        solid.convex = true;
+    }
+
+    // A right-angled wedge: the square corner at the origin, one leg `across` along X, the other `down` metres down Y,
+    // `depth` thick along Z. Every face both ways round, so it shows from either side whichever way `across` points.
+    private static Mesh Wedge(float across, float down, float depth)
+    {
+        Vector3 a = Vector3.zero, b = new Vector3(across, 0f, 0f), c = new Vector3(0f, -down, 0f);
+        Vector3 front = new Vector3(0f, 0f, -depth * 0.5f), back = new Vector3(0f, 0f, depth * 0.5f);
+        var vertices = new System.Collections.Generic.List<Vector3>();
+        var triangles = new System.Collections.Generic.List<int>();
+        void Face(params Vector3[] p)
+        {
+            for (int pass = 0; pass < 2; pass++)
+            {
+                int start = vertices.Count;
+                vertices.AddRange(p);
+                for (int i = 1; i + 1 < p.Length; i++)
+                {
+                    triangles.Add(start);
+                    triangles.Add(pass == 0 ? start + i : start + i + 1);
+                    triangles.Add(pass == 0 ? start + i + 1 : start + i);
+                }
+            }
+        }
+        Face(a + front, b + front, c + front);
+        Face(a + back, b + back, c + back);
+        Face(a + front, b + front, b + back, a + back);
+        Face(b + front, c + front, c + back, b + back);
+        Face(c + front, a + front, a + back, c + back);
+        var mesh = new Mesh();
+        mesh.SetVertices(vertices);
+        mesh.SetTriangles(triangles, 0);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
     }
 
     internal static void OpenOnFilled(ItemSocket socket, DoubleDoor door)
@@ -1082,6 +1140,7 @@ public static class TestArenaBuilder
         var rubble = rubbleGo.AddComponent<RubbleFall>();
         SetField(rubble, "blocker", p => p.objectReferenceValue = blocker);
         SetField(rubble, "thudSound", p => p.objectReferenceValue = Sfx("Hit impact.wav"));
+        SetField(rubble, "rumbleSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Ambience/Ambience_OminousRumble_Mendenhall_CC0.mp3"));   // the roof giving way
         SetField(chase, "endRubble", p => p.objectReferenceValue = rubble);
 
         // The trident on its pedestal: taking it (E for now, the button mash comes later) drops the rubble.
@@ -1338,6 +1397,9 @@ public static class TestArenaBuilder
     }
 
     // A Fish School object with the fish placed as prefab-linked children in a ring, so they show in the editor and can be tuned.
+    // The wandering fish swim in proper swarms: any school of them placed with fish in it gets 8 to 12.
+    internal const int SwarmMin = 8, SwarmMax = 12;
+
     internal static FishSchool CreateSchool(string prefabName, int count, Vector3 position, Transform parent)
     {
         var school = new GameObject("FishSchool_" + prefabName);
@@ -1345,10 +1407,14 @@ public static class TestArenaBuilder
         school.transform.position = position;
         var pack = school.AddComponent<FishSchool>();
 
+        if (count > 0 && prefabName == "Fish_Wanderer")
+            count = Random.Range(SwarmMin, SwarmMax + 1);
+        // A loose ball round the middle (a sunflower spiral, a little up and down), not a ring.
         for (int i = 0; i < count; i++)
         {
-            float angle = i * Mathf.PI * 2f / count;
-            Vector3 offset = new Vector3(Mathf.Cos(angle), i % 2 == 0 ? 0.2f : -0.2f, Mathf.Sin(angle)) * 1.2f;
+            float angle = i * 2.39996f;
+            float radius = 0.5f + 1.4f * Mathf.Sqrt((i + 0.5f) / count);
+            Vector3 offset = new Vector3(Mathf.Cos(angle) * radius, ((i * 7) % 5 - 2) * 0.18f, Mathf.Sin(angle) * radius);
             Spawn(prefabName, position + offset, school.transform, 90f);
         }
         return pack;
@@ -1420,7 +1486,7 @@ public static class TestArenaBuilder
         var component = spawner.AddComponent<FishSpawner>();
         var so = new SerializedObject(component);
         so.FindProperty("fishPrefab").objectReferenceValue = FindPrefab("Fish_Wanderer");
-        so.FindProperty("count").intValue = 7;
+        so.FindProperty("count").intValue = 10;   // a swarm (8 to 12)
         so.FindProperty("joinSchool").objectReferenceValue = school;
         so.FindProperty("startMode").enumValueIndex = (int)FishSpawner.StartMode.PlayerEntersTrigger;
         so.ApplyModifiedPropertiesWithoutUndo();

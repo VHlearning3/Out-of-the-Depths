@@ -104,7 +104,7 @@ public class QuestLog : MonoBehaviour
             stepPlayTime = 0f;
             helpShown = 0f;
             if (!first && Current != null && stepSound != null)
-                SoundVariety.PlayAt(stepSound, player != null ? player.position : transform.position, volume);
+                SoundVariety.PlayOn(stepSound, player != null ? player : transform, volume);
             if (Current != null && !string.IsNullOrEmpty(Current.lesson))
                 foreach (string lesson in Current.lesson.Split(','))
                     TutorialCards.Show(lesson.Trim());

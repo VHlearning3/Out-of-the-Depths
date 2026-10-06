@@ -19,6 +19,8 @@ public class PickupItem : MonoBehaviour, IInteractable
     [Header("Item")]
     [Tooltip("Which item this is (Assets/Items). New ones: Assets > Create > Out of the Depths > Item.")]
     [SerializeField] private ItemDefinition item;
+    [Tooltip("Collectibles (pearls, shells) are made this much smaller at start, so they are less obvious (1 = as placed).")]
+    [SerializeField, Range(0.2f, 1f)] private float collectibleScale = 0.6f;
     [SerializeField, Min(1)] private int amount = 1;
 
     [Header("Model")]
@@ -123,6 +125,17 @@ public class PickupItem : MonoBehaviour, IInteractable
     public string Prompt => item != null ? "pick up " + item.DisplayName : "pick up";
     public bool Collected => collected;   // on its way into the inventory (or already in it)
 
+    // This is a collectible and every other collectible in the level is already taken: the last one.
+    private bool LastCollectible()
+    {
+        if (item == null || item.Kind != ItemDefinition.Category.Collectible)
+            return false;
+        foreach (PickupItem other in FindObjectsByType<PickupItem>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if (other != this && other.item != null && other.item.Kind == ItemDefinition.Category.Collectible && !other.collected)
+                return false;
+        return true;
+    }
+
     // For a pickup made at runtime (the bone key the tying minigame hands over): another item, its model swapped in
     // for whatever the prefab showed. Call before Interact.
     public void SetItem(ItemDefinition newItem, int newAmount = 1)
@@ -179,6 +192,9 @@ public class PickupItem : MonoBehaviour, IInteractable
     private void Awake()
     {
         SaveKey = CheckpointSave.PathOf(transform);
+        // Pearls and shells are small finds, not set pieces.
+        if (item != null && item.Kind == ItemDefinition.Category.Collectible && collectibleScale > 0f)
+            transform.localScale *= collectibleScale;
         if (useItemModel && item != null && item.WorldModel != null && (bakedFor != item || bakedVariant != modelVariant))
         {
             visual = ApplyItemModel(transform, item, visual != null ? visual : FirstChild(transform), modelSize, modelVariant);
@@ -556,7 +572,7 @@ public class PickupItem : MonoBehaviour, IInteractable
             if (outlineWhileInspecting && interactor != null && interactor.OutlineMaterial != null)
                 OutlineHull.Show(gameObject, interactor.OutlineMaterial);
             if (camera != null && visual != null)
-                HelloFish.Maybe(camera, visual);   // the easter egg: now and then a fish comes by to say hello
+                HelloFish.Maybe(camera, visual, LastCollectible());   // the easter egg: on the last collectible, a fish comes by to say hello
         }
     }
 

@@ -1020,6 +1020,6 @@ public class ChaseSequence : MonoBehaviour
     private void Play(AudioClip clip)
     {
         if (clip != null && player != null)
-            SoundVariety.PlayAt(clip, player.transform.position, volume);
+            SoundVariety.PlayOn(clip, player.transform, volume);
     }
 }

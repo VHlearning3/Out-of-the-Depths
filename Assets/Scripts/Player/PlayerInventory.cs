@@ -4,8 +4,9 @@ using UnityEngine.Events;
 using UnityEngine.InputSystem;
 
 // Hotbar inventory from the GDD: keys, puzzle pieces and weapons stack into numbered slots shown at the bottom of the
-// screen, selected with 1-5 or the mouse wheel. The last Weapon Slots (4 and 5) hold weapons only, and weapons go nowhere else;
-// the rest hold everything else. Collectibles (pearls, shells) don't take a slot: they're just counted.
+// screen, selected with 1-4 or the mouse wheel. The last Weapon Slots (the 4th) hold weapons only, and weapons go nowhere
+// else; the rest hold everything else. One weapon at a time: a new one takes the old one's place (the dagger is let go
+// when you take the trident; Replace Weapons). Collectibles (pearls, shells) don't take a slot: they're just counted.
 // Puzzles check Has() and spend with Remove(); they don't need the item selected.
 public class PlayerInventory : MonoBehaviour
 {
@@ -18,9 +19,11 @@ public class PlayerInventory : MonoBehaviour
     }
 
     [Header("Slots")]
-    [SerializeField, Range(1, 9)] private int slotCount = 5;
+    [SerializeField, Range(1, 9)] private int slotCount = 4;
     [Tooltip("How many of the slots, at the end of the bar, are for weapons only (the dagger, the trident). 0 = any slot takes anything.")]
-    [SerializeField, Range(0, 4)] private int weaponSlots = 2;
+    [SerializeField, Range(0, 4)] private int weaponSlots = 1;
+    [Tooltip("A new weapon with every weapon slot taken: it takes the place of the one held (dropped, with a short note). Off = it is not picked up.")]
+    [SerializeField] private bool replaceWeapons = true;
     [Tooltip("Number keys 1..slotCount and the mouse wheel change the selected slot.")]
     [SerializeField] private bool selectWithInput = true;
 
@@ -41,7 +44,7 @@ public class PlayerInventory : MonoBehaviour
     // Whether this slot takes this item: weapons only in weapon slots, everything else only in the others.
     public bool Fits(int index, ItemDefinition item) =>
         WeaponSlots == 0 || item == null || IsWeaponSlot(index) == (item.Kind == ItemDefinition.Category.Weapon);
-    // While something else owns the number keys and the wheel (a pickup being inspected), 1-5 and scrolling do nothing.
+    // While something else owns the number keys and the wheel (a pickup being inspected), the number keys and scrolling do nothing.
     public bool InputBlocked { get; set; }
 
     public int TotalCollectibles
@@ -230,6 +233,8 @@ public class PlayerInventory : MonoBehaviour
         }
 
         EnsureSlots();
+        if (replaceWeapons && WeaponSlots > 0 && item.Kind == ItemDefinition.Category.Weapon)
+            MakeRoomForWeapon(item);
         int remaining = amount;
         for (int i = 0; i < slots.Length; i++)
         {
@@ -261,6 +266,26 @@ public class PlayerInventory : MonoBehaviour
         if (remaining != amount)
             onChanged.Invoke();
         return amount - remaining;
+    }
+
+    // Every weapon slot holds another weapon: the one in the last of them is let go, so the new one has its place.
+    private void MakeRoomForWeapon(ItemDefinition weapon)
+    {
+        int last = -1;
+        for (int i = 0; i < slots.Length; i++)
+        {
+            if (!IsWeaponSlot(i))
+                continue;
+            if (slots[i].IsEmpty || slots[i].item == weapon)
+                return;   // room already (or it stacks)
+            last = i;
+        }
+        if (last < 0)
+            return;
+        ItemDefinition old = slots[last].item;
+        slots[last].item = null;
+        slots[last].count = 0;
+        HintPopup.Show($"You let go of the {old.DisplayName}.", 2.5f);
     }
 
     public bool Remove(ItemDefinition item, int amount = 1)

@@ -2,7 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// The easter egg: now and then, as a pickup comes up to be inspected, a little fish darts in from the side of the
+// The easter egg: as the very last collectible (the last pearl or shell in the level) comes up to be inspected, a
+// little fish darts in from the side of the
 // screen, stops beside the item, turns to you and says "Hello!" in a speech bubble, then shoots off across the view
 // and is gone. While it is there it can be touched with the cursor: rub the cursor over it to pet it (it wiggles
 // happily, hearts float up and it says something sweet), or click it to poke it (it flinches, puffs up and complains;
@@ -75,12 +76,14 @@ public class HelloFish : MonoBehaviour
     }
     private readonly List<Heart> hearts = new List<Heart>();
 
-    public static void Maybe(Camera camera, Transform heldItem)
+    // Comes only for the last collectible (hard to find on purpose: you meet it once, at the end of the hunt), or on
+    // every inspect with Always (testing).
+    public static void Maybe(Camera camera, Transform heldItem, bool lastCollectible)
     {
         if (current != null || camera == null || heldItem == null)
             return;
         HelloFishSettings settings = HelloFishSettings.Current;
-        if (!Always && Random.value >= settings.chance)
+        if (!Always && !lastCollectible)
             return;
         var fish = new GameObject("HelloFish").AddComponent<HelloFish>();
         fish.settings = settings;

@@ -534,7 +534,7 @@ public static class ShipGreyboxBuilder
         area.size = new Vector3(MiddleRoof.width - 0.5f, Ceiling, MiddleRoof.height - 0.5f);
         var fish = spawner.AddComponent<FishSpawner>();
         SetField(fish, "fishPrefab", p => p.objectReferenceValue = FindPrefab("Fish_Wanderer"));
-        SetField(fish, "count", p => p.intValue = 5);
+        SetField(fish, "count", p => p.intValue = 10);   // a swarm (8 to 12)
         SetField(fish, "joinSchool", p => p.objectReferenceValue = school);
         SetField(fish, "startMode", p => p.enumValueIndex = (int)FishSpawner.StartMode.PlayerEntersTrigger);
         SetField(fish, "stagger", p => p.floatValue = 1.2f);
@@ -579,11 +579,7 @@ public static class ShipGreyboxBuilder
         Decor("Symbol1_UnderHatch", new Vector3(HatchFish.center.x, BasementFloor + 0.06f, HatchFish.center.y), new Vector3(1.6f, 0.04f, 1.6f), new Color(0.9f, 0.15f, 0.1f), room);
 
         // The wall of fish over the hatch: hack through it with the dagger.
-        for (int i = 0; i < 7; i++)
-        {
-            float a = i * Mathf.PI * 2f / 7f;
-            Spawn("WallFish", new Vector3(HatchFish.center.x + Mathf.Cos(a) * 1.7f, 1.2f + (i % 2) * 0.8f, HatchFish.center.y + Mathf.Sin(a) * 1.7f), room, a * Mathf.Rad2Deg + 90f);
-        }
+        SwarmRound(new Vector3(HatchFish.center.x, 0f, HatchFish.center.y), new[] { 1.1f, 1.7f }, 0.6f, 2.2f, 6, room);
 
         // The pack from the windows: two Fish Windows in the west hull; they cut their own holes.
         FishSchool school = CreateSchool("Fish_Wanderer", 0, new Vector3(-18f, 2.5f, 36f), room);
@@ -606,7 +602,7 @@ public static class ShipGreyboxBuilder
         var component = spawner.AddComponent<FishSpawner>();
         var so = new SerializedObject(component);
         so.FindProperty("fishPrefab").objectReferenceValue = FindPrefab("Fish_Wanderer");
-        so.FindProperty("count").intValue = 6;
+        so.FindProperty("count").intValue = 10;   // a swarm (8 to 12)
         so.FindProperty("joinSchool").objectReferenceValue = school;
         so.FindProperty("startMode").enumValueIndex = (int)FishSpawner.StartMode.PlayerEntersTrigger;
         so.ApplyModifiedPropertiesWithoutUndo();
@@ -1303,6 +1299,7 @@ public static class ShipGreyboxBuilder
         var rubble = rubbleGo.AddComponent<RubbleFall>();
         SetField(rubble, "blocker", p => p.objectReferenceValue = blocker);
         SetField(rubble, "thudSound", p => p.objectReferenceValue = Sfx("Hit impact.wav"));
+        SetField(rubble, "rumbleSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Ambience/Ambience_OminousRumble_Mendenhall_CC0.mp3"));   // the roof giving way
         var chase = Object.FindFirstObjectByType<ChaseSequence>();
         if (chase != null)
             SetField(chase, "endRubble", p => p.objectReferenceValue = rubble);
@@ -1428,19 +1425,51 @@ public static class ShipGreyboxBuilder
 
     // A wall of Wall Fish filling an opening (a doorway, a window) seen from the side it faces (`facing`): a grid about
     // a metre apart across `width` and up `height` from `bottom` (its lowest edge; `centre.y`), all facing that way.
+    // A wall of fish: a swarm of them packed close, filling the opening and swimming back and forth across it (Wall
+    // Swarm Motion), rows WallRow apart with a fish every WallGap, each row swimming as one (same speed, same swing, so
+    // its fish keep their spacing), neighbouring rows the opposite way, so it churns but never opens; and the fish keep
+    // out of each other's hitboxes. Hack through it with the dagger.
+    private const float WallRow = 0.55f, WallGap = 0.85f, WallSway = 0.45f;
+
     private static void WallOfFish(Vector3 centre, Vector3 facing, float width, float height, Transform parent)
     {
         Vector3 across = Vector3.Cross(Vector3.up, facing).normalized;
-        int columns = Mathf.Max(1, Mathf.RoundToInt(width / 0.9f));
-        int rows = Mathf.Max(1, Mathf.RoundToInt(height / 0.9f));
-        float yaw = Mathf.Atan2(facing.x, facing.z) * Mathf.Rad2Deg;
+        int rows = Mathf.Max(2, Mathf.RoundToInt(height / WallRow));
+        int perRow = Mathf.Max(2, Mathf.RoundToInt(width / WallGap));
+        float reach = Mathf.Max(0f, width * 0.5f - WallSway);   // the swing reaches the sides, not past them
+        float yaw = Mathf.Atan2(across.x, across.z) * Mathf.Rad2Deg;
         for (int r = 0; r < rows; r++)
-            for (int c = 0; c < columns; c++)
+            for (int c = 0; c < perRow; c++)
             {
-                float u = (c + 0.5f) / columns - 0.5f;
+                float u = Mathf.Lerp(-reach, reach, c / (perRow - 1f));
                 float v = (r + 0.5f) / rows;
-                Vector3 at = centre + across * (u * width) + Vector3.up * (v * height) + facing * ((r + c) % 2 * 0.15f);
-                Spawn("WallFish", at, parent, yaw + ((r * 3 + c) % 3 - 1) * 12f);
+                Vector3 at = centre + across * u + Vector3.up * (v * height) + facing * (((r * 5 + c * 3) % 5 - 2) * 0.07f);
+                GameObject fish = Spawn("WallFish", at, parent, yaw);
+                var motion = fish.AddComponent<WallSwarmMotion>();
+                motion.mode = WallSwarmMotion.Mode.Sway;
+                motion.across = across;
+                motion.sway = WallSway;
+                motion.speed = 1.5f + (r % 3) * 0.12f;              // the whole row the same
+                motion.phase = (r % 2 == 0 ? 0f : Mathf.PI) + r * 0.2f;   // the whole row in step
+            }
+    }
+
+    // The same swarm round a point: rings of fish circling it (over the basement hatch), alternate rings the other way.
+    private static void SwarmRound(Vector3 centre, float[] radii, float bottom, float top, int perRing, Transform parent)
+    {
+        for (int ring = 0; ring < radii.Length; ring++)
+            for (int i = 0; i < perRing; i++)
+            {
+                float a = (i + ring * 0.5f) * Mathf.PI * 2f / perRing;
+                float y = Mathf.Lerp(bottom, top, ((i * 3 + ring) % perRing) / Mathf.Max(1f, perRing - 1f));
+                var at = new Vector3(centre.x + Mathf.Cos(a) * radii[ring], y, centre.z + Mathf.Sin(a) * radii[ring]);
+                GameObject fish = Spawn("WallFish", at, parent, a * Mathf.Rad2Deg);
+                var motion = fish.AddComponent<WallSwarmMotion>();
+                motion.mode = WallSwarmMotion.Mode.Orbit;
+                motion.orbitCentre = centre;
+                motion.clockwise = ring % 2 == 1;
+                motion.speed = 1.1f + ring * 0.15f;   // the whole ring the same, so it keeps its spacing
+                motion.phase = i * 0.7f;
             }
     }
 

@@ -17,7 +17,14 @@ public class FishAggression : MonoBehaviour
     [SerializeField] private float damage = 10f;
     [SerializeField] private float attackCooldown = 1.2f;
     [SerializeField] private AudioClip attackSound;
-    [SerializeField, Range(0f, 1f)] private float attackVolume = 0.7f;
+    [Tooltip("More bite sounds: each bite picks one of these or Attack Sound at random (never the same twice running), so the pufferfish don't repeat themselves.")]
+    [SerializeField] private AudioClip[] attackVariants = new AudioClip[0];
+    [SerializeField, Range(0f, 1f)] private float attackVolume = 0.45f;
+    [Tooltip("Pitch range for a bite: low and puffy, a little different every time.")]
+    [SerializeField] private Vector2 attackPitch = new Vector2(0.7f, 1.05f);
+    [Tooltip("Low-pass cutoff in Hz on the bites, so they sound muffled through the water (0 = clear).")]
+    [SerializeField] private float attackMuffle = 2200f;
+    private AudioClip lastAttackClip;
 
     public bool IsChasing { get; private set; }
     // Every fish chasing the player right now (the HUD's direction indicators point at them).
@@ -97,8 +104,26 @@ public class FishAggression : MonoBehaviour
     {
         nextAttackTime = Time.time + attackCooldown;
         target.ApplyDamage(damage, transform.position);
+        AudioClip clip = PickAttackClip();
+        if (clip != null)
+            SoundVariety.PlayAt(clip, transform.position, attackVolume, Random.Range(attackPitch.x, attackPitch.y), attackMuffle);
+    }
+
+    // Attack Sound or one of the variants, at random, not the one played last.
+    private AudioClip PickAttackClip()
+    {
+        var pool = new System.Collections.Generic.List<AudioClip>();
         if (attackSound != null)
-            SoundVariety.PlayAt(attackSound, transform.position, attackVolume);
+            pool.Add(attackSound);
+        foreach (AudioClip c in attackVariants)
+            if (c != null && !pool.Contains(c))
+                pool.Add(c);
+        if (pool.Count == 0)
+            return null;
+        if (pool.Count > 1)
+            pool.Remove(lastAttackClip);
+        lastAttackClip = pool[Random.Range(0, pool.Count)];
+        return lastAttackClip;
     }
 
     private void SetChasing(bool chasing)

@@ -15,7 +15,9 @@ public class EdibleFish : MonoBehaviour, IInteractable
 
     [Header("Feedback")]
     [SerializeField] private AudioClip eatSound;
-    [SerializeField, Range(0f, 1f)] private float eatVolume = 0.6f;
+    [SerializeField, Range(0f, 1f)] private float eatVolume = 0.25f;
+    [Tooltip("Low-pass cutoff in Hz on the eating sound, so it is soft and muffled, as if through water (0 = clear).")]
+    [SerializeField] private float eatMuffle = 1100f;
     [SerializeField] private GameObject consumedVfx;
 
     [Header("Events")]
@@ -51,7 +53,7 @@ public class EdibleFish : MonoBehaviour, IInteractable
         hunger.Eat(hungerRestoreAmount);
 
         if (eatSound != null)
-            SoundVariety.PlayAt(eatSound, transform.position, eatVolume);
+            SoundVariety.PlayOn(eatSound, hunger.transform, eatVolume, eatMuffle);   // on the player: it goes with you
 
         if (consumedVfx != null)
             Instantiate(consumedVfx, transform.position, transform.rotation);

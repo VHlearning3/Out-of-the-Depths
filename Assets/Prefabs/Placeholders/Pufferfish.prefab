@@ -107,7 +107,7 @@ MonoBehaviour:
   prompt: eat
   respawnTime: 30
   eatSound: {fileID: 8300000, guid: a84b9a2df82233342a5cd0ceee34fa26, type: 3}
-  eatVolume: 0.6
+  eatVolume: 0.25
   consumedVfx: {fileID: 0}
   onEaten:
     m_PersistentCalls:
@@ -163,7 +163,12 @@ MonoBehaviour:
   damage: 10
   attackCooldown: 1.2
   attackSound: {fileID: 8300000, guid: 58d17cc6695b6a343a9d7cc331332dfe, type: 3}
-  attackVolume: 0.7
+  attackVariants:
+  - {fileID: 8300000, guid: 2912c4db67449388d9d6bfc5e2e7db6c, type: 3}
+  - {fileID: 8300000, guid: f2b1dd0897e2751b3c5f856431f1176c, type: 3}
+  attackVolume: 0.45
+  attackPitch: {x: 0.7, y: 1.05}
+  attackMuffle: 2200
 --- !u!114 &900900027
 MonoBehaviour:
   m_ObjectHideFlags: 0

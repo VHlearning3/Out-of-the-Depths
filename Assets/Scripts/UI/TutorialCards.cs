@@ -115,7 +115,7 @@ public class TutorialCards : MonoBehaviour
             picture = new Glyph[0] },
         ["interact"] = new Lesson { title = "Using things", text = "Put the dot on something with a white outline and press the key.",
             picture = new[] { K("Interact", "use") }, doneBy = new[] { "Interact" } },
-        ["items"] = new Lesson { title = "Your items", text = "Pick what to hold with the number keys or the wheel. The last two slots are for weapons.",
+        ["items"] = new Lesson { title = "Your items", text = "Pick what to hold with the number keys or the wheel. The last slot is for your weapon.",
             picture = new[] { K("#1"), K("#2"), K("#3"), M(Button.Wheel) }, doneBy = new[] { "#slot" } },
         ["locks"] = new Lesson { title = "Keys and locks", text = "Hold the item it needs and use the lock. Green prompt = you have it, red = not yet.",
             picture = new[] { K("#1", "hold"), K("Interact", "use") }, doneBy = new[] { "Interact" } },

@@ -391,7 +391,7 @@ MonoBehaviour:
   openSound: {fileID: 8300000, guid: 9e6fd268ae3a9fbfe4bc738b9fa5b6c7, type: 3}
   closeSound: {fileID: 8300000, guid: 6a3c9e24dbf56b8ca07e3f4d5c617283, type: 3}
   lockedSound: {fileID: 8300000, guid: 8c5eb046fd178daec29a516f7e8394a5, type: 3}
-  volume: 0.8
+  volume: 0.4
   onOpened:
     m_PersistentCalls:
       m_Calls: []

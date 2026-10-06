@@ -56,7 +56,9 @@ public class SlashAttack : MonoBehaviour
 
     [Header("Feedback")]
     [SerializeField] private AudioClip swingSound;
-    [SerializeField, Range(0f, 1f)] private float swingVolume = 0.3f;
+    [SerializeField, Range(0f, 1f)] private float swingVolume = 0.22f;
+    [Tooltip("Low-pass cutoff in Hz on the swing, so it sounds muffled through the water (0 = clear).")]
+    [SerializeField] private float swingMuffle = 1500f;
     [SerializeField, Range(0f, 0.5f)] private float pitchVariation = 0.12f;
     [Tooltip("Camera jolt when a slash connects (0..1), a bit more for each extra thing it cuts.")]
     [SerializeField, Range(0f, 1f)] private float hitShake = 0.18f;
@@ -74,6 +76,17 @@ public class SlashAttack : MonoBehaviour
 
     public bool HasWeapon => !requireWeapon || (inventory != null && inventory.HasCategory(ItemDefinition.Category.Weapon));
     public bool CanAttack => canAttack;
+    // The selected hotbar slot is the weapon (or empty). With a key or any other item selected there is no slashing:
+    // select the weapon first.
+    public bool WeaponInHand
+    {
+        get
+        {
+            ItemDefinition selected = inventory != null ? inventory.SelectedItem : null;
+            return selected == null || selected.Kind == ItemDefinition.Category.Weapon;
+        }
+    }
+    private float toldAt = -10f;
     public bool Swinging => swingT >= 0f;
     // The slash being thrown (or last thrown): what the hand art should show.
     public Direction LastDirection { get; private set; }
@@ -109,9 +122,14 @@ public class SlashAttack : MonoBehaviour
         inventory = GetComponentInParent<PlayerInventory>();
         swimmer = GetComponentInParent<SwimController>();
 
-        audioSource = gameObject.AddComponent<AudioSource>();
+        // The swing on its own source, behind its own low-pass (a filter muffles every source on its object).
+        var swingAudio = new GameObject("SlashAudio");
+        swingAudio.transform.SetParent(transform, false);
+        audioSource = swingAudio.AddComponent<AudioSource>();
         audioSource.playOnAwake = false;
         audioSource.spatialBlend = 0f;
+        if (swingMuffle > 0f)
+            swingAudio.AddComponent<AudioLowPassFilter>().cutoffFrequency = swingMuffle;
 
         if (placeholderTrail && GetComponent<SlashTrail>() == null)
             gameObject.AddComponent<SlashTrail>();
@@ -169,15 +187,37 @@ public class SlashAttack : MonoBehaviour
 
     private void OnAttackPerformed(InputAction.CallbackContext context)
     {
-        if (canAttack && HasWeapon)
-            queuedAt = Time.time;
+        if (!canAttack || !HasWeapon)
+            return;
+        if (!WeaponInHand)
+        {
+            TellToSelectWeapon();
+            return;
+        }
+        queuedAt = Time.time;
+    }
+
+    // A click with an item in the hand: which number key takes the weapon out (now and then, not on every click).
+    private void TellToSelectWeapon()
+    {
+        if (Time.time - toldAt < 4f || inventory == null)
+            return;
+        toldAt = Time.time;
+        int key = inventory.SlotCount;
+        for (int i = 0; i < inventory.SlotCount; i++)
+            if (inventory.IsWeaponSlot(i))
+            {
+                key = i + 1;
+                break;
+            }
+        HintPopup.Show($"You can't fight with that in your hand. Press {key} for your weapon.", 2.5f);
     }
 
     private void Update()
     {
         if (Swinging)
             Swing();
-        if (!Swinging && Time.time >= readyAt && Time.time - queuedAt <= inputBuffer && canAttack && HasWeapon)
+        if (!Swinging && Time.time >= readyAt && Time.time - queuedAt <= inputBuffer && canAttack && HasWeapon && WeaponInHand)
         {
             queuedAt = -10f;
             StartSlash();

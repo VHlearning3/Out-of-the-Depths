@@ -26,7 +26,7 @@ public class SwimController : MonoBehaviour
     [Tooltip("The burst a dash gives, in metres per second on top of your swimming; it glides away through the water.")]
     [SerializeField] private float dashSpeed = 7f;
     [Tooltip("Seconds before the next dash.")]
-    [SerializeField] private float dashCooldown = 3f;
+    [SerializeField] private float dashCooldown = 2f;
     [Tooltip("Hunger each dash costs; with less than that left you cannot dash.")]
     [SerializeField] private float dashHungerCost = 5f;
     [SerializeField, Range(0f, 1f)] private float dashShake = 0.12f;
@@ -296,7 +296,7 @@ public class SwimController : MonoBehaviour
         }
         AddShake(dashShake);
         if (dashSound != null)
-            SoundVariety.PlayAt(dashSound, transform.position, dashVolume);
+            SoundVariety.PlayOn(dashSound, transform, dashVolume);   // with the player, not left behind by the dash
     }
 
     private void HandleSwim()

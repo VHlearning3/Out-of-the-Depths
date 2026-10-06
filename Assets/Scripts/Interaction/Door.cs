@@ -86,13 +86,13 @@ public class Door : MonoBehaviour, IInteractable, IPromptTone
     [SerializeField] private AudioClip groanSound;
     [Tooltip("Random pitch range for the groan, so no two doors sound alike.")]
     [SerializeField] private Vector2 groanPitchRange = new Vector2(0.7f, 0.9f);
-    [SerializeField, Range(0f, 1f)] private float volume = 0.7f;
+    [SerializeField, Range(0f, 1f)] private float volume = 0.35f;
     [Tooltip("Pitch of every door sound. Below 1 = deeper and heavier.")]
     [SerializeField, Range(0.5f, 1.5f)] private float pitch = 0.95f;
     [Tooltip("Reverb on the door's sounds, so a slam rolls away down the corridor. Off = dry (best for natural recordings).")]
     [SerializeField] private AudioReverbPreset reverb = AudioReverbPreset.Off;
     [Tooltip("Low-pass cutoff in Hz for every door sound, so it sounds muffled through the water. 22000 = no muffling.")]
-    [SerializeField] private float muffleCutoff = 3200f;
+    [SerializeField] private float muffleCutoff = 1200f;
     [Tooltip("Metres beyond which the door can't be heard.")]
     [SerializeField] private float hearingRange = 30f;
 

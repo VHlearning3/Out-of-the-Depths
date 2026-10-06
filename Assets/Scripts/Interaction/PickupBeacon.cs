@@ -4,7 +4,8 @@ using UnityEngine;
 // Makes a pickup stand out in the murk: a soft glow behind it that shows through the fog (the Sun Glow shader, sized
 // to the item and breathing slowly) and a small pulsing light that lights up what it lies on. The colour says what
 // kind of thing it is: keys gold, puzzle pieces sea green, weapons ice blue, pearls and shells pearly pink. Weapons
-// (the dagger, the trident) glow bigger and brighter than the rest (Weapon Boost).
+// (the dagger, the trident) glow bigger and brighter than the rest (Weapon Boost); pearls and shells, the optional
+// collectibles, only faintly (Collectible Glow), so finding them takes a sharp eye.
 // Pickup Item adds one to itself at start (its Beacon switch). The glow and light live outside the pickup, so the
 // outline, the highlight and the model fitting never see them; they follow it, and go when it is picked up, hidden
 // (a shut drawer) or gone.
@@ -23,6 +24,8 @@ public class PickupBeacon : MonoBehaviour
     [SerializeField] private float pulseSeconds = 2.2f;
     [Tooltip("Weapons: the glow's size and strength and the light's brightness and reach are multiplied by this.")]
     [SerializeField] private float weaponBoost = 1.8f;
+    [Tooltip("Pearls and shells (collectibles): their glow's size, strength and light, next to the rest. Under 1 = faint, so they are a find.")]
+    [SerializeField, Range(0.1f, 1f)] private float collectibleGlow = 0.4f;
 
     private static readonly Dictionary<ItemDefinition.Category, Material> materials = new Dictionary<ItemDefinition.Category, Material>();
     private static Transform holder;   // every beacon goes under one "Pickup Beacons" object, not loose in the scene
@@ -67,7 +70,10 @@ public class PickupBeacon : MonoBehaviour
         }
         centre = transform.InverseTransformPoint(bounds.center);
         size = Mathf.Max(minGlowSize, Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z) * glowScale);
-        boost = pickup.Item != null && pickup.Item.Kind == ItemDefinition.Category.Weapon ? Mathf.Max(1f, weaponBoost) : 1f;
+        boost = pickup.Item == null ? 1f
+            : pickup.Item.Kind == ItemDefinition.Category.Weapon ? Mathf.Max(1f, weaponBoost)
+            : pickup.Item.Kind == ItemDefinition.Category.Collectible ? collectibleGlow
+            : 1f;
         size *= boost;
 
         Color colour = ColourFor(pickup.Item);

@@ -147,10 +147,10 @@ MonoBehaviour:
   lockedHint: It's locked. Something nearby must open it.
   groanSound: {fileID: 0}
   groanPitchRange: {x: 0.7, y: 0.9}
-  volume: 0.7
+  volume: 0.35
   pitch: 0.95
   reverb: 0
-  muffleCutoff: 3200
+  muffleCutoff: 1200
   hearingRange: 30
   onOpened:
     m_PersistentCalls:

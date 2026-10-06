@@ -106,7 +106,7 @@ MonoBehaviour:
   prompt: eat
   respawnTime: 20
   eatSound: {fileID: 8300000, guid: a84b9a2df82233342a5cd0ceee34fa26, type: 3}
-  eatVolume: 0.6
+  eatVolume: 0.25
   consumedVfx: {fileID: 0}
   onEaten:
     m_PersistentCalls:
@@ -154,6 +154,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 67c3a6f8a8f69bf88ff652980c6bb6eb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  sizeRange: {x: 0.45, y: 1.15}
   wander: {fileID: 900900006}
   disabledWhileDead: []
   visual: {fileID: 900900011}
