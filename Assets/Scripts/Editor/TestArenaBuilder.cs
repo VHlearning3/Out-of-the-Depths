@@ -409,6 +409,7 @@ public static class TestArenaBuilder
         // Pedestal: with the 3 stone fragments on you, E opens the puzzle board; piecing the tablet together opens the left door.
         GameObject pedestal = Box("Pedestal", new Vector3(0f, 0.6f, 6f), new Vector3(1.2f, 1.2f, 1.2f), PropColor, zone);
         PuzzleBuildTools.SolveOpens(PuzzleBuildTools.AddStation(pedestal, "Puzzle_StoneTablet", "Item_StoneFragment", 3, true, "piece the tablet together"), doorStone);
+        PodiumModelTools.ApplyTo(pedestal, pedestal.transform.position + Vector3.back * 5f);   // the team's podium model, facing the way in
 
         // Seaweed: 3 bone key fragments + E = the tying minigame = a bone key (the GDD tie-them-together step). A low-poly
         // clump (the Seaweed component grows it) that sways, parts around the player and swoops when the key is tied;

@@ -1119,6 +1119,7 @@ public static class ShipGreyboxBuilder
         GameObject pedestal = Box("Pedestal", new Vector3(13.5f, 0.6f, 34.25f), new Vector3(1.2f, 1.2f, 1.2f), Prop, room);
         PuzzleStation tablet = PuzzleBuildTools.AddStation(pedestal, "Puzzle_StoneTablet", "Item_StoneFragment", 3, true, "piece the tablet together");
         PuzzleBuildTools.SolveOpens(tablet, toBoxRoom);
+        PodiumModelTools.ApplyTo(pedestal, new Vector3(7f, 0f, 30f));   // the team's podium model, its slanted top towards the door in from the middle room
         MuralAt(new Vector3(19.45f, 2.4f, 30f), new Vector2(8f, 1.6f), Vector3.left, room);
     }
 
