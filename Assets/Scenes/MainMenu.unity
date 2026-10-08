@@ -528,11 +528,11 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 31}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 1}
-  m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 0, y: -120}
-  m_SizeDelta: {x: 1000, y: 120}
-  m_Pivot: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0.5}
+  m_AnchorMax: {x: 0, y: 0.5}
+  m_AnchoredPosition: {x: 150, y: 250}
+  m_SizeDelta: {x: 800, y: 130}
+  m_Pivot: {x: 0, y: 0.5}
 --- !u!222 &52
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -568,7 +568,7 @@ MonoBehaviour:
     m_BestFit: 0
     m_MinSize: 10
     m_MaxSize: 100
-    m_Alignment: 4
+    m_Alignment: 3
     m_AlignByGeometry: 0
     m_RichText: 1
     m_HorizontalOverflow: 0
@@ -609,11 +609,11 @@ RectTransform:
   - {fileID: 66}
   m_Father: {fileID: 31}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 80}
-  m_SizeDelta: {x: 320, y: 64}
-  m_Pivot: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0.5}
+  m_AnchorMax: {x: 0, y: 0.5}
+  m_AnchoredPosition: {x: 150, y: 90}
+  m_SizeDelta: {x: 380, y: 70}
+  m_Pivot: {x: 0, y: 0.5}
 --- !u!222 &62
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -809,11 +809,11 @@ RectTransform:
   - {fileID: 76}
   m_Father: {fileID: 31}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 320, y: 64}
-  m_Pivot: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0.5}
+  m_AnchorMax: {x: 0, y: 0.5}
+  m_AnchoredPosition: {x: 150, y: 0}
+  m_SizeDelta: {x: 380, y: 70}
+  m_Pivot: {x: 0, y: 0.5}
 --- !u!222 &72
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -1009,11 +1009,11 @@ RectTransform:
   - {fileID: 86}
   m_Father: {fileID: 31}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: -80}
-  m_SizeDelta: {x: 320, y: 64}
-  m_Pivot: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0.5}
+  m_AnchorMax: {x: 0, y: 0.5}
+  m_AnchoredPosition: {x: 150, y: -90}
+  m_SizeDelta: {x: 380, y: 70}
+  m_Pivot: {x: 0, y: 0.5}
 --- !u!222 &82
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -1209,11 +1209,11 @@ RectTransform:
   - {fileID: 96}
   m_Father: {fileID: 31}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: -160}
-  m_SizeDelta: {x: 320, y: 64}
-  m_Pivot: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0.5}
+  m_AnchorMax: {x: 0, y: 0.5}
+  m_AnchoredPosition: {x: 150, y: -180}
+  m_SizeDelta: {x: 380, y: 70}
+  m_Pivot: {x: 0, y: 0.5}
 --- !u!222 &92
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -1429,9 +1429,35 @@ MonoBehaviour:
   speed: 1
   playAudio: 0
   volume: 0.5
-  stillImage: {fileID: 0}
+  frames: []
+  framesPerSecond: 2
+  movingFrames:
+  - {fileID: 2800000, guid: 3027af696bb63b6b0b9f139dcf73dc80, type: 3}
+  - {fileID: 2800000, guid: 10cff759e5b1ebbaa77f75dc4ea928da, type: 3}
+  - {fileID: 2800000, guid: a26e0a09ad78052a3f1e912eb0bef09d, type: 3}
+  - {fileID: 2800000, guid: bff61950e7c904ae9a2cb654119ab6bb, type: 3}
+  - {fileID: 2800000, guid: 6ccf35908faf7d2143d053f1dc07a792, type: 3}
+  - {fileID: 2800000, guid: b9527dbbf8654680ca718c760fd5b4da, type: 3}
+  - {fileID: 2800000, guid: bc94fd7d80e0f26baa580d78f9b30fd8, type: 3}
+  - {fileID: 2800000, guid: 20c2b8c43acc1bcfddcb6906abb1f8e7, type: 3}
+  - {fileID: 2800000, guid: 4bcb1c7a214ddf4d4d9846cb49ca859f, type: 3}
+  - {fileID: 2800000, guid: 1f71b1824c4df905c56d634f8294bc11, type: 3}
+  - {fileID: 2800000, guid: 246b5283f00d48317f78e4987ac5a62f, type: 3}
+  - {fileID: 2800000, guid: 13cac35e3c083b8c0e328f9a9233bba9, type: 3}
+  movingArea:
+    x: 1048
+    y: 192
+    width: 632
+    height: 752
+  pictureSize:
+    x: 1920
+    y: 1080
+  crossfade: 0.75
+  breathe: 0.02
+  breatheSeconds: 24
+  stillImage: {fileID: 2800000, guid: 0c19e72be42a1a26390fae17b59dfca3, type: 3}
   coverScreen: 1
-  dim: 0.4
+  dim: 0.1
   dimColor: {r: 0, g: 0, b: 0, a: 1}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

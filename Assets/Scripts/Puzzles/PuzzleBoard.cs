@@ -190,7 +190,7 @@ public class PuzzleBoard : MonoBehaviour
         placed = new PuzzleTile[puzzle.SlotCount];
         pictureImage = null;
 
-        Image backdrop = NewImage("Backdrop", root, null, new Color(0f, 0f, 0f, 0.62f));
+        Image backdrop = NewImage("Backdrop", root, null, new Color(0f, 0f, 0f, puzzle.backdropDim));
         Stretch(backdrop.rectTransform);
 
         Image boardImage = NewImage("Board", root, puzzle.board != null ? puzzle.board : FallbackBoard, puzzle.boardTint);
@@ -324,7 +324,7 @@ public class PuzzleBoard : MonoBehaviour
     private void BuildPicture(float w, float h)
     {
         float size = puzzle.pictureSize;
-        var at = new Vector2(-w * 0.18f, -14f);
+        var at = new Vector2(-w * 0.18f, -14f) + puzzle.pictureOffset;
         Image picture = NewImage("Picture", board, puzzle.picture != null ? puzzle.picture : FallbackSlot, puzzle.pictureTint);
         picture.preserveAspect = true;
         picture.raycastTarget = false;
@@ -335,7 +335,10 @@ public class PuzzleBoard : MonoBehaviour
         {
             PuzzleDefinition.Spot spot = SpotFor(i);
             PuzzleDefinition.Tile piece = TileFor(puzzle.solution[i]);
-            Image mark = NewImage("Spot" + i, board, piece != null ? piece.art : null, new Color(0.85f, 0.9f, 0.95f, puzzle.showSilhouettes ? 0.12f : 0f));
+            Color silhouette = puzzle.silhouetteColor;
+            if (!puzzle.showSilhouettes)
+                silhouette.a = 0f;
+            Image mark = NewImage("Spot" + i, board, piece != null ? piece.art : null, silhouette);
             mark.preserveAspect = true;
             mark.raycastTarget = false;   // a drop goes to the nearest spot instead: the pieces' shapes overlap their boxes
             Place(mark.rectTransform, Middle, at + spot.center * size, spot.size * size);
@@ -344,6 +347,14 @@ public class PuzzleBoard : MonoBehaviour
         }
 
         List<PuzzleDefinition.Tile> order = Shuffled();
+        // Exploded: each piece where it belongs in the whole, spread out from the whole's middle round Loose Centre.
+        Vector2 whole = Vector2.zero;
+        if (puzzle.looseExploded && puzzle.SlotCount > 0)
+        {
+            for (int i = 0; i < puzzle.SlotCount; i++)
+                whole += SpotFor(i).center;
+            whole /= puzzle.SlotCount;
+        }
         float x = w * 0.5f - 230f;
         float step = Mathf.Min(190f, (h - 380f) / Mathf.Max(1, order.Count - 1));
         for (int k = 0; k < order.Count; k++)
@@ -352,6 +363,8 @@ public class PuzzleBoard : MonoBehaviour
             int own = SlotIndexOf(tile.id);
             Vector2 inPlace = own >= 0 ? SpotFor(own).size * size : new Vector2(puzzle.tileSize, puzzle.tileSize);
             var home = new Vector2(x, ((order.Count - 1) * 0.5f - k) * step);
+            if (puzzle.looseExploded && own >= 0)
+                home = puzzle.looseCentre + (SpotFor(own).center - whole) * size * puzzle.looseSpread;
             Image image = NewImage("Piece_" + tile.id, board, tile.art != null ? tile.art : FallbackTile, Color.white);
             image.preserveAspect = true;
             Place(image.rectTransform, Middle, home, inPlace * puzzle.looseScale);

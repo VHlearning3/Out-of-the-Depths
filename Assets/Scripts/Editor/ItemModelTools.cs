@@ -13,13 +13,16 @@ public static class ItemModelTools
     public const string IconFolder = "Assets/Art/Textures/ItemIcons";
 
     // Item asset name -> model file name (without extension) under Art/Models, plus the other looks of the same item
-    // (World Model Variants: the bone key comes in three pieces). Add a line per new model.
+    // (World Model Variants: the bone key comes in three pieces). Add a line per new model. "File/Part" is one part of
+    // a model holding several (the stone fragments are the three parts of Fragment_Pieces): it is made a prefab of
+    // its own (Prefabs/Items/<Part>), so a pickup shows just that piece.
     private static readonly (string item, string model, string[] variants)[] KnownModels =
     {
         ("Item_FirstRoomKey", "gold_key", null),
         ("Item_SymbolKey", "rune_key", null),
         ("Item_BoneKey", "bone_key_full", null),
         ("Item_BoneKeyFragment", "bone_key_piece1", new[] { "bone_key_piece2", "bone_key_piece3" }),
+        ("Item_StoneFragment", "Fragment_Pieces/Fragment_1", new[] { "Fragment_Pieces/Fragment_2", "Fragment_Pieces/Fragment_3" }),
         ("Item_Dagger", "dagger", null),     // Vili's weapons (Art/Models/weapons), tip up (+Y)
         ("Item_Trident", "trident", null),
     };
@@ -305,6 +308,9 @@ public static class ItemModelTools
 
     internal static GameObject FindModel(string fileName)
     {
+        int slash = fileName.IndexOf('/');
+        if (slash > 0)
+            return PartModel(fileName.Substring(0, slash), fileName.Substring(slash + 1));
         foreach (string guid in AssetDatabase.FindAssets(fileName + " t:Model", new[] { ModelFolder }))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
@@ -312,6 +318,48 @@ public static class ItemModelTools
                 return AssetDatabase.LoadAssetAtPath<GameObject>(path);
         }
         return null;
+    }
+
+    public const string PartFolder = "Assets/Prefabs/Items";
+
+    // One part of a model holding several, as a prefab of its own (made once, in Prefabs/Items): the part as the
+    // model has it (its turn, its size, its material), moved to the middle. Null if the model or the part is missing.
+    private static GameObject PartModel(string fileName, string partName)
+    {
+        string path = $"{PartFolder}/{partName}.prefab";
+        var existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (existing != null)
+            return existing;
+        GameObject model = FindModel(fileName);
+        if (model == null)
+            return null;
+        var copy = (GameObject)Object.Instantiate(model);
+        try
+        {
+            Transform part = null;
+            foreach (Transform t in copy.GetComponentsInChildren<Transform>(true))
+                if (t.name == partName)
+                {
+                    part = t;
+                    break;
+                }
+            if (part == null)
+                return null;
+            part.SetParent(null, true);   // keeps how it is turned and sized in the model
+            part.position = Vector3.zero;
+            for (int i = part.childCount - 1; i >= 0; i--)
+                if (part.GetChild(i).GetComponentInChildren<Renderer>() == null)
+                    Object.DestroyImmediate(part.GetChild(i).gameObject);
+            if (!AssetDatabase.IsValidFolder(PartFolder))
+                AssetDatabase.CreateFolder("Assets/Prefabs", "Items");
+            GameObject saved = PrefabUtility.SaveAsPrefabAsset(part.gameObject, path);
+            Object.DestroyImmediate(part.gameObject);
+            return saved;
+        }
+        finally
+        {
+            Object.DestroyImmediate(copy);
+        }
     }
 
     // A hotbar sprite from the editor's own thumbnail of the model. Returns null if the thumbnail is not ready yet;

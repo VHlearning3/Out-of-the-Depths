@@ -138,6 +138,7 @@ public static class ShipGreyboxBuilder
         Step("Pufferfish nests", BuildNests);
         Step("Quests", BuildQuests);
         Step("Collectibles", BuildCollectibles);
+        Step("Corals", BuildCorals);
         Step("Room lights", BuildLights);
         Step("Item models", ItemModelTools.ApplyItemModelsInOpenScene);
         Step("Player", PlacePlayer);
@@ -551,8 +552,9 @@ public static class ShipGreyboxBuilder
 
     // Room 3 (orange): the fish room, L-shaped (x -29..-12.25 from z 28.75, x -29..-7 from z 38.25, up to the mural
     // wall at z 44), entered from the middle room. The dagger, the wall of fish over the hatch, the pack coming in
-    // through two hull windows, and the hatch down to the basement. Above the mural wall is the symbol 3 nook,
-    // reached from the hallway.
+    // through two hull windows, and the hatch down to the basement. Above the mural wall is the symbol 3 nook, reached
+    // through an opening in the middle of the mural wall (its only way in): symbol 3 is needed for the rune lock
+    // before the hallway, so it has to be reachable from here.
     private static void BuildFishRoom()
     {
         Transform room = Group("Room_3_FishRoom");
@@ -561,11 +563,16 @@ public static class ShipGreyboxBuilder
         Deck(room, HullW, 44f, -7f, 50f, 0f, new Color(0.22f, 0.3f, 0.42f));
         WallZ("R3_E", -7f, 38.25f, 50f, room);   // shared with the symbol room; the z 50 line above is built by the hallway
 
-        // The nook under the hallway (z 44..50): walled off from the fish room by the mural wall, entered from the
-        // hallway, with symbol 3 and the checkpoint the map marks there.
-        WallX("Nook_S", 44f, HullW, -7f, room);
-        MuralAt(new Vector3(-18f, 2.4f, 44.3f), new Vector2(20f, 1.6f), Vector3.forward, room);
-        MuralAt(new Vector3(-18f, 2.4f, 43.7f), new Vector2(20f, 1.6f), Vector3.back, room);
+        // The nook under the hallway (z 44..50): behind the mural wall, with an open doorway in its middle (clear of the
+        // hatch and its wall of fish to the west and the nest in the east corner), its only way in;
+        // symbol 3 and the checkpoint the map marks there. The murals run either side of the doorway.
+        WallX("Nook_S", 44f, HullW, -7f, room, -16f, -16f + DoorGap);
+        foreach (float side in new[] { 44.3f, 43.7f })
+        {
+            Vector3 facing = side > 44f ? Vector3.forward : Vector3.back;
+            MuralAt(new Vector3(-22.5f, 2.4f, side), new Vector2(11f, 1.6f), facing, room);
+            MuralAt(new Vector3(-10.4f, 2.4f, side), new Vector2(4.6f, 1.6f), facing, room);
+        }
         PaintedSymbol("Symbol3_Wall", 3, new Vector3(HullW + 0.34f, 2.6f, 46.5f), 2f, Vector3.right, new Color(0.2f, 0.85f, 0.35f), room);
         GameObject nookPlate = Spawn("RespawnPlate", new Vector3(-12f, 0.05f, 48.8f), room);   // along the north wall, clear of the way in from the door
         if (nookPlate != null)
@@ -680,7 +687,9 @@ public static class ShipGreyboxBuilder
         Carcass(CellarGround(-24.6f, 5f), 90f, room, 0.9f, 7f);     // 6 m, beside the symbol key
 
         CreatePickup(CellarGround(-19f, 5.5f) + Vector3.up * 0.8f, "Item_SymbolKey", room);
-        CreatePickup(CellarGround(19f, 24.5f) + Vector3.up * 0.8f, "Item_StoneFragment", room).name = "Pickup_StoneFragment_Pedestal_Basement";     // past the middle skeleton's east end
+        GameObject basementStone = CreatePickup(CellarGround(19f, 24.5f) + Vector3.up * 0.8f, "Item_StoneFragment", room);
+        basementStone.name = "Pickup_StoneFragment_Pedestal_Basement";
+        PickupVariant(basementStone, 1);   // the second of the three stone pieces     // past the middle skeleton's east end
         CreatePickup(CellarGround(14f, 5.6f) + Vector3.up * 0.8f, "Item_BoneKeyFragment", room);    // past the big skeleton's east end
         CreatePickup(CellarGround(10f, 15f) + Vector3.up * 0.8f, "Item_Pearl", room);
         CreatePickup(CellarGround(-24f, 30f) + Vector3.up * 0.8f, "Item_Pearl", room);
@@ -1079,6 +1088,7 @@ public static class ShipGreyboxBuilder
         float over = treasure != null ? ChestTop(chest, 0f) * 0.5f : ChestTop(chest, 0.45f);
         GameObject stone = CreatePickup(new Vector3(15.6f, over, 44f), "Item_StoneFragment", room);
         stone.name = "Pickup_StoneFragment_Pedestal_Chest";
+        PickupVariant(stone, 2);   // the third stone piece
         GameObject bone = CreatePickup(new Vector3(16.4f, over, 44f), "Item_BoneKeyFragment", room);
         PickupVariant(bone, 1);   // the second piece of the key (the basement has the first, the box room the third)
         ItemSocket lockSocket = Socket(chest, "Item_SymbolKey", 1, true, "unlock chest with", null, null);
@@ -1192,10 +1202,9 @@ public static class ShipGreyboxBuilder
         Deck(room, HullW, 50f, -4.75f, HullN, 0f, new Color(0.24f, 0.24f, 0.34f));
         Deck(room, -4.75f, 50f, 19.75f, HullN, 0f, new Color(0.26f, 0.3f, 0.34f));
 
-        // The z 50 line: rooms 3 / 8 / 5 below, the hallway and room 9b above: the door down into the nook, and the
-        // rune door at the right end of the symbol room.
-        WallX("Z50", 50f, HullW, 19.75f, room, -25f, -25f + DoorGap, -0.5f, -0.5f + DoorGap);
-        DoorX("Door_Nook", 50f, -25f, false, false, room);
+        // The z 50 line: rooms 3 / 8 / 5 below, the hallway and room 9b above, solid but for the rune door at the right
+        // end of the symbol room (the nook below the hallway is reached from the fish room only, not from the chase).
+        WallX("Z50", 50f, HullW, 19.75f, room, -0.5f, -0.5f + DoorGap);
         finalDoor = DoorX("Door_Final", 50f, -0.5f, true, true, room);   // locked until the rune puzzle at the code lock is solved
         SetField(finalDoor, "lockedHint", p => p.stringValue = "Locked. Enter the three symbols on the rune lock beside it.");
         SetField(finalDoor, "lockBehind", p => p.boolValue = false);
@@ -1266,7 +1275,9 @@ public static class ShipGreyboxBuilder
         // one on the floor), for the tablet on the wall beside the column door. No other fish in 9b, so the only fish
         // there are the ones after you.
         CreatePickup(new Vector3(5f, 4.2f, 57.5f), "Item_StoneFragment", room).name = "Pickup_StoneFragment_ChaseTablet_High";   // not for the pedestal: the chase tablet
-        CreatePickup(new Vector3(12f, 0.6f, 52f), "Item_StoneFragment", room).name = "Pickup_StoneFragment_ChaseTablet_Low";
+        GameObject chaseLow = CreatePickup(new Vector3(12f, 0.6f, 52f), "Item_StoneFragment", room);
+        chaseLow.name = "Pickup_StoneFragment_ChaseTablet_Low";
+        PickupVariant(chaseLow, 1);
         GameObject tablet = Box("RuneTablet", new Vector3(19.35f, 1.8f, 55.5f), new Vector3(0.2f, 1.3f, 1.1f), Stone, room);
         var slotted = new GameObject[2];
         for (int i = 0; i < slotted.Length; i++)
@@ -1625,6 +1636,157 @@ public static class ShipGreyboxBuilder
     private static void BuildSunAndSurface()
     {
         SunAndSurface(ship);
+    }
+
+    // ---- corals ----------------------------------------------------------------------------------------------------
+
+    private const string CoralFolder = "Assets/Art/Models/environment/corals/";
+    private static readonly string[] CoralModels = { "Coral_Polyp", "Coral_Tube", "Coral_Bush", "Coral_Finger" };
+
+    // The four corals (made by Blender/make_corals.py) on the basement's sea floor: reefs of a few together, clear of
+    // the kelp forests. Each sits on the floor found under it (a ray down), tilted a little with the ground, turned and
+    // sized its own way, with a box collider round its lower part so you swim round it (a convex mesh one would need
+    // fewer faces than the corals have). None goes near a door, a
+    // pickup, a lock, a puzzle, a checkpoint, a plate or box, the chest, a nest, the rubble, the hatches or the chest
+    // window, or into anything solid. The same every build.
+    private static void BuildCorals()
+    {
+        var models = new List<GameObject>();
+        foreach (string name in CoralModels)
+        {
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(CoralFolder + name + ".fbx");
+            if (model != null)
+                models.Add(model);
+        }
+        if (models.Count == 0)
+        {
+            Debug.Log($"Ship greybox: no corals in {CoralFolder}, none placed.");
+            return;
+        }
+
+        Physics.SyncTransforms();
+        Transform group = Group("Corals");
+        var random = new System.Random(2024);
+        float R(float a, float b) => a + (float)random.NextDouble() * (b - a);
+        List<Vector3> clear = CoralKeepClear();
+        var placed = new List<Vector3>();   // x, z and how much room each coral takes
+        int reefs = 0;
+
+        // The basement: reefs of three to five on the sea floor, a dozen of them, between the kelp forests.
+        for (int tries = 0; reefs < 12 && tries < 600; tries++)
+        {
+            var centre = new Vector2(R(HullW + 3f, HullE - 4f), R(HullS + 3f, BasementN - 3f));
+            if (InKelp(centre.x, centre.y) || Near(clear, centre, 1.5f))
+                continue;
+            int grown = 0;
+            int count = random.Next(3, 6);
+            for (int k = 0; k < count * 3 && grown < count; k++)
+            {
+                float angle = R(0f, Mathf.PI * 2f), out_ = Mathf.Sqrt(R(0f, 1f)) * 2.2f;
+                var at = centre + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * out_;
+                if (InKelp(at.x, at.y))
+                    continue;
+                if (PlaceCoral(models[random.Next(models.Count)], at, BasementCeiling - 0.3f, BasementFloor - 0.5f, BasementCeiling - 1.5f,
+                        R(0.8f, 1.6f), R(0f, 360f), clear, placed, group, false))
+                    grown++;
+            }
+            if (grown > 0)
+                reefs++;
+        }
+
+        Debug.Log($"Ship greybox: {placed.Count} corals in {reefs} reefs on the basement floor.");
+    }
+
+    // A coral at (x, z) on the floor found under From Y (between Min Y and Max Y), if there is room for it there.
+    // Against Wall: only where a wall or something solid is within reach beside it.
+    private static bool PlaceCoral(GameObject model, Vector2 at, float fromY, float minY, float maxY, float scale, float yaw,
+        List<Vector3> clear, List<Vector3> placed, Transform group, bool againstWall)
+    {
+        float room = 0.55f * scale;   // how much floor it takes (the corals are about a metre across)
+        if (Near(clear, at, room))
+            return false;
+        foreach (Vector3 other in placed)
+            if (new Vector2(at.x - other.x, at.y - other.y).magnitude < (room + other.z) * 0.85f)
+                return false;
+        if (!Physics.Raycast(new Vector3(at.x, fromY, at.y), Vector3.down, out RaycastHit floor, fromY - minY + 0.5f, ~0, QueryTriggerInteraction.Ignore))
+            return false;
+        if (floor.point.y < minY || floor.point.y > maxY || floor.normal.y < 0.8f)
+            return false;
+        // Room for it: nothing solid where it would stand, but the floor itself.
+        var hits = new Collider[8];
+        Vector3 middle = floor.point + Vector3.up * (0.55f * scale);
+        int count = Physics.OverlapSphereNonAlloc(middle, 0.42f * scale, hits, ~0, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < count; i++)
+            if (hits[i] != floor.collider)
+                return false;
+        if (againstWall)
+        {
+            bool wall = false;
+            for (int i = 0; i < 8 && !wall; i++)
+            {
+                float a = i * Mathf.PI * 0.25f;
+                var direction = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                wall = Physics.Raycast(middle, direction, 0.65f * scale + 0.6f, ~0, QueryTriggerInteraction.Ignore);
+            }
+            if (!wall)
+                return false;
+        }
+
+        var coral = (GameObject)PrefabUtility.InstantiatePrefab(model, group.gameObject.scene);
+        coral.transform.SetParent(group, true);
+        Vector3 up = Vector3.Slerp(Vector3.up, floor.normal, 0.6f);
+        coral.transform.SetPositionAndRotation(floor.point - up * 0.04f, Quaternion.FromToRotation(Vector3.up, up) * Quaternion.Euler(0f, yaw, 0f));
+        coral.transform.localScale = Vector3.one * scale;
+        MeshFilter shape = coral.GetComponentInChildren<MeshFilter>();
+        if (shape != null && shape.sharedMesh != null && shape.GetComponent<Collider>() == null)
+        {
+            // A box round the bulk of it: a little narrower than its widest, the full height.
+            Bounds b = shape.sharedMesh.bounds;
+            var solid = shape.gameObject.AddComponent<BoxCollider>();
+            solid.center = b.center;
+            solid.size = new Vector3(b.size.x * 0.75f, b.size.y, b.size.z * 0.75f);
+        }
+        Physics.SyncTransforms();
+        placed.Add(new Vector3(at.x, at.y, room));
+        return true;
+    }
+
+    // Kept clear of corals (x, z, radius): everything you use or pass through, the basement's hatches and checkpoint
+    // (the kelp's clear list), and the chest window.
+    private static List<Vector3> CoralKeepClear()
+    {
+        var clear = new List<Vector3>(KelpClear);
+        clear.Add(new Vector3((ChestWindow.x + ChestWindow.y) * 0.5f, 38.25f, 2.8f));
+        void Keep<T>(float radius) where T : Component
+        {
+            foreach (T thing in ship.GetComponentsInChildren<T>(true))
+            {
+                Vector3 p = thing.transform.position;
+                clear.Add(new Vector3(p.x, p.z, radius));
+            }
+        }
+        Keep<PickupItem>(1.6f);
+        Keep<Door>(2.6f);
+        Keep<DoubleDoor>(3.2f);
+        Keep<ItemSocket>(1.8f);
+        Keep<PuzzleStation>(2f);
+        Keep<TreasureChest>(2f);
+        Keep<PressurePlates>(1.8f);
+        Keep<PushableBox>(1.6f);
+        Keep<PufferNest>(2.5f);
+        Keep<RubbleFall>(6f);
+        Keep<Checkpoint>(2f);
+        Keep<BoneKeyTying>(1.6f);
+        Keep<DrawerLoot>(1.8f);
+        return clear;
+    }
+
+    private static bool Near(List<Vector3> clear, Vector2 at, float extra)
+    {
+        foreach (Vector3 c in clear)
+            if (new Vector2(at.x - c.x, at.y - c.y).magnitude < c.z + extra)
+                return true;
+        return false;
     }
 
     // Nothing left poking through the level: a pickup placed inside something solid (a wall, a pillar, a pedestal)

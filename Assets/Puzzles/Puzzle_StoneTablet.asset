@@ -17,46 +17,52 @@ MonoBehaviour:
     Click a placed one to take it back.
   solvedText: The tablet is whole.
   board: {fileID: 21300000, guid: 0b29bfe35c9b8c542a6c0daf1fe5f1a0, type: 3}
-  boardTint: {r: 1, g: 1, b: 1, a: 1}
+  boardTint: {r: 1, g: 1, b: 1, a: 0}
   slot: {fileID: 21300000, guid: 4920ce8d9ccf8eb42ae4426aa508395d, type: 3}
   tileFrame: {fileID: 21300000, guid: 998862040bdf47a4aad12cf7ada7f749, type: 3}
   highlight: {r: 0.35, g: 0.85, b: 0.95, a: 1}
-  textColor: {r: 0.16, g: 0.1, b: 0.05, a: 1}
-  boardSize: {x: 1280, y: 760}
+  textColor: {r: 0.85, g: 0.92, b: 1, a: 1}
+  boardSize: {x: 1920, y: 1080}
   tileSize: 120
   tilesPerRow: 7
   layout: 1
-  picture: {fileID: 21300000, guid: ba2174b5b588009b6a480e63912ce5b7, type: 3}
-  pictureSize: 520
-  pictureTint: {r: 0.28, g: 0.3, b: 0.34, a: 1}
+  picture: {fileID: 21300000, guid: 295b87cab063a7749834ec4918c5f17d, type: 3}
+  pictureSize: 1000
+  pictureTint: {r: 1, g: 1, b: 1, a: 1}
+  pictureOffset: {x: 128, y: -123}
   spots:
-  - center: {x: 0.2018, y: -0.0451}
-    size: {x: 0.4055, y: 0.699}
+  - center: {x: 0.0919, y: 0.1756}
+    size: {x: 0.1847, y: 0.3183}
     angle: 0
-  - center: {x: -0.1054, y: -0.2156}
-    size: {x: 0.5983, y: 0.5689}
+  - center: {x: -0.048, y: 0.098}
+    size: {x: 0.2725, y: 0.2591}
     angle: 0
-  - center: {x: -0.0565, y: 0.246}
-    size: {x: 0.6638, y: 0.5081}
+  - center: {x: -0.0257, y: 0.3082}
+    size: {x: 0.3023, y: 0.2314}
     angle: 0
-  showSilhouettes: 0
+  showSilhouettes: 1
+  silhouetteColor: {r: 0.36, g: 0.4, b: 0.46, a: 1}
+  looseExploded: 1
+  looseCentre: {x: 470, y: 150}
+  looseSpread: 1.3
   rightPieceOnly: 1
-  looseScale: 0.62
+  looseScale: 0.95
   snapDistance: 140
   wrongPieceText: That piece does not fit there.
+  backdropDim: 0.45
   tiles:
   - id: right
     art: {fileID: 21300000, guid: 4d6d3801dafa7d9759c24744658f67c0, type: 3}
     label: right
-    looseAngle: 16
+    looseAngle: 8
   - id: bottom
     art: {fileID: 21300000, guid: 27d89572b5aa2d0bb3ac760ecf7a2951, type: 3}
     label: bottom
-    looseAngle: -12
+    looseAngle: -6
   - id: top
     art: {fileID: 21300000, guid: fd2b57d7fc36a41fa672d7c39de69b94, type: 3}
     label: top
-    looseAngle: 20
+    looseAngle: 10
   solution:
   - right
   - bottom
