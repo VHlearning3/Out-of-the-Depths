@@ -24,3 +24,8 @@ MonoBehaviour:
   worldModelVariants:
   - {fileID: 919132149155446097, guid: c618fa10375b26b4f9dce1f345db20ef, type: 3}
   - {fileID: 919132149155446097, guid: 5b9ef2de3f53bef47b98a30c11bf820b, type: 3}
+  heldLength: 0.45
+  heldGrip: 0.2
+  heldTipAxis: {x: 0, y: 1, z: 0}
+  heldRotation: {x: 0, y: 0, z: 0}
+  heldFitVersion: 0

@@ -17,3 +17,6 @@ MonoBehaviour:
   icon: {fileID: 0}
   maxStack: 99
   description: A pearl, still glowing faintly. Worth keeping.
+  worldModel: {fileID: 919132149155446097, guid: 406be6d4eee815a4e9515a35eb5c8726, type: 3}
+  worldModelScale: 1
+  worldModelRotation: {x: 0, y: 0, z: 0}
