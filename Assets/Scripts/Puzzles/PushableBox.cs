@@ -13,6 +13,8 @@ using UnityEngine;
 //  - Plate: a Pressure Plate draws in a box that comes within Plate Reach of it (level with it, not one stacked on
 //    another box), faster the closer it gets; once its middle is over the plate it drops into place, squares up and
 //    stays there for good: it cannot be pushed off again. A plate that has its box draws in no other.
+// Everything goes by the middle of its Box Collider, not by its pivot: the crate model's pivot is at one edge of the
+// crate, not in its middle (settling by the pivot put a placed box half beside its pit, floating, off the plate).
 [RequireComponent(typeof(Rigidbody))]
 public class PushableBox : MonoBehaviour
 {
@@ -41,8 +43,11 @@ public class PushableBox : MonoBehaviour
     private float pushedUntil;
     private bool moving;   // pushed last step: stopped dead the step it ends, so it stays where it was left
     private bool placed;
+    private PressurePlates placedOn;
 
     public bool Placed => placed;
+    // The middle of the crate (its collider), wherever the model's pivot is.
+    public Vector3 Centre => body != null ? body.worldCenterOfMass : transform.position;
 
     private void Awake()
     {
@@ -115,7 +120,12 @@ public class PushableBox : MonoBehaviour
     private void FixedUpdate()
     {
         if (placed)
+        {
+            // In its pit for good: its plate stays down (a resting kinematic body is not always reported to triggers).
+            if (placedOn != null && !placedOn.isPressed)
+                placedOn.isPressed = true;
             return;
+        }
         bool pushed = Time.time <= pushedUntil;
         Vector3 want = pushed ? pushVelocity : Vector3.zero;
         Vector3 pull = PlatePull();
@@ -165,7 +175,7 @@ public class PushableBox : MonoBehaviour
     // Every plate in the scene, looked up again now and then (plates can be added while the game runs).
     private static PressurePlates[] Plates()
     {
-        if (plates == null || Time.time - platesFoundAt > 5f || Time.time < platesFoundAt)
+        if (plates == null || Time.time - platesFoundAt > 5f || Time.time < platesFoundAt || Missing(plates))
         {
             plates = FindObjectsByType<PressurePlates>(FindObjectsSortMode.None);
             platesFoundAt = Time.time;
@@ -173,10 +183,27 @@ public class PushableBox : MonoBehaviour
         return plates;
     }
 
+    // One of them gone (the scene was loaded again from a checkpoint): look them up again now, not in 5 s.
+    private static bool Missing(PressurePlates[] found)
+    {
+        foreach (PressurePlates plate in found)
+            if (plate == null)
+                return true;
+        return false;
+    }
+
     private float HalfHeight()
     {
         BoxCollider box = GetComponent<BoxCollider>();
         return (box != null ? box.size.y : 1f) * Mathf.Abs(transform.lossyScale.y) * 0.5f;
+    }
+
+    // From its pivot to the middle of its collider, in the world, when it is turned to `rotation`.
+    private Vector3 CentreOffset(Quaternion rotation)
+    {
+        BoxCollider box = GetComponent<BoxCollider>();
+        Vector3 local = box != null ? box.center : Vector3.zero;
+        return rotation * Vector3.Scale(local, transform.lossyScale);
     }
 
     // Over a pressure plate: into place for good.
@@ -195,19 +222,24 @@ public class PushableBox : MonoBehaviour
     }
 
     // Glides onto the plate's middle, square to it and upright, resting on the plate's bottom (the pit floor), and
-    // stays: no longer physics.
+    // stays: no longer physics. Its plate is pressed from then on.
     private IEnumerator SettleOnto(Collider plate)
     {
         placed = true;
         body.isKinematic = true;
+        placedOn = plate.GetComponentInParent<PressurePlates>();
+        if (placedOn != null)
+            placedOn.isPressed = true;
 
         float halfHeight = HalfHeight();
         float plateYaw = plate.transform.eulerAngles.y;
         float yaw = plateYaw + Mathf.Round(Mathf.DeltaAngle(plateYaw, transform.eulerAngles.y) / 90f) * 90f;
         Vector3 fromPosition = transform.position;
         Quaternion fromRotation = transform.rotation;
-        Vector3 toPosition = new Vector3(plate.bounds.center.x, plate.bounds.min.y + halfHeight, plate.bounds.center.z);
         Quaternion toRotation = Quaternion.Euler(0f, yaw, 0f);
+        // The collider's middle over the plate's middle and its bottom on the pit floor; the pivot goes where that puts it.
+        Vector3 toPosition = new Vector3(plate.bounds.center.x, plate.bounds.min.y + halfHeight, plate.bounds.center.z)
+            - CentreOffset(toRotation);
         for (float t = 0f; t < 1f; t += Time.deltaTime / 0.25f)
         {
             float s = Mathf.SmoothStep(0f, 1f, t);

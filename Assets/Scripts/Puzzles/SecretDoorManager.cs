@@ -28,6 +28,7 @@ public class SecretDoorManager : MonoBehaviour
 
         if (allPressed && !doorOpened)
         {
+            door.Unlock();   // open for good: E on it no longer says it is locked
             door.SetOpen(true);
             doorOpened = true;
         }

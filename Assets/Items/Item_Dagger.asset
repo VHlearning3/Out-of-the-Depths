@@ -15,6 +15,7 @@ MonoBehaviour:
   displayName: dagger
   category: 2
   icon: {fileID: 21300000, guid: c0bb63ae7b6c34b46873af084fcfd62c, type: 3}
+  stackIcons: []
   maxStack: 1
   description: A rusted dagger. Enough to fend off the small ones.
   worldModel: {fileID: 919132149155446097, guid: 46d8563eda28cb840ab6bc4a6c495cad, type: 3}

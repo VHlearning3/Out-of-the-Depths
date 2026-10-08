@@ -93,7 +93,7 @@ public class BoxPush : MonoBehaviour
         if (box == null || box.Placed)
             return;
         held = box;
-        Vector3 offset = box.transform.position - transform.position;
+        Vector3 offset = box.Centre - transform.position;   // its middle: the crate model's pivot is at one edge
         offset.y = 0f;
         holdDistance = Mathf.Max(holdMin, offset.magnitude);
     }
@@ -118,7 +118,7 @@ public class BoxPush : MonoBehaviour
         if (look.sqrMagnitude < 1e-4f)
             look = transform.forward;
         Vector3 target = transform.position + look.normalized * holdDistance;
-        Vector3 at = held.transform.position;
+        Vector3 at = held.Centre;
         target.y = at.y;
         Vector3 apart = at - transform.position;
         apart.y = 0f;
