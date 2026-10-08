@@ -1,12 +1,17 @@
 using System.IO;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 // Connects 3D models from Art/Models to item assets, so pickups show real art instead of placeholder cubes.
 // Tools > Out of the Depths > Assign Known Item Models: gives each item in KnownModels its model (only if it has none yet)
 // and a hotbar icon rendered from that model. Also runs by itself when the project loads, so new models get picked up.
 // Tools > Out of the Depths > Apply Item Models To Pickups: bakes the model into every pickup prefab so it shows in the editor,
 // not just in Play mode. (Play mode does the same swap on the fly for any pickup whose prefab was not baked.)
+// A model re-exported at other units leaves the pickups already baked into scenes far off their size (the dagger came
+// back from Blender in metres instead of centimetres: a hundred times bigger, a giant standing in the room). Those are
+// fitted again by themselves in every open scene when scripts reload and in each scene as it is opened (save it to keep it).
 public static class ItemModelTools
 {
     public const string ModelFolder = "Assets/Art/Models";
@@ -60,6 +65,80 @@ public static class ItemModelTools
                 EditorApplication.update += RetryIcons;
             }
         };
+    }
+
+    // ---- baked pickups whose model was re-exported at another size -------------------------------------------------
+
+    [InitializeOnLoadMethod]
+    private static void RefitStaleOnLoad()
+    {
+        EditorSceneManager.sceneOpened -= RefitStaleInOpenedScene;
+        EditorSceneManager.sceneOpened += RefitStaleInOpenedScene;
+        EditorApplication.delayCall += () =>
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+                return;
+            for (int i = 0; i < SceneManager.sceneCount; i++)
+                RefitStale(SceneManager.GetSceneAt(i));
+        };
+    }
+
+    private static void RefitStaleInOpenedScene(Scene scene, OpenSceneMode mode)
+    {
+        if (!EditorApplication.isPlayingOrWillChangePlaymode)
+            RefitStale(scene);
+    }
+
+    // Every pickup in `scene` baked for its item whose model is now over 1.5 times or under 2/3 of the size it should be
+    // (Model Size times the item's World Model Scale; the same test Play mode makes) is fitted again like the bake tool
+    // does: the item's rotation, Model Size, centred. Returns how many.
+    public static int RefitStale(Scene scene)
+    {
+        if (!scene.IsValid() || !scene.isLoaded)
+            return 0;
+        int refitted = 0;
+        foreach (GameObject top in scene.GetRootGameObjects())
+            foreach (PickupItem pickup in top.GetComponentsInChildren<PickupItem>(true))
+            {
+                var so = new SerializedObject(pickup);
+                var item = so.FindProperty("item").objectReferenceValue as ItemDefinition;
+                var visual = so.FindProperty("visual").objectReferenceValue as Transform;
+                float size = so.FindProperty("modelSize").floatValue;
+                if (!so.FindProperty("useItemModel").boolValue || item == null || item.WorldModel == null || visual == null
+                    || size <= 0f || so.FindProperty("bakedFor").objectReferenceValue != item || !visual.gameObject.activeInHierarchy)
+                    continue;   // not baked, or hidden (a hidden renderer has no size to go by)
+                float longest = LongestSide(visual);
+                float expected = size * item.WorldModelScale * Mathf.Abs(pickup.transform.lossyScale.x);
+                if (longest < 1e-4f || expected < 1e-4f)
+                    continue;
+                float ratio = longest / expected;
+                if (ratio <= 1.5f && ratio >= 0.67f)
+                    continue;
+                Undo.RecordObject(visual, "Refit item model");
+                PickupItem.FitItemModel(pickup.transform, item, visual.gameObject, null, size);
+                EditorUtility.SetDirty(visual);
+                EditorSceneManager.MarkSceneDirty(scene);
+                refitted++;
+                Debug.Log($"Item model: {pickup.name} in {scene.name} showed {item.name} at {ratio:0.##} times its size (its model was re-exported at other units); fitted again. Save the scene to keep it.", pickup);
+            }
+        return refitted;
+    }
+
+    private static float LongestSide(Transform visual)
+    {
+        bool any = false;
+        var bounds = new Bounds();
+        foreach (Renderer r in visual.GetComponentsInChildren<Renderer>())
+        {
+            if (r is ParticleSystemRenderer || !r.enabled)
+                continue;
+            if (any)
+                bounds.Encapsulate(r.bounds);
+            else
+                bounds = r.bounds;
+            any = true;
+        }
+        return any ? Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z) : 0f;
     }
 
     private static void RetryIcons()
