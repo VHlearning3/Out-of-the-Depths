@@ -1,29 +1,26 @@
 # Out of the Depths - coral builder for Blender (tested in 4.2 and 5.0).
 #
 # Run it: Blender > Scripting tab > Open > this file > Run Script (or Alt+P in the text editor).
-# It builds the four corals from the concept art side by side on the X axis, each one finished mesh (no live
-# modifiers left to slow Blender down) with its origin at the bottom middle:
+# It builds the four corals from the concept art side by side on the X axis, ready for the game:
 #
-#   Coral_Polyp  - teal stems branching up and out, each ending in a flared cup: a scalloped yellow rim round a
-#                  sunken cyan middle with a raised mouth
-#   Coral_Tube   - a mound of blue tubes with uneven, wavy lips, open and dark inside, the middle ones tallest
-#   Coral_Bush   - a chunky red bush of fat, lumpy, blunt branches
-#   Coral_Finger - magenta fingers standing up from one foot, knobbly at the tips
+#   Coral_Polyp  - a bouquet of thin teal stems fanning up from one foot, each ending in a flared cup: a fat
+#                  scalloped yellow ring round a cyan middle with a mouth (placed so no cup touches another cup or stem)
+#   Coral_Tube   - a mound of blue tubes with uneven, wavy lips, near-black inside, the middle ones tallest
+#   Coral_Bush   - a chunky red bush: stout branches splitting into fat upturned lobes, widest at the top
+#   Coral_Finger - like the bush but taller and more upright: magenta fingers with rounded tips
 #
-# Cartoon colours like the concept art on a matte surface, each darker towards the bottom and a touch lighter at
-# the tips (a small gradient texture per material, mapped by height, so it shows in Unity with the ordinary Lit
-# shader). Nothing is perfectly round: every coral gets a slow wobble so no two parts are the same, and the bush,
-# fingers and tubes a skin of small rounded bumps (the polyps). The discs and the insides of the tubes are their
-# own materials.
+# How: each coral is first built in detail (a few tens of thousands of faces, with its colours, a gradient darker to
+# the bottom, a slow wobble so nothing is perfectly round, and on the bush and fingers a real coral surface of packed
+# polyp cups). Then a light copy is made for the game (TRIANGLES: about 2.5-4.5k triangles each), unwrapped, and the
+# detailed one is baked onto it (Cycles): its colours into <name>_Color and its surface detail into <name>_Normal, on
+# one matte material, M_<name>. The detailed one is then deleted (KEEP_DETAILED keeps it, hidden). So the game gets
+# cheap meshes that still look detailed.
 #
 # Run it again to rebuild them (the old ones are replaced). Change SEED for another version of every shape, or the
-# settings in each coral's function for just that one. DETAIL sets how smooth they are (2 = smooth, about 10-15k
-# faces each; 1 = lighter, about a quarter of that). Set EXPORT_DIR to also write one .fbx per coral plus its
-# gradient .png files, set up for Unity (Y up, scale 1): drop the whole folder into Assets. In Unity keep the
-# materials' Smoothness low (about 0.1) so they stay matte.
-#
-# The branching corals are a "skeleton" of points and lines that the Skin modifier wraps in tubes: Blender welds
-# the joints itself (no holes), and the thickness is set per point, so nothing goes mushy.
+# settings in each coral's function for just that one. Set EXPORT_DIR to also write one .fbx per coral plus its two
+# .png textures, set up for Unity (Y up, scale 1): drop the folder into Assets, set each _Normal texture's Texture
+# Type to Normal map (Unity offers "Fix now"), and keep the materials' Smoothness low (about 0.1) so they stay matte.
+
 
 import bpy
 import bmesh
@@ -33,11 +30,14 @@ import random
 from mathutils import Vector, Matrix, noise
 
 SEED = 7
-DETAIL = 2             # 1 = lighter meshes, 2 = smoother
+DETAIL = 2             # how fine the detailed versions are (1 = coarser and quicker, 2 = finer)
 SPACING = 2.5          # metres between the corals in the scene
 EXPORT_DIR = ""        # e.g. r"C:\Users\you\...\Out-of-the-Depths\Assets\Art\Models\environment\corals"; "" = no export
 BOTTOM_SHADE = 0.3     # how dark the bottom of each coral is (share of its colour: 0 = black, 1 = no gradient)
 TIP_LIGHT = 0.12       # how much lighter the very tips get (0 = not at all)
+TRIANGLES = {"Coral_Polyp": 4500, "Coral_Tube": 2600, "Coral_Bush": 2400, "Coral_Finger": 2400}   # the game meshes' size
+TEXTURE_SIZE = 1024     # the baked colour and normal textures (pixels across)
+KEEP_DETAILED = False  # keep the detailed versions too (hidden, as <name>_High), e.g. to bake again
 
 NAMES = ["Coral_Polyp", "Coral_Tube", "Coral_Bush", "Coral_Finger"]
 
@@ -55,7 +55,7 @@ MAGENTA = (0.78, 0.08, 0.78)
 # helpers
 
 def clear_old():
-    for name in NAMES + ["Coral_Branch", "Coral_Brain", "Coral_Fan"]:   # (and the first version's corals)
+    for name in NAMES + [n + "_High" for n in NAMES] + ["Coral_Branch", "Coral_Brain", "Coral_Fan"]:   # (and the first version's)
         ob = bpy.data.objects.get(name)
         if ob is not None:
             mesh = ob.data
@@ -383,26 +383,43 @@ def finish(ob, x, materials):
 # the four corals
 
 def coral_polyp(rng):
-    # Thin teal stems branching up and out; every tip ends in a flared cup facing up and out: a scalloped yellow
-    # rim round a sunken cyan middle with a little raised mouth. Materials: 0 stems, 1 rim, 2 middle.
+    # A bouquet: thin teal stems rising from one foot and fanning out, of different lengths, each ending in a flared
+    # cup facing up and out: a fat scalloped yellow ring round a sunken cyan middle with a little mouth. The stems
+    # are placed one by one, and one whose cup would touch another cup or another stem is tried again elsewhere (or
+    # left out), so nothing overlaps. Materials: 0 stems, 1 ring, 2 middle.
     s = Skeleton()
     root = s.add(Vector((0, 0, 0)), 0.07)
-    stems = 4
-    for k in range(stems):
-        around = k / stems * math.tau + rng.uniform(-0.4, 0.4)
-        lean = math.radians(rng.uniform(35, 60))
-        d = Vector((math.cos(around) * math.sin(lean), math.sin(around) * math.sin(lean), math.cos(lean)))
-        s.grow(rng, root, Vector((0, 0, 0)), d,
-               length=0.34,
-               radius=0.05,
-               depth=2,           # forks: 4 stems x 2 x 2 = 16 cups
-               spread=42,
-               up_pull=0.03,
-               wobble=0.25,
-               children=(2, 2),
-               shrink=(0.7, 0.9),
-               step=0.05,
-               tip=0.9)
+    foot = Vector((0, 0, 0.06))
+    hub = s.add(foot, 0.055, root)
+    cups, stems = [], []
+    for k in range(12):                                           # how many stems it tries for
+        for attempt in range(60):
+            around = rng.uniform(0, math.tau)
+            lean = math.radians(rng.uniform(5, 55))
+            length = rng.uniform(0.38, 0.72)
+            out = Vector((math.cos(around) * math.sin(lean), math.sin(around) * math.sin(lean), math.cos(lean)))
+            flat = Vector((math.cos(around), math.sin(around), 0))
+            # Up from the foot first, then bending out: a curve through these three points.
+            p0, p1 = foot, foot + flat * 0.04 + Vector((0, 0, length * 0.45))
+            p2 = foot + out * length + Vector((0, 0, length * 0.15))
+            n = max(5, int(length / 0.04))
+            pts = [(1 - t) ** 2 * p0 + 2 * (1 - t) * t * p1 + t * t * p2 for t in (i / n for i in range(1, n + 1))]
+            facing = ((pts[-1] - pts[-2]).normalized() + Vector((0, 0, 1.2))).normalized()
+            radius = rng.uniform(0.09, 0.125)                     # cup size
+            centre = pts[-1] + facing * radius * 0.3
+            upper = pts[len(pts) // 3:]
+            clear = all((centre - c).length > (radius + r) * 1.12 for c, f, r in cups)
+            clear = clear and all(min((centre - q).length for q in other) > radius + 0.05 for other in stems)
+            clear = clear and all(min((c - q).length for q in upper) > r + 0.05 for c, f, r in cups)
+            if clear:
+                break
+        else:
+            continue
+        cups.append((centre, facing, radius))
+        stems.append(upper)
+        index = hub
+        for i, p in enumerate(pts):
+            index = s.add(p, 0.032 - 0.01 * i / len(pts), index)
     ob = s.to_object("Coral_Polyp", smoothing=0.4)
     subdivide(ob, 1)
 
@@ -410,18 +427,17 @@ def coral_polyp(rng):
     bm.from_mesh(ob.data)
     for f in bm.faces:
         f.material_index = 0
-    for at, d, stem in s.tips:
-        facing = (d + Vector((0, 0, 0.8))).normalized()          # up and out
-        radius = rng.uniform(0.11, 0.15)                          # cup size
+    for centre, facing, radius in cups:
         thick = radius * 0.6
         turn = turned_to(facing)
+        at = centre - facing * radius * 0.3                       # the stem's end
         place = Matrix.Translation(at - facing * thick * 0.1) @ turn @ Matrix.Translation((0, 0, thick * 0.5))
         made = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=20,
-                                     radius1=max(stem * 1.3, radius * 0.35), radius2=radius, depth=thick, matrix=place)
+                                     radius1=radius * 0.35, radius2=radius, depth=thick, matrix=place)
         faces = {f for v in made["verts"] for f in v.link_faces}
         bm.normal_update()
         top = max(faces, key=lambda f: f.normal.dot(facing))
-        # Scallops: the rim's edge waves up and down.
+        # Scallops: the ring's edge waves up and down.
         across, along = turn.to_3x3() @ Vector((1, 0, 0)), turn.to_3x3() @ Vector((0, 1, 0))
         middle = top.calc_center_median()
         waves, phase = rng.choice([7, 8, 9]), rng.uniform(0, math.tau)
@@ -440,10 +456,10 @@ def coral_polyp(rng):
         f.smooth = True
     bm.to_mesh(ob.data)
     bm.free()
-    subdivide(ob, DETAIL - 1 if DETAIL > 1 else 1)
-    surface(ob, rng, wobble=0.006, wobble_scale=9.0, skip_materials=(1, 2))
+    subdivide(ob, 1)
+    surface(ob, rng, wobble=0.005, wobble_scale=9.0, skip_materials=(1, 2))
     return ob, [material("M_Coral_Polyp_Stem", TEAL),
-                material("M_Coral_Polyp_Rim", YELLOW, shade=0.7),
+                material("M_Coral_Polyp_Ring", YELLOW, shade=0.7),
                 material("M_Coral_Polyp_Middle", CYAN, shade=0.75)]
 
 
@@ -517,63 +533,167 @@ def coral_tube(rng):
     ob = new_object("Coral_Tube", bm)
     subdivide(ob, 1)
     surface(ob, rng, wobble=0.012, wobble_scale=4.0, bumps=0.006, bump_size=0.035, skip_materials=(1,))
-    return ob, [material("M_Coral_Tube", BLUE), material("M_Coral_Tube_Inside", TUBE_INSIDE, shade=1.0, light=0.0)]
+    return ob, [material("M_Coral_Tube_Paint", BLUE), material("M_Coral_Tube_Inside", TUBE_INSIDE, shade=1.0, light=0.0)]
 
 
 def coral_bush(rng):
-    # Fat, blunt, lumpy branches spreading up and out from a thick foot.
+    # A chunky bush like the concept art: a short thick foot, a few stout branches leaning out, each splitting into
+    # fat lobes that turn upwards with blunt rounded ends, so it is widest at the top. Its surface: packed polyp
+    # cups, baked into the game mesh's normal map.
     s = Skeleton()
-    root = s.add(Vector((0, 0, 0)), 0.17)
-    stems = 7
+    root = s.add(Vector((0, 0, 0)), 0.15)
+    stems = 4
     for k in range(stems):
-        around = k / stems * math.tau + rng.uniform(-0.3, 0.3)
-        lean = math.radians(rng.uniform(35, 65))
+        around = k / stems * math.tau + rng.uniform(-0.35, 0.35)
+        lean = math.radians(rng.uniform(45, 62))
         d = Vector((math.cos(around) * math.sin(lean), math.sin(around) * math.sin(lean), math.cos(lean)))
         s.grow(rng, root, Vector((0, 0, 0)), d,
                length=0.3,
-               radius=0.13,       # branch thickness
+               radius=0.11,       # branch thickness
                depth=2,
                spread=34,
-               up_pull=0.06,
-               wobble=0.3,
+               up_pull=0.11,      # the lobes turn upwards
+               wobble=0.2,
                children=(2, 3),
-               shrink=(0.55, 0.75),
+               shrink=(0.75, 0.95),
                step=0.05,
                tip=1.0,           # blunt, rounded ends
-               lump=0.06)         # how lumpy
+               lump=0.05)
     ob = s.to_blob_object("Coral_Bush", scale=1.35, resolution=0.03 if DETAIL > 1 else 0.045, thinnest=0.07)
-    surface(ob, rng, wobble=0.012, wobble_scale=3.5)
+    surface(ob, rng, wobble=0.01, wobble_scale=3.5)
     subdivide(ob, DETAIL - 1)                                     # fine enough for the polyp cups
-    corallites(ob, rng, size=0.045, depth=0.012)
-    return ob, [material("M_Coral_Bush", RED)]
+    corallites(ob, rng, size=0.05, depth=0.007)
+    return ob, [material("M_Coral_Bush_Paint", RED)]
 
 
 def coral_finger(rng):
-    # Slim upright fingers from one foot, standing apart, each with a few short knobs near the top.
+    # Like the bush but taller and more upright: a few stems from one foot, each splitting into upright fingers
+    # with rounded, slightly knobbly tips, the whole thing wider at the top. Polyp cups baked into the normal map.
     s = Skeleton()
-    root = s.add(Vector((0, 0, 0)), 0.16)
-    stems = 7
+    root = s.add(Vector((0, 0, 0)), 0.13)
+    stems = 4
     for k in range(stems):
-        around = k / stems * math.tau + rng.uniform(-0.3, 0.3)
-        lean = math.radians(rng.uniform(25, 45))
+        around = k / stems * math.tau + rng.uniform(-0.35, 0.35)
+        lean = math.radians(rng.uniform(30, 45))
         d = Vector((math.cos(around) * math.sin(lean), math.sin(around) * math.sin(lean), math.cos(lean)))
         s.grow(rng, root, Vector((0, 0, 0)), d,
-               length=rng.uniform(0.4, 0.55),
-               radius=0.085,
+               length=0.32,
+               radius=0.08,
                depth=2,
-               spread=26,
-               up_pull=0.12,      # upright
-               wobble=0.25,
+               spread=28,
+               up_pull=0.12,      # upright fingers
+               wobble=0.2,
                children=(2, 3),
-               shrink=(0.35, 0.6),  # the last forks are short knobs
-               step=0.06,
-               tip=0.95,
-               lump=0.08)
-    ob = s.to_blob_object("Coral_Finger", scale=1.35, resolution=0.022 if DETAIL > 1 else 0.035, thinnest=0.055)
+               shrink=(0.65, 0.85),
+               step=0.05,
+               tip=1.0,
+               lump=0.07)
+    ob = s.to_blob_object("Coral_Finger", scale=1.35, resolution=0.025 if DETAIL > 1 else 0.038, thinnest=0.06)
     surface(ob, rng, wobble=0.008, wobble_scale=5.0)
     subdivide(ob, DETAIL - 1)
-    corallites(ob, rng, size=0.035, depth=0.008)
-    return ob, [material("M_Coral_Finger", MAGENTA)]
+    corallites(ob, rng, size=0.04, depth=0.006)
+    return ob, [material("M_Coral_Finger_Paint", MAGENTA)]
+
+
+# ---- the game mesh: a light copy with the detailed one baked onto it -------------------------------------------
+
+def game_mesh(high, triangles):
+    # A copy of the detailed coral cut down to about `triangles` (Decimate keeps the shape), unwrapped for its
+    # textures. The detailed one is renamed ..._High.
+    name = high.name
+    high.name = name + "_High"
+    low = high.copy()
+    low.data = high.data.copy()
+    low.name = name
+    low.data.name = name
+    collection().objects.link(low)
+    count = sum(len(p.vertices) - 2 for p in low.data.polygons)
+    if count > triangles:
+        mod = low.modifiers.new("Decimate", 'DECIMATE')
+        mod.ratio = triangles / count
+        apply_modifiers(low)
+    mesh = low.data
+    while mesh.uv_layers:
+        mesh.uv_layers.remove(mesh.uv_layers[0])
+    mesh.uv_layers.new(name="UVMap")
+    mesh.materials.clear()
+    for p in mesh.polygons:
+        p.use_smooth = True
+    make_active(low)
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.004)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    return low
+
+
+def bake(low, high, size):
+    # The detailed coral's colours (with its gradient) and its surface (the bumps and polyp cups) baked onto the
+    # light one: a colour texture and a normal map, on one material (M_<name>). Cycles does the baking.
+    name = low.name
+    old = bpy.data.materials.get("M_" + name)
+    if old is not None:
+        bpy.data.materials.remove(old)
+    images = []
+    for suffix, colour_space in (("_Color", 'sRGB'), ("_Normal", 'Non-Color')):
+        image = bpy.data.images.get(name + suffix)
+        if image is not None:
+            bpy.data.images.remove(image)
+        image = bpy.data.images.new(name + suffix, width=size, height=size, alpha=False)
+        image.colorspace_settings.name = colour_space
+        images.append(image)
+    colour, normal = images
+
+    mat = bpy.data.materials.new("M_" + name)
+    mat.use_nodes = True
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    bsdf = nodes.get("Principled BSDF")
+    set_input(bsdf, ["Roughness"], 0.88)
+    set_input(bsdf, ["Specular IOR Level", "Specular"], 0.15)
+    mat.roughness = 0.88
+    mat.specular_intensity = 0.15
+    colour_node = nodes.new("ShaderNodeTexImage")
+    colour_node.image = colour
+    colour_node.location = (-500, 300)
+    normal_node = nodes.new("ShaderNodeTexImage")
+    normal_node.image = normal
+    normal_node.location = (-700, -150)
+    bump = nodes.new("ShaderNodeNormalMap")
+    bump.location = (-300, -150)
+    links.new(colour_node.outputs["Color"], bsdf.inputs["Base Color"])
+    links.new(normal_node.outputs["Color"], bump.inputs["Color"])
+    links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+    low.data.materials.append(mat)
+
+    scene = bpy.context.scene
+    keep_engine = scene.render.engine
+    scene.render.engine = 'CYCLES'
+    scene.cycles.device = 'CPU'
+    scene.cycles.samples = 4
+    bpy.ops.object.select_all(action='DESELECT')
+    high.select_set(True)
+    low.select_set(True)
+    bpy.context.view_layer.objects.active = low
+    reach = max(high.dimensions) * 0.04                            # how far apart the two surfaces may be
+    for node, kind in ((colour_node, 'DIFFUSE'), (normal_node, 'NORMAL')):
+        for other in nodes:
+            other.select = False
+        node.select = True
+        nodes.active = node
+        settings = dict(type=kind, use_selected_to_active=True, cage_extrusion=reach, max_ray_distance=reach * 2,
+                        margin=8)
+        if kind == 'DIFFUSE':
+            settings["pass_filter"] = {'COLOR'}
+        bpy.ops.object.bake(**settings)
+    scene.render.engine = keep_engine
+    return [mat]
+
+
+def remove(ob):
+    mesh = ob.data
+    bpy.data.objects.remove(ob, do_unlink=True)
+    if mesh is not None and mesh.users == 0:
+        bpy.data.meshes.remove(mesh)
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -611,9 +731,21 @@ def main():
     rng = random.Random(SEED)
     made = []
     for i, build in enumerate([coral_polyp, coral_tube, coral_bush, coral_finger]):
-        ob, materials = build(random.Random(rng.random()))
-        finish(ob, i * SPACING, materials)
-        made.append((ob, materials))
+        high, paint = build(random.Random(rng.random()))
+        finish(high, i * SPACING, paint)
+        low = game_mesh(high, TRIANGLES[NAMES[i]])
+        materials = bake(low, high, TEXTURE_SIZE)
+        if KEEP_DETAILED:
+            high.hide_set(True)
+            high.hide_render = True
+        else:
+            remove(high)
+            for mat in paint:
+                for node in mat.node_tree.nodes:
+                    if node.type == 'TEX_IMAGE' and node.image is not None and node.image.users <= 1:
+                        bpy.data.images.remove(node.image)
+                bpy.data.materials.remove(mat)
+        made.append((low, materials))
     if EXPORT_DIR:
         for ob, materials in made:
             export(ob, materials)
@@ -624,7 +756,8 @@ def main():
                     if node.type == 'TEX_IMAGE' and node.image is not None and not node.image.packed_file:
                         node.image.pack()      # kept in the .blend when you save it
     bpy.ops.object.select_all(action='DESELECT')
-    print("Corals built:", ", ".join(ob.name + " (%d faces)" % len(ob.data.polygons) for ob, _ in made))
+    print("Corals built:", ", ".join("%s (%d triangles)" % (ob.name, sum(len(p.vertices) - 2 for p in ob.data.polygons))
+                                     for ob, _ in made))
 
 
 main()

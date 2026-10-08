@@ -19,4 +19,16 @@ MonoBehaviour:
   - {fileID: 21300000, guid: 6b23862b670583349b4c00cf79682abf, type: 3}
   - {fileID: 21300000, guid: 28a54fcd2d3f616498bcea5e3500c892, type: 3}
   maxStack: 3
-  description: A fragment of a carved stone tablet. The pedestal is missing pieces like this.
+  description: A fragment of a carved stone tablet. The pedestal is missing pieces
+    like this.
+  worldModel: {fileID: 2699008782124704386, guid: 6d469e28dfde256449a1c7a56d0c3037, type: 3}
+  worldModelScale: 1
+  worldModelRotation: {x: 0, y: 0, z: 0}
+  worldModelVariants:
+  - {fileID: 1358030433167879938, guid: dfa99d30da8a73249a23208c0100f854, type: 3}
+  - {fileID: 7005507694946781958, guid: d2e55d505cee4974bbf112ba7d925063, type: 3}
+  heldLength: 0.45
+  heldGrip: 0.2
+  heldTipAxis: {x: 0, y: 1, z: 0}
+  heldRotation: {x: 0, y: 0, z: 0}
+  heldFitVersion: 0

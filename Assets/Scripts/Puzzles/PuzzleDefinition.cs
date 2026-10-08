@@ -66,10 +66,20 @@ public class PuzzleDefinition : ScriptableObject
     public float pictureSize = 520f;
     [Tooltip("Picture layout: the colour the picture is drawn in. Dark = it reads as the empty shape to fill (for a picture of the whole finished thing, like the stone tablet); white = as drawn (a frame with a hollow).")]
     public Color pictureTint = Color.white;
+    [Tooltip("Picture layout: moves the picture from its usual place (left of the middle), in board pixels.")]
+    public Vector2 pictureOffset = Vector2.zero;
     [Tooltip("Picture layout: where each piece goes on the picture, one per Solution entry in the same order.")]
     public Spot[] spots = new Spot[0];
     [Tooltip("Picture layout: a faint silhouette of the piece that goes there marks each empty spot.")]
     public bool showSilhouettes = true;
+    [Tooltip("Picture layout: the silhouettes' colour (it tints the piece's own picture: dark = the shape still to fill, with its pattern showing faintly).")]
+    public Color silhouetteColor = new Color(0.85f, 0.9f, 0.95f, 0.12f);
+    [Tooltip("Picture layout: lay the loose pieces out as the whole thing broken apart (each where it belongs, spread out from Loose Centre by Loose Spread) instead of in a column down the right.")]
+    public bool looseExploded = false;
+    [Tooltip("Picture layout, exploded: the middle of the loose pieces, in board pixels from the board's middle.")]
+    public Vector2 looseCentre = new Vector2(460f, 160f);
+    [Tooltip("Picture layout, exploded: how far apart the pieces lie (1 = touching, as when whole).")]
+    public float looseSpread = 1.3f;
     [Tooltip("Picture layout: only the right piece goes into a spot; a wrong one slides back.")]
     public bool rightPieceOnly = true;
     [Tooltip("Picture layout: the loose pieces are drawn this much smaller than in place.")]
@@ -78,6 +88,10 @@ public class PuzzleDefinition : ScriptableObject
     public float snapDistance = 140f;
     [Tooltip("Picture layout: said for a moment when a piece is dropped on the wrong spot.")]
     public string wrongPieceText = "That piece does not fit there.";
+
+    [Header("Backdrop")]
+    [Tooltip("How dark the screen behind the board goes (0 = the game shows as it is).")]
+    [Range(0f, 1f)] public float backdropDim = 0.62f;
 
     [Header("Tiles")]
     public Tile[] tiles = new Tile[0];

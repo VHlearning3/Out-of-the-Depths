@@ -2123,22 +2123,53 @@ public static class PuzzleBuildTools
             p.slot = slot;
             p.tileFrame = frame;
             p.layout = PuzzleDefinition.Layout.Picture;
-            p.picture = stoneDisc;
-            p.pictureSize = 520f;
-            p.pictureTint = new Color(0.28f, 0.3f, 0.34f);
-            p.showSilhouettes = false;
-            p.looseScale = 0.62f;
-            p.spots = new[]
+            // Noora's mockup: no board, the podium (Art/UI/podium) drawn as it is on the left over the dimmed game,
+            // the stone dark in its hollow (the silhouettes of the pieces), the three fragments on the right as the
+            // stone broken apart. The pieces were drawn on the podium's own canvas, so the spots are where they sit
+            // on it (shares of the picture's height). Without the podium, the older disc drawing.
+            Sprite podium = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/podium.png");
+            p.textColor = new Color(0.85f, 0.92f, 1f);
+            p.looseScale = 0.95f;
+            if (podium != null)
             {
-                new PuzzleDefinition.Spot { center = new Vector2(0.2018f, -0.0451f), size = new Vector2(0.4055f, 0.699f) },
-                new PuzzleDefinition.Spot { center = new Vector2(-0.1054f, -0.2156f), size = new Vector2(0.5983f, 0.5689f) },
-                new PuzzleDefinition.Spot { center = new Vector2(-0.0565f, 0.246f), size = new Vector2(0.6638f, 0.5081f) },
-            };
+                p.boardTint = new Color(1f, 1f, 1f, 0f);
+                p.boardSize = new Vector2(1920f, 1080f);
+                p.backdropDim = 0.45f;
+                p.picture = podium;
+                p.pictureSize = 1000f;
+                p.pictureTint = Color.white;
+                p.pictureOffset = new Vector2(128f, -123f);
+                p.showSilhouettes = true;
+                p.silhouetteColor = new Color(0.36f, 0.4f, 0.46f, 1f);
+                p.looseExploded = true;
+                p.looseCentre = new Vector2(470f, 150f);
+                p.looseSpread = 1.3f;
+                p.spots = new[]
+                {
+                    new PuzzleDefinition.Spot { center = new Vector2(0.0919f, 0.1756f), size = new Vector2(0.1847f, 0.3183f) },
+                    new PuzzleDefinition.Spot { center = new Vector2(-0.048f, 0.098f), size = new Vector2(0.2725f, 0.2591f) },
+                    new PuzzleDefinition.Spot { center = new Vector2(-0.0257f, 0.3082f), size = new Vector2(0.3023f, 0.2314f) },
+                };
+            }
+            else
+            {
+                p.picture = stoneDisc;
+                p.pictureSize = 520f;
+                p.pictureTint = new Color(0.28f, 0.3f, 0.34f);
+                p.showSilhouettes = false;
+                p.looseScale = 0.62f;
+                p.spots = new[]
+                {
+                    new PuzzleDefinition.Spot { center = new Vector2(0.2018f, -0.0451f), size = new Vector2(0.4055f, 0.699f) },
+                    new PuzzleDefinition.Spot { center = new Vector2(-0.1054f, -0.2156f), size = new Vector2(0.5983f, 0.5689f) },
+                    new PuzzleDefinition.Spot { center = new Vector2(-0.0565f, 0.246f), size = new Vector2(0.6638f, 0.5081f) },
+                };
+            }
             p.tiles = new[]
             {
-                new PuzzleDefinition.Tile { id = "right", art = stonePiece1, label = "right", looseAngle = 16f },
-                new PuzzleDefinition.Tile { id = "bottom", art = stonePiece2, label = "bottom", looseAngle = -12f },
-                new PuzzleDefinition.Tile { id = "top", art = stonePiece3, label = "top", looseAngle = 20f },
+                new PuzzleDefinition.Tile { id = "right", art = stonePiece1, label = "right", looseAngle = 8f },
+                new PuzzleDefinition.Tile { id = "bottom", art = stonePiece2, label = "bottom", looseAngle = -6f },
+                new PuzzleDefinition.Tile { id = "top", art = stonePiece3, label = "top", looseAngle = 10f },
             };
             p.solution = new[] { "right", "bottom", "top" };
         });

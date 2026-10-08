@@ -9,6 +9,10 @@ using UnityEngine.UI;
 // dressed in the theme's colours, corners and font at start, so the two menus match: a soft rounded panel behind the
 // buttons, an accent line under the title, and on every button a tick when the mouse comes onto it, a click when it
 // is pressed, a small grow and an accent label on hover (Menu Button Feel).
+// With Match Background on, the menu takes its colours from the background art (Noora's porthole animation: deep navy
+// water, the steel grey of the porthole's frame, the pale blue of the figure) instead of the theme's own: dark navy
+// buttons with a steel rim like the porthole, pale blue accents and title. Only this menu changes (it works on a copy
+// of the theme), the Settings and Credits panel opened from it too; the in-game pause menu keeps the theme as it is.
 public class MainMenuController : MonoBehaviour
 {
     [Header("Buttons")]
@@ -28,6 +32,19 @@ public class MainMenuController : MonoBehaviour
     [SerializeField] private int buttonFontSize = 26;
     [SerializeField] private int titleFontSize = 76;
 
+    [Header("Colours (to fit the background)")]
+    [SerializeField] private bool matchBackground = true;
+    [SerializeField] private Color buttonColour = new Color(0.05f, 0.11f, 0.18f, 0.88f);
+    [SerializeField] private Color buttonHoverColour = new Color(0.11f, 0.22f, 0.31f, 0.95f);
+    [Tooltip("Rims, the title line, hovered labels: the pale blue of the figure in the porthole.")]
+    [SerializeField] private Color accentColour = new Color(0.47f, 0.74f, 0.9f);
+    [Tooltip("The rim round every button: the steel grey of the porthole's frame.")]
+    [SerializeField] private Color rimColour = new Color(0.2f, 0.29f, 0.34f);
+    [SerializeField] private Color labelColour = new Color(0.84f, 0.93f, 1f);
+    [SerializeField] private Color titleColour = new Color(0.64f, 0.84f, 0.97f);
+    [Tooltip("The soft panel behind the buttons and the Settings / Credits panel.")]
+    [SerializeField] private Color panelColour = new Color(0.02f, 0.06f, 0.11f, 0.94f);
+
     private PauseMenu menu;
 
     private void Awake()
@@ -37,9 +54,10 @@ public class MainMenuController : MonoBehaviour
         creditsButton.onClick.AddListener(OnCredits);
         quitButton.onClick.AddListener(OnQuit);
 
-        menu = PauseMenu.CreateFrontEnd(theme, inputActions);
+        PauseMenuTheme look = MenuTheme();
+        menu = PauseMenu.CreateFrontEnd(look, inputActions);
         if (restyleButtons)
-            Restyle();
+            Restyle(look);
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }
@@ -92,13 +110,32 @@ public class MainMenuController : MonoBehaviour
 
     // ---- the look ---------------------------------------------------------------------------------------------------
 
-    // Rounded buttons in the theme's colours (New Game a little brighter, it is the one to press), its font, and the
-    // title in the same font and text colour with a soft shadow.
-    private void Restyle()
+    // The theme, or with Match Background on a copy of it in the background's colours (the asset is left alone).
+    private PauseMenuTheme MenuTheme()
     {
         PauseMenuTheme t = theme != null ? theme : PauseMenuTheme.Default;
+        if (!matchBackground || t == null)
+            return t;
+        PauseMenuTheme copy = Instantiate(t);
+        copy.hideFlags = HideFlags.DontSave;
+        copy.buttonColor = buttonColour;
+        copy.buttonHover = buttonHoverColour;
+        copy.accent = accentColour;
+        copy.textColor = labelColour;
+        copy.panelColor = panelColour;
+        copy.fieldColor = new Color(panelColour.r * 0.6f, panelColour.g * 0.6f, panelColour.b * 0.6f, 0.95f);
+        copy.mutedColor = Color.Lerp(labelColour, buttonColour, 0.4f);
+        return copy;
+    }
+
+    // Rounded buttons in the theme's colours (New Game a little brighter, it is the one to press), its font, and the
+    // title in the same font and text colour with a soft shadow.
+    private void Restyle(PauseMenuTheme t)
+    {
         Font font = t.font != null ? t.font : GameFont.Font;
-        Sprite rounded = Rounded(64, Mathf.Clamp(t.buttonCorner * 1.4f, 4f, 28f));
+        float corner = Mathf.Clamp(t.buttonCorner * 1.4f, 4f, 28f);
+        Sprite rounded = Rounded(64, corner);
+        Sprite rim = matchBackground ? Rounded(64, corner, 4f) : null;
 
         foreach (Button button in new[] { newGameButton, settingsButton, creditsButton, quitButton })
         {
@@ -112,8 +149,8 @@ public class MainMenuController : MonoBehaviour
                 image.type = Image.Type.Sliced;
                 image.color = Color.white;
             }
-            Color normal = primary ? Color.Lerp(t.buttonColor, t.accent, 0.35f) : t.buttonColor;
-            normal.a = 0.9f;
+            Color normal = primary ? Color.Lerp(t.buttonColor, t.accent, matchBackground ? 0.18f : 0.35f) : t.buttonColor;
+            normal.a = matchBackground ? t.buttonColor.a : 0.9f;
             ColorBlock colours = button.colors;
             colours.normalColor = normal;
             colours.highlightedColor = primary ? Color.Lerp(t.buttonHover, t.accent, 0.45f) : t.buttonHover;
@@ -123,6 +160,23 @@ public class MainMenuController : MonoBehaviour
             colours.colorMultiplier = 1f;
             colours.fadeDuration = 0.08f;
             button.colors = colours;
+
+            // The porthole's steel rim round it (the New Game one in the pale blue).
+            if (rim != null && button.transform.Find("Rim") == null)
+            {
+                var edge = new GameObject("Rim", typeof(RectTransform), typeof(Image));
+                var edgeRect = (RectTransform)edge.transform;
+                edgeRect.SetParent(button.transform, false);
+                edgeRect.SetSiblingIndex(0);
+                edgeRect.anchorMin = Vector2.zero;
+                edgeRect.anchorMax = Vector2.one;
+                edgeRect.offsetMin = edgeRect.offsetMax = Vector2.zero;
+                var edgeImage = edge.GetComponent<Image>();
+                edgeImage.sprite = rim;
+                edgeImage.type = Image.Type.Sliced;
+                edgeImage.color = primary ? Color.Lerp(rimColour, accentColour, 0.55f) : rimColour;
+                edgeImage.raycastTarget = false;
+            }
 
             Text label = button.GetComponentInChildren<Text>();
             if (label != null)
@@ -143,11 +197,11 @@ public class MainMenuController : MonoBehaviour
         {
             title.font = font;
             title.fontSize = titleFontSize;
-            title.color = t.textColor;
+            title.color = matchBackground ? titleColour : t.textColor;
             Shadow shadow = title.GetComponent<Shadow>() != null ? title.GetComponent<Shadow>() : title.gameObject.AddComponent<Shadow>();
             shadow.effectColor = new Color(0f, 0f, 0f, 0.55f);
             shadow.effectDistance = new Vector2(3f, -3f);
-            LineUnder(title.rectTransform, t.accent);
+            LineUnder(title, t.accent);
         }
     }
 
@@ -192,13 +246,14 @@ public class MainMenuController : MonoBehaviour
         var image = panel.GetComponent<Image>();
         image.sprite = Rounded(96, Mathf.Clamp(t.panelCorner, 6f, 40f));
         image.type = Image.Type.Sliced;
-        image.color = new Color(t.panelColor.r, t.panelColor.g, t.panelColor.b, 0.72f);
+        image.color = new Color(t.panelColor.r, t.panelColor.g, t.panelColor.b, matchBackground ? 0.55f : 0.72f);
         image.raycastTarget = false;
     }
 
-    // A short accent line centred under the title.
-    private static void LineUnder(RectTransform title, Color accent)
+    // A short accent line under the title: centred, or from its left end when the title is set to the left.
+    private static void LineUnder(Text text, Color accent)
     {
+        RectTransform title = text.rectTransform;
         var parent = title.parent as RectTransform;
         if (parent == null)
             return;
@@ -210,14 +265,17 @@ public class MainMenuController : MonoBehaviour
         rect.SetParent(parent, false);
         rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
         rect.sizeDelta = new Vector2(220f, 3f);
-        rect.anchoredPosition = (bottomLeft + bottomRight) * 0.5f + Vector2.up * 4f - parent.rect.center;
+        bool left = text.alignment == TextAnchor.UpperLeft || text.alignment == TextAnchor.MiddleLeft || text.alignment == TextAnchor.LowerLeft;
+        Vector2 under = left ? bottomLeft + Vector2.right * (rect.sizeDelta.x * 0.5f + 6f) : (bottomLeft + bottomRight) * 0.5f;
+        rect.anchoredPosition = under + Vector2.up * 4f - parent.rect.center;
         var image = line.GetComponent<Image>();
         image.color = new Color(accent.r, accent.g, accent.b, 0.85f);
         image.raycastTarget = false;
     }
 
-    // A white rounded square, 9-sliced by its corners, tinted by the button colours.
-    private static Sprite Rounded(int size, float radius)
+    // A white rounded square, 9-sliced by its corners, tinted by the button colours; with `rim` above 0 only its edge,
+    // that many pixels thick (the rim round a button).
+    private static Sprite Rounded(int size, float radius, float rim = 0f)
     {
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear, hideFlags = HideFlags.DontSave };
         var pixels = new Color32[size * size];
@@ -228,7 +286,10 @@ public class MainMenuController : MonoBehaviour
                 float px = Mathf.Abs(x + 0.5f - half) - (half - radius);
                 float py = Mathf.Abs(y + 0.5f - half) - (half - radius);
                 float d = new Vector2(Mathf.Max(px, 0f), Mathf.Max(py, 0f)).magnitude + Mathf.Min(Mathf.Max(px, py), 0f) - radius;
-                pixels[y * size + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(0.5f - d) * 255f));
+                float a = Mathf.Clamp01(0.5f - d);
+                if (rim > 0f)
+                    a *= Mathf.Clamp01(d + rim + 0.5f);   // hollow inside the rim
+                pixels[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255f));
             }
         texture.SetPixels32(pixels);
         texture.Apply();
