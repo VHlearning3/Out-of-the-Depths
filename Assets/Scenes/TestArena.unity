@@ -25896,7 +25896,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BoneKeyTying
   fragmentItem: {fileID: 11400000, guid: f80d1874e5424274b877610108b728b0, type: 2}
   pieceIcons:
-  - {fileID: 21300000, guid: 10e3e75f99aba0f4f9c6dfb7bbabdb06, type: 3}
+  - {fileID: 21300000, guid: fe15867421413e54fb167c6994581269, type: 3}
   - {fileID: 0}
   - {fileID: 0}
   rewardItem: {fileID: 11400000, guid: 290dc21db9252504a90333b4170138dd, type: 2}

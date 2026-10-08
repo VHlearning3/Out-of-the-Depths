@@ -12,6 +12,8 @@ public class ItemDefinition : ScriptableObject
     [SerializeField] private Category category = Category.PuzzlePiece;
     [Tooltip("Optional hotbar icon. Without one the slot shows the name.")]
     [SerializeField] private Sprite icon;
+    [Tooltip("Optional icons for a fuller stack: the first for 2 in the slot, the next for 3... (the stone fragments: two pieces, then the whole stone). Past the end, the last one; empty = Icon for any count.")]
+    [SerializeField] private Sprite[] stackIcons = new Sprite[0];
     [Tooltip("How many fit in one hotbar slot.")]
     [SerializeField, Min(1)] private int maxStack = 9;
     [SerializeField, TextArea] private string description;
@@ -41,6 +43,15 @@ public class ItemDefinition : ScriptableObject
     public string DisplayName => displayName;
     public Category Kind => category;
     public Sprite Icon => icon;
+
+    // The icon for `count` of it in one slot: Icon for one, Stack Icons for more (the last one past the end).
+    public Sprite IconFor(int count)
+    {
+        if (count <= 1 || stackIcons == null || stackIcons.Length == 0)
+            return icon;
+        Sprite fuller = stackIcons[Mathf.Min(count - 2, stackIcons.Length - 1)];
+        return fuller != null ? fuller : icon;
+    }
     public int MaxStack => maxStack;
     public string Description => description;
     public GameObject WorldModel => worldModel;

@@ -27,13 +27,13 @@ MonoBehaviour:
   tilesPerRow: 7
   tiles:
   - id: symbol1
-    art: {fileID: 21300000, guid: 1969d375d2f8cbb47a8bd3fd4bd02b40, type: 3}
+    art: {fileID: 21300000, guid: 35b77eed28d69d846a507aab4deae921, type: 3}
     label: 1
   - id: symbol2
-    art: {fileID: 21300000, guid: b0c563c5fb791804e95e3b01ad16b954, type: 3}
+    art: {fileID: 21300000, guid: 63b62b7ac957cb246b8b7a6e5d38965f, type: 3}
     label: 2
   - id: symbol3
-    art: {fileID: 21300000, guid: 1765c815f9eac1d4c88559d77c5cd8b4, type: 3}
+    art: {fileID: 21300000, guid: 7f5523bde9901c1469960722373e3e5d, type: 3}
     label: 3
   - id: circle
     art: {fileID: 21300000, guid: 2a852d1920989a24b9736c85bce25be2, type: 3}

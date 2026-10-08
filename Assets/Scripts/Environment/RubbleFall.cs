@@ -21,6 +21,8 @@ public class RubbleFall : MonoBehaviour
     [SerializeField] private float scatter = 0.15f;
     [Tooltip("Enabled when the first rock lands; sized over the whole pile it seals the gaps between rocks.")]
     [SerializeField] private Collider blocker;
+    [Tooltip("Seconds between Drop() and the first rock falling: the rumble starts at once, the rocks after this (the Chase Sequence's ending turns the camera onto the rubble meanwhile, and sets it to its Rubble Look Seconds).")]
+    [SerializeField, Min(0f)] private float dropDelay = 0f;
 
     [Header("Drop when (drag-in shortcuts; Drop() works from any event too)")]
     [Tooltip("Drop() when this is picked up (the trident).")]
@@ -37,9 +39,29 @@ public class RubbleFall : MonoBehaviour
     [SerializeField] private float shakeDistance = 25f;
 
     [Header("Events")]
+    [Tooltip("The moment Drop() is called, before Drop Delay and the first rock.")]
+    public UnityEvent onDropStarted = new UnityEvent();
+    [Tooltip("Once every rock is down.")]
     public UnityEvent onDropped = new UnityEvent();
 
     public bool Dropped { get; private set; }
+    // Every rock is down (On Dropped has fired).
+    public bool Landed { get; private set; }
+    public float DropDelay { get => dropDelay; set => dropDelay = Mathf.Max(0f, value); }
+
+    // The middle of the pile where it lands (what the ending's camera looks at).
+    public Vector3 LandingCentre
+    {
+        get
+        {
+            if (landedPositions == null || landedPositions.Length == 0)
+                return transform.position;
+            Vector3 sum = Vector3.zero;
+            foreach (Vector3 p in landedPositions)
+                sum += p;
+            return sum / landedPositions.Length;
+        }
+    }
     public PickupItem DropOnPickup => dropOnPickup;
     public Collider Blocker => blocker;
 
@@ -96,6 +118,7 @@ public class RubbleFall : MonoBehaviour
     {
         StopAllCoroutines();
         Dropped = true;
+        Landed = true;
         if (rocks != null && landedPositions != null)
             for (int i = 0; i < rocks.Length && i < landedPositions.Length; i++)
             {
@@ -114,6 +137,7 @@ public class RubbleFall : MonoBehaviour
         if (Dropped)
             return;
         Dropped = true;
+        onDropStarted.Invoke();
         StartCoroutine(DropAll());
     }
 
@@ -121,6 +145,8 @@ public class RubbleFall : MonoBehaviour
     {
         Play(rumbleSound, transform.position);
         Shake(transform.position, 0.5f);
+        if (dropDelay > 0f)
+            yield return new WaitForSeconds(dropDelay);
         for (int i = 0; i < rocks.Length; i++)
         {
             if (rocks[i] != null)
@@ -128,6 +154,7 @@ public class RubbleFall : MonoBehaviour
             yield return new WaitForSeconds(stagger + Random.value * scatter);
         }
         yield return new WaitForSeconds(fallDuration * 1.2f + 0.3f);
+        Landed = true;
         onDropped.Invoke();
     }
 

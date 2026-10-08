@@ -26,18 +26,18 @@ MonoBehaviour:
   tileSize: 120
   tilesPerRow: 7
   layout: 1
-  picture: {fileID: 21300000, guid: 2ab00ce81fa64b649e985c0b1b7cbfcb, type: 3}
+  picture: {fileID: 21300000, guid: ba2174b5b588009b6a480e63912ce5b7, type: 3}
   pictureSize: 520
   pictureTint: {r: 0.28, g: 0.3, b: 0.34, a: 1}
   spots:
-  - center: {x: 0.1983, y: -0.042}
-    size: {x: 0.4059, y: 0.6762}
+  - center: {x: 0.2018, y: -0.0451}
+    size: {x: 0.4055, y: 0.699}
     angle: 0
-  - center: {x: -0.1052, y: -0.2269}
-    size: {x: 0.5923, y: 0.5387}
+  - center: {x: -0.1054, y: -0.2156}
+    size: {x: 0.5983, y: 0.5689}
     angle: 0
-  - center: {x: -0.0581, y: 0.2385}
-    size: {x: 0.6624, y: 0.5157}
+  - center: {x: -0.0565, y: 0.246}
+    size: {x: 0.6638, y: 0.5081}
     angle: 0
   showSilhouettes: 0
   rightPieceOnly: 1
@@ -46,15 +46,15 @@ MonoBehaviour:
   wrongPieceText: That piece does not fit there.
   tiles:
   - id: right
-    art: {fileID: 21300000, guid: 1d06779179fa445d931bdbea416bcb1e, type: 3}
+    art: {fileID: 21300000, guid: 4d6d3801dafa7d9759c24744658f67c0, type: 3}
     label: right
     looseAngle: 16
   - id: bottom
-    art: {fileID: 21300000, guid: 105682afc8914f80b68fbfb950902822, type: 3}
+    art: {fileID: 21300000, guid: 27d89572b5aa2d0bb3ac760ecf7a2951, type: 3}
     label: bottom
     looseAngle: -12
   - id: top
-    art: {fileID: 21300000, guid: c95b2a060f9f49318381653e1df43133, type: 3}
+    art: {fileID: 21300000, guid: fd2b57d7fc36a41fa672d7c39de69b94, type: 3}
     label: top
     looseAngle: 20
   solution:

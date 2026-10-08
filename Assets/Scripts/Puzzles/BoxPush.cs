@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 // On the player: swimming into a loose object pushes it.
 //  - A Pushable Box (the box puzzle's boxes) is found just ahead in the way you swim, before you bump into it, and
@@ -6,6 +7,8 @@ using UnityEngine;
 //    stop-start bumping (the old push only fired on contact and shoved it off at a fixed speed, so it juddered away
 //    from you and you had to catch it up again). While a box moves, Pushing is true, and the hand-drawn push plays over
 //    the view (Sprite Push Animator, added at start from Resources/PushSprites; it shows nothing until frames are put in).
+//  - Grab: hold the right mouse button while looking at a box (within Grab Reach) and it follows where you look, kept
+//    at the distance you grabbed it from: turn and it swings round, swim backwards and you pull it. Let go to drop it.
 //  - Any other non-kinematic rigidbody is nudged up to a speed that depends on its mass (Push Strength / mass, never
 //    over Max Push Speed), not shoved harder every frame of contact (a default 1 kg cube used to shoot off at the
 //    lightest bump), and gets some water drag, so under water it slows down and stops instead of drifting forever.
@@ -20,14 +23,26 @@ public class BoxPush : MonoBehaviour
     public float maxPushSpeed = 2.5f;
     [Tooltip("Drag a pushed object gets at least, so it slows down in the water (0 = leave its own).")]
     public float waterDrag = 1.5f;
+    [Tooltip("Grab: how far from the camera (m) a box can be taken hold of with the right mouse button.")]
+    public float grabReach = 3.5f;
+    [Tooltip("Grab: the nearest a held box is kept to the player (m, middle to middle), so it never ends up on top of them.")]
+    public float holdMin = 1.3f;
+    [Tooltip("Grab: let go by itself when the box falls this far (m) further behind than where it was held (stuck on a wall while you swim off).")]
+    public float holdSnap = 2.5f;
 
     private CharacterController controller;
     private SwimController swim;
     private readonly RaycastHit[] ahead = new RaycastHit[8];
     private float pushedAt = -10f;
+    private PushableBox held;
+    private float holdDistance;
+    private Camera view;
+    private PlayerInteractor interactor;
 
     // A box moved under the player's push just now.
     public bool Pushing => Time.time - pushedAt < 0.15f;
+    // The box held with the right mouse button, or null.
+    public PushableBox Held => held;
 
     private void Awake()
     {
@@ -56,8 +71,73 @@ public class BoxPush : MonoBehaviour
         return middle - half < b.max.y - margin && middle + half > b.min.y + margin;
     }
 
+    // Right mouse down on a box: take hold of it; up (or the box placed, or stuck far behind): let go.
+    private void Update()
+    {
+        Mouse mouse = Mouse.current;
+        if (held != null && (mouse == null || !mouse.rightButton.isPressed || held.Placed || !isActiveAndEnabled))
+            held = null;
+        if (held != null || mouse == null || !mouse.rightButton.wasPressedThisFrame || Time.timeScale <= 0f)
+            return;
+        if (interactor == null)
+            interactor = GetComponent<PlayerInteractor>();
+        if (interactor != null && interactor.Busy)
+            return;
+        Camera eye = View();
+        if (eye == null)
+            return;
+        Ray ray = eye.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+        if (!Physics.Raycast(ray, out RaycastHit hit, grabReach, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            return;
+        PushableBox box = hit.collider.GetComponentInParent<PushableBox>();
+        if (box == null || box.Placed)
+            return;
+        held = box;
+        Vector3 offset = box.transform.position - transform.position;
+        offset.y = 0f;
+        holdDistance = Mathf.Max(holdMin, offset.magnitude);
+    }
+
+    private Camera View()
+    {
+        if (view == null || !view.isActiveAndEnabled)
+        {
+            view = GetComponentInChildren<Camera>();
+            if (view == null)
+                view = Camera.main;
+        }
+        return view;
+    }
+
+    // Held: the point straight ahead where you look, Hold Distance away across the floor, at the box's own height.
+    private void Hold()
+    {
+        Camera eye = View();
+        Vector3 look = eye != null ? eye.transform.forward : transform.forward;
+        look.y = 0f;
+        if (look.sqrMagnitude < 1e-4f)
+            look = transform.forward;
+        Vector3 target = transform.position + look.normalized * holdDistance;
+        Vector3 at = held.transform.position;
+        target.y = at.y;
+        Vector3 apart = at - transform.position;
+        apart.y = 0f;
+        if (apart.magnitude > holdDistance + holdSnap)
+        {
+            held = null;   // caught on something: let go rather than drag it through the wall
+            return;
+        }
+        if (held.HoldToward(target))
+            pushedAt = Time.time;
+    }
+
     private void FixedUpdate()
     {
+        if (held != null)
+        {
+            Hold();
+            return;   // holding it: it goes where you look, not where you swim
+        }
         Vector3 flat = FlatVelocity();
         if (flat.sqrMagnitude < 0.04f)
             return;
@@ -81,6 +161,8 @@ public class BoxPush : MonoBehaviour
         PushableBox box = rigidbody != null ? rigidbody.GetComponent<PushableBox>() : null;
         if (box != null)
         {
+            if (box == held)
+                return;   // the one in hand moves where you look
             if (Beside(hit.collider) && box.PushWith(FlatVelocity()))   // touching it: in case the look ahead missed it
                 pushedAt = Time.time;
             return;

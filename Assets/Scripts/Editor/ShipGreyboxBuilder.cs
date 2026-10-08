@@ -492,7 +492,7 @@ public static class ShipGreyboxBuilder
         foreach (Vector3 corner in new[] { new Vector3(-11f, 0f, 21f), new Vector3(5.75f, 0f, 21f), new Vector3(-11f, 0f, 37f), new Vector3(5.75f, 0f, 37f) })
             Box("Pillar", corner + Vector3.up * (Ceiling * 0.5f), new Vector3(1.5f, Ceiling, 1.5f), Prop, room);
         // On the floor, above the deck grid (which is 3 cm up), so the two never fight.
-        Decor("Symbol2_Floor", new Vector3(-2.5f, 0.055f, 29.25f), new Vector3(2.4f, 0.02f, 2.4f), new Color(0.15f, 0.2f, 0.9f), room);
+        PaintedSymbol("Symbol2_Floor", 2, new Vector3(-2.5f, 0.06f, 29.25f), 2.4f, Vector3.up, new Color(0.15f, 0.2f, 0.9f), room);
         CreatePickup(new Vector3(-6.75f, 0.8f, 22f), "Item_StoneFragment", room).name = "Pickup_StoneFragment_Pedestal_MiddleRoom";   // one of the three for the pedestal
 
         // The bone key goes into the lock plate in the middle of the double door.
@@ -566,7 +566,7 @@ public static class ShipGreyboxBuilder
         WallX("Nook_S", 44f, HullW, -7f, room);
         MuralAt(new Vector3(-18f, 2.4f, 44.3f), new Vector2(20f, 1.6f), Vector3.forward, room);
         MuralAt(new Vector3(-18f, 2.4f, 43.7f), new Vector2(20f, 1.6f), Vector3.back, room);
-        Decor("Symbol3_Wall", new Vector3(HullW + 0.3f, 2.6f, 46.5f), new Vector3(0.06f, 2f, 2f), new Color(0.2f, 0.85f, 0.35f), room);
+        PaintedSymbol("Symbol3_Wall", 3, new Vector3(HullW + 0.34f, 2.6f, 46.5f), 2f, Vector3.right, new Color(0.2f, 0.85f, 0.35f), room);
         GameObject nookPlate = Spawn("RespawnPlate", new Vector3(-12f, 0.05f, 48.8f), room);   // along the north wall, clear of the way in from the door
         if (nookPlate != null)
             nookPlate.name = "Checkpoint_Symbol3";
@@ -576,7 +576,7 @@ public static class ShipGreyboxBuilder
 
         // The hatch: the 2 x 2 hole in the deck, covered by the trapdoor; symbol 1 is painted on the basement floor right under it (nothing sits in the hole itself).
         SpawnTrapdoor("Hatch_Basement", new Vector3(HatchFish.xMin, 0f, HatchFish.yMin), room);
-        Decor("Symbol1_UnderHatch", new Vector3(HatchFish.center.x, BasementFloor + 0.06f, HatchFish.center.y), new Vector3(1.6f, 0.04f, 1.6f), new Color(0.9f, 0.15f, 0.1f), room);
+        PaintedSymbol("Symbol1_UnderHatch", 1, new Vector3(HatchFish.center.x, BasementFloor + 0.08f, HatchFish.center.y), 1.6f, Vector3.up, new Color(0.9f, 0.15f, 0.1f), room);
 
         // The wall of fish over the hatch: hack through it with the dagger.
         SwarmRound(new Vector3(HatchFish.center.x, 0f, HatchFish.center.y), new[] { 1.1f, 1.7f }, 0.6f, 2.2f, 6, room);
@@ -1068,17 +1068,32 @@ public static class ShipGreyboxBuilder
         Deck(room, 2.5f, 38.25f, 19.75f, 50f, 0f, Room5Green);
         WallZ("R8_E", 2.5f, 38.25f, 50f, room);   // shared with the symbol room
 
-        GameObject chest = Box("Chest", new Vector3(16f, 0.5f, 44f), new Vector3(1.8f, 1f, 1.1f), Wood, room);
-        Decor("ChestLid", new Vector3(16f, 1.06f, 44f), new Vector3(1.9f, 0.12f, 1.2f), Wood * 0.8f, room);
-        GameObject stone = CreatePickup(new Vector3(15.5f, 1.4f, 44f), "Item_StoneFragment", room);
+        // The treasure chest (Prefabs/TreasureChest), its front to the window you come in by: the symbol key in its
+        // lock swings the lid up and shows what is in it.
+        TreasureChest treasure = SpawnChest("Chest", new Vector3(16f, 0f, 44f), 180f, false, room);
+        GameObject chest = treasure != null ? treasure.gameObject : Box("Chest", new Vector3(16f, 0.5f, 44f), new Vector3(1.8f, 1f, 1.1f), Wood, room);
+        if (treasure == null)
+            Decor("ChestLid", new Vector3(16f, 1.06f, 44f), new Vector3(1.9f, 0.12f, 1.2f), Wood * 0.8f, room);
+        // What is in it lies inside the chest (half way up it): the chest hides it until it opens, then lifts it out to
+        // float clear over it. The plain box stand-in has it over its top instead.
+        float over = treasure != null ? ChestTop(chest, 0f) * 0.5f : ChestTop(chest, 0.45f);
+        GameObject stone = CreatePickup(new Vector3(15.6f, over, 44f), "Item_StoneFragment", room);
         stone.name = "Pickup_StoneFragment_Pedestal_Chest";
-        GameObject bone = CreatePickup(new Vector3(16.5f, 1.4f, 44f), "Item_BoneKeyFragment", room);
+        GameObject bone = CreatePickup(new Vector3(16.4f, over, 44f), "Item_BoneKeyFragment", room);
         PickupVariant(bone, 1);   // the second piece of the key (the basement has the first, the box room the third)
-        stone.SetActive(false);
-        bone.SetActive(false);
         ItemSocket lockSocket = Socket(chest, "Item_SymbolKey", 1, true, "unlock chest with", null, null);
-        UnityEditor.Events.UnityEventTools.AddBoolPersistentListener(lockSocket.onFilled, stone.SetActive, true);
-        UnityEditor.Events.UnityEventTools.AddBoolPersistentListener(lockSocket.onFilled, bone.SetActive, true);
+        if (treasure != null)
+        {
+            ChestHolds(treasure, stone, bone);
+            UnityEditor.Events.UnityEventTools.AddVoidPersistentListener(lockSocket.onFilled, treasure.Open);
+        }
+        else
+        {
+            stone.SetActive(false);
+            bone.SetActive(false);
+            UnityEditor.Events.UnityEventTools.AddBoolPersistentListener(lockSocket.onFilled, stone.SetActive, true);
+            UnityEditor.Events.UnityEventTools.AddBoolPersistentListener(lockSocket.onFilled, bone.SetActive, true);
+        }
     }
 
     // Room 6 (blue): the stone room (x 7..19.75, z 21.5..38.25), from the middle room. Piecing the stone tablet
@@ -1121,8 +1136,13 @@ public static class ShipGreyboxBuilder
         WallX("Closet_N", 13.5f, -12.25f, -7f, room);
         Door closet = DoorZ("Door_Closet", -7f, 9.5f, true, false, room);
         SetField(closet, "lockedHint", p => p.stringValue = "It won't budge. Something out here must work it.");
-        Box("OpenChest", new Vector3(-10.9f, 0.4f, 11f), new Vector3(0.9f, 0.8f, 1.4f), Wood, room);
-        PickupVariant(CreatePickup(new Vector3(-10.9f, 1.1f, 11f), "Item_BoneKeyFragment", room), 2);
+        // The treasure chest, already open, its front to the door, the last bone fragment floating over it.
+        TreasureChest openChest = SpawnChest("OpenChest", new Vector3(-10.9f, 0f, 11f), 90f, true, room);
+        GameObject openBox = openChest != null ? openChest.gameObject : Box("OpenChest", new Vector3(-10.9f, 0.4f, 11f), new Vector3(0.9f, 0.8f, 1.4f), Wood, room);
+        GameObject lastBone = CreatePickup(new Vector3(-10.9f, openChest != null ? ChestTop(openBox, 0f) * 0.5f : ChestTop(openBox, 0.45f), 11f), "Item_BoneKeyFragment", room);   // in it: it floats out over it at start
+        PickupVariant(lastBone, 2);
+        if (openChest != null)
+            ChestHolds(openChest, lastBone);
 
         CreateSchool("Fish_Wanderer", 3, new Vector3(-5f, 2.5f, 15f), room);
 
@@ -1142,9 +1162,9 @@ public static class ShipGreyboxBuilder
     {
         Transform room = Group("Room_8_SymbolRoom");
         Deck(room, -7f, 38.25f, 2.5f, 50f, 0f, new Color(0.3f, 0.22f, 0.36f));
-        Decor("Symbol1_Lock", new Vector3(-3.4f, 3.2f, 49.7f), new Vector3(0.7f, 0.7f, 0.06f), new Color(0.9f, 0.15f, 0.1f), room);
-        Decor("Symbol2_Lock", new Vector3(-2.6f, 3.2f, 49.7f), new Vector3(0.7f, 0.7f, 0.06f), new Color(0.15f, 0.2f, 0.9f), room);
-        Decor("Symbol3_Lock", new Vector3(-3.4f, 2.3f, 49.7f), new Vector3(0.7f, 0.7f, 0.06f), new Color(0.2f, 0.85f, 0.35f), room);
+        PaintedSymbol("Symbol1_Lock", 1, new Vector3(-3.4f, 3.2f, 49.67f), 0.7f, Vector3.back, new Color(0.9f, 0.15f, 0.1f), room);
+        PaintedSymbol("Symbol2_Lock", 2, new Vector3(-2.6f, 3.2f, 49.67f), 0.7f, Vector3.back, new Color(0.15f, 0.2f, 0.9f), room);
+        PaintedSymbol("Symbol3_Lock", 3, new Vector3(-3.4f, 2.3f, 49.67f), 0.7f, Vector3.back, new Color(0.2f, 0.85f, 0.35f), room);
         // The rune puzzle: the three symbols in order, on the board; solving it unlocks the rune door (wired in the hallway).
         GameObject codeLock = Box("CodeLock", new Vector3(-2.6f, 2.3f, 49.6f), new Vector3(0.7f, 0.7f, 0.3f), new Color(0.8f, 0.7f, 0.3f), room);
         runeStation = PuzzleBuildTools.AddStation(codeLock, "Puzzle_Runes", null, 0, false, "enter the runes");
@@ -1277,7 +1297,7 @@ public static class ShipGreyboxBuilder
         if (ending != null)
             SetField(ending, "endDoor", p => p.objectReferenceValue = exit);   // opening it rolls the credits
 
-        // Rubble: rocks placed where they land across the whole corridor; a blocker seals the gaps.
+        // Rubble: rocks placed where they land across the whole corridor (the Rocks models); a blocker seals the gaps.
         var rubbleGo = new GameObject("Rubble");
         rubbleGo.transform.SetParent(room, false);
         rubbleGo.transform.position = new Vector3(24.375f, 0f, 36f);
@@ -1286,16 +1306,7 @@ public static class ShipGreyboxBuilder
         blockerGo.transform.localPosition = new Vector3(0f, Ceiling * 0.5f, 0f);
         var blocker = blockerGo.AddComponent<BoxCollider>();
         blocker.size = new Vector3(8.75f, Ceiling, 1.8f);
-        int n = 0;
-        foreach (var row in new[] { (y: 0.8f, count: 5, size: 1.75f, start: 20.9f), (y: 2.3f, count: 4, size: 1.65f, start: 21.7f), (y: 3.75f, count: 4, size: 1.45f, start: 21.4f) })
-        {
-            for (int i = 0; i < row.count; i++, n++)
-            {
-                float jitter = (n * 37 % 10 - 5) * 0.03f;
-                GameObject r = Box("Rock", new Vector3(row.start + i * 1.75f + jitter, row.y, 36f + jitter * 3f), Vector3.one * (row.size + jitter), Rock, rubbleGo.transform);
-                r.transform.rotation = Quaternion.Euler(n * 17f % 30f - 15f, n * 41f % 90f, n * 23f % 30f - 15f);
-            }
-        }
+        RubblePile(rubbleGo.transform, rubbleGo.transform.position, Vector3.right, 8.75f, Ceiling, 1.8f, Rock, 36);
         var rubble = rubbleGo.AddComponent<RubbleFall>();
         SetField(rubble, "blocker", p => p.objectReferenceValue = blocker);
         SetField(rubble, "thudSound", p => p.objectReferenceValue = Sfx("Hit impact.wav"));
