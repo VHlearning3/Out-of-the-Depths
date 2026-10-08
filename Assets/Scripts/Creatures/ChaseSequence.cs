@@ -128,7 +128,15 @@ public class ChaseSequence : MonoBehaviour
     [Tooltip("How far past the End Door's doorway (metres) counts as in the last room.")]
     [SerializeField] private float lastRoomDepth = 0.6f;
 
+    [Tooltip("Taking the trident ends the game: the view is taken and turned onto the rubble as it rumbles (Rubble Look Seconds; the rocks wait that long), the rocks come down in front of you, and After Rubble Seconds after the last one lands the screen fades to black and the credits roll. Off = the rubble only ends the chase, and the End Door ends the game.")]
+    [SerializeField] private bool creditsOnRubble = true;
+    [SerializeField, Min(0f)] private float rubbleLookSeconds = 1.3f;
+    [SerializeField, Min(0f)] private float afterRubbleSeconds = 1.2f;
+    [Tooltip("How far the view zooms in on the rubble (degrees of field of view off).")]
+    [SerializeField] private float rubbleZoom = 8f;
+
     private bool creditsRolled;
+    private Coroutine endingRoutine;
 
     [Header("Sealed in")]
     [Tooltip("When the chase starts the Start Door slams shut behind the player and stays locked until Unseal When is filled, so there is no way back out before the fragments are in. Dying opens it again.")]
@@ -229,6 +237,11 @@ public class ChaseSequence : MonoBehaviour
             startDoor.onOpened.AddListener(OnDoorOpened);
         if (endRubble != null)
             endRubble.onDropped.AddListener(End);
+        if (endRubble != null && creditsOnRubble)
+        {
+            endRubble.DropDelay = Mathf.Max(endRubble.DropDelay, rubbleLookSeconds);
+            endRubble.onDropStarted.AddListener(BeginRubbleEnding);
+        }
         if (endDoor == null)
             foreach (Door door in FindObjectsByType<Door>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (door.name == "Door_Exit")
@@ -260,7 +273,10 @@ public class ChaseSequence : MonoBehaviour
         if (startDoor != null)
             startDoor.onOpened.RemoveListener(OnDoorOpened);
         if (endRubble != null)
+        {
             endRubble.onDropped.RemoveListener(End);
+            endRubble.onDropStarted.RemoveListener(BeginRubbleEnding);
+        }
         if (endDoor != null)
             endDoor.onOpened.RemoveListener(RollCredits);
         if (Active == this)
@@ -346,6 +362,58 @@ public class ChaseSequence : MonoBehaviour
             return;   // somewhere else in the level (the basement under it, another room)
         if (Vector3.Dot(offset, endDoor.ThroughDirection) > lastRoomDepth)
             RollCredits();
+    }
+
+    // The trident is taken and the rubble starts to rumble: the game's ending (Credits On Rubble), once.
+    private void BeginRubbleEnding()
+    {
+        if (creditsRolled || EndCredits.Playing || endingRoutine != null || endRubble == null)
+            return;
+        creditsRolled = true;   // the End Door has nothing left to do
+        endingRoutine = StartCoroutine(RubbleEnding());
+    }
+
+    // The player is held (nothing can bite now) and the view is taken: bars slide in, the view turns onto the middle
+    // of the pile over Rubble Look Seconds and creeps in while it rumbles, stays on it as the rocks come down, and
+    // After Rubble Seconds after the last one lands the screen fades to black into the credits.
+    private IEnumerator RubbleEnding()
+    {
+        EndCutsceneNow();
+        SwimController swimmer = fearSwimmer != null ? fearSwimmer : FindFirstObjectByType<SwimController>();
+        if (player != null)
+            player.GodMode = true;
+        if (swimmer != null)
+        {
+            swimmer.Frozen = true;
+            swimmer.LookLocked = true;
+        }
+        HidePrompt(true);
+        Camera eye = fearCamera != null ? fearCamera : Camera.main;
+        float startFov = eye != null ? eye.fieldOfView : 60f;
+        Vector3 focus = endRubble.LandingCentre;
+        Vector2 from = swimmer != null ? swimmer.LookAngles : Vector2.zero;
+        float t = 0f;
+        float landedAt = -1f;
+        while (landedAt < 0f || t - landedAt < afterRubbleSeconds)
+        {
+            float dt = Time.deltaTime;
+            t += dt;
+            if (landedAt < 0f && endRubble.Landed)
+                landedAt = t;
+            bars = Mathf.Clamp01(bars + dt / 0.4f);
+            if (swimmer != null)
+            {
+                Vector2 to = swimmer.AnglesToward(focus);
+                float k = Mathf.SmoothStep(0f, 1f, rubbleLookSeconds > 0f ? Mathf.Clamp01(t / rubbleLookSeconds) : 1f);
+                swimmer.SetLookAngles(Mathf.LerpAngle(from.x, to.x, k), Mathf.Lerp(from.y, to.y, k));
+            }
+            if (eye != null)
+                eye.fieldOfView = Mathf.Lerp(startFov, startFov - rubbleZoom, Ease.InOutSine(Mathf.Clamp01(t / Mathf.Max(0.1f, rubbleLookSeconds + 1.5f))));
+            if (t > 30f)
+                break;   // the rocks never came down (none under the rubble): end anyway
+            yield return null;
+        }
+        EndCredits.Play();   // fades to black, then the credits; it holds the player from here
     }
 
     private IEnumerator CreditsLater()
@@ -653,7 +721,7 @@ public class ChaseSequence : MonoBehaviour
         if (!IsRunning)
         {
             // After the chase the view eases back to its normal width.
-            if (fearCamera != null && restingFov > 0f && !cutsceneActive)
+            if (fearCamera != null && restingFov > 0f && !cutsceneActive && endingRoutine == null)
             {
                 fearCamera.fieldOfView = Mathf.Lerp(fearCamera.fieldOfView, restingFov, 1f - Mathf.Exp(-3f * Time.deltaTime));
                 if (Mathf.Abs(fearCamera.fieldOfView - restingFov) < 0.05f)
@@ -707,7 +775,7 @@ public class ChaseSequence : MonoBehaviour
         if (fearSwimmer != null && shakeAtMaxDanger > 0f && !cutsceneActive)
             fearSwimmer.AddShake(shakeAtMaxDanger * Danger01 * Danger01);
 
-        if (fearCamera != null && restingFov > 0f && !cutsceneActive && fovBoost != 0f)
+        if (fearCamera != null && restingFov > 0f && !cutsceneActive && endingRoutine == null && fovBoost != 0f)
             fearCamera.fieldOfView = Mathf.Lerp(fearCamera.fieldOfView, restingFov + fovBoost * Danger01, 1f - Mathf.Exp(-2f * Time.deltaTime));
     }
 

@@ -5,7 +5,7 @@ using UnityEngine.UI;
 
 // Tools > Out of the Depths > Apply GDD HUD Layout: arranges the HUD like the GDD mock-up - fish-shaped hunger gauge
 // top-left (health under it), collectible counter top-right, "(E) eat" keycap prompt bottom-centre,
-// inventory slots bottom-right. Only moves and creates, never deletes, so it is safe to re-run. The arena builder runs it.
+// inventory slots bottom-left. Only moves and creates, never deletes, so it is safe to re-run. The arena builder runs it.
 public static class HudLayoutTools
 {
     private const string WhiteSpritePath = "Assets/Art/Textures/UI/UI_White.png";
@@ -97,7 +97,7 @@ public static class HudLayoutTools
     {
         RectTransform inventory = Child(root, "Inventory");
         if (inventory != null)
-            Place(inventory, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-Margin, Margin), new Vector2(352f, 80f));
+            Place(inventory, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(Margin, Margin), new Vector2(420f, 120f));   // Inventory UI docks it again at start (Dock)
     }
 
     // "(E) eat": a keycap and the existing prompt label side by side, centred as one unit and hidden when there is no target.

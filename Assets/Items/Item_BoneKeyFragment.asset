@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ItemDefinition
   displayName: bone key fragment
   category: 1
-  icon: {fileID: 21300000, guid: 10e3e75f99aba0f4f9c6dfb7bbabdb06, type: 3}
+  icon: {fileID: 21300000, guid: fe15867421413e54fb167c6994581269, type: 3}
   maxStack: 3
   description: A piece of a key carved from bone. Two more and some seaweed would
     make it whole.

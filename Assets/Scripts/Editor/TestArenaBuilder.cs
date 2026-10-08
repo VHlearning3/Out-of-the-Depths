@@ -729,15 +729,17 @@ public static class TestArenaBuilder
         SetField(tying, "fragmentItem", p => p.objectReferenceValue = ItemTools.Load("Item_BoneKeyFragment"));
         SetField(tying, "rewardItem", p => p.objectReferenceValue = ItemTools.Load("Item_BoneKey"));
         SetField(tying, "keyPickup", p => p.objectReferenceValue = FindPrefab("Pickup_Placeholder"));   // the tied key is shown in the inspect view
-        // One picture per piece: the fragment's own icon for the first, icons rendered from the other two piece models
-        // (Item_BoneKeyFragment_Icon_2/3.png) for the rest; a missing render falls back to the fragment's icon.
+        // One picture per piece: Noora's drawings of the three (Art/UI/bonekey1-3); without them, the fragment's own
+        // icon for the first and icons rendered from the other two piece models for the rest.
         ItemDefinition fragment = ItemTools.Load("Item_BoneKeyFragment");
         var pieces = new Sprite[3];
-        pieces[0] = fragment != null ? fragment.Icon : null;
-        for (int i = 1; i < 3; i++)
+        for (int i = 0; i < 3; i++)
         {
-            GameObject pieceModel = ItemModelTools.FindModel("bone_key_piece" + (i + 1));
-            pieces[i] = pieceModel != null ? ItemModelTools.RenderIcon(pieceModel, "Item_BoneKeyFragment_" + (i + 1)) : null;
+            pieces[i] = AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Art/UI/bonekey{i + 1}.png");
+            if (pieces[i] != null)
+                continue;
+            GameObject pieceModel = i == 0 ? null : ItemModelTools.FindModel("bone_key_piece" + (i + 1));
+            pieces[i] = pieceModel != null ? ItemModelTools.RenderIcon(pieceModel, "Item_BoneKeyFragment_" + (i + 1)) : fragment != null ? fragment.Icon : null;
         }
         SetField(tying, "pieceIcons", p =>
         {
@@ -955,6 +957,293 @@ public static class TestArenaBuilder
         return box;
     }
 
+    // One of the three symbols painted about the ship (Noora's drawings, Art/UI/symbol1-3): a flat picture `size`
+    // metres across at `center`, facing `facing` (up for the floor, into the room for a wall). No collider. Each symbol
+    // has its own material (Art/Materials/Symbol1-3.mat, made once: URP Lit, cut out round the paint, glowing a little
+    // so it reads in the dark water). Falls back to a plain square of `color` if the drawing is gone.
+    internal static GameObject PaintedSymbol(string name, int symbol, Vector3 center, float size, Vector3 facing, Color color, Transform parent)
+    {
+        Material material = SymbolMaterial(symbol, color);
+        if (material == null)
+        {
+            Vector3 flat = new Vector3(Mathf.Abs(facing.x) > 0.5f ? 0.04f : size, Mathf.Abs(facing.y) > 0.5f ? 0.04f : size, Mathf.Abs(facing.z) > 0.5f ? 0.04f : size);
+            return Decor(name, center, flat, color, parent);
+        }
+        GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        quad.name = name;
+        Object.DestroyImmediate(quad.GetComponent<Collider>());
+        quad.transform.SetParent(parent, false);
+        // A quad shows its face along -Z: turn that face to `facing` (on the floor, the drawing's top towards +Z).
+        Vector3 up = Mathf.Abs(facing.y) > 0.5f ? Vector3.forward : Vector3.up;
+        quad.transform.SetPositionAndRotation(center, Quaternion.LookRotation(-facing, up));
+        quad.transform.localScale = new Vector3(size, size, 1f);
+        quad.GetComponent<Renderer>().sharedMaterial = material;
+        quad.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        return quad;
+    }
+
+    private static Material SymbolMaterial(int symbol, Color color)
+    {
+        string path = $"Assets/Art/Materials/Symbol{symbol}.mat";
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material != null)
+            return material;
+        var texture = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Art/UI/symbol{symbol}.png");
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (texture == null || shader == null)
+            return null;
+        material = new Material(shader) { name = "Symbol" + symbol };
+        material.SetTexture("_BaseMap", texture);
+        material.SetColor("_BaseColor", Color.white);
+        material.SetFloat("_Smoothness", 0.15f);
+        material.SetFloat("_AlphaClip", 1f);
+        material.SetFloat("_Cutoff", 0.5f);
+        material.EnableKeyword("_ALPHATEST_ON");
+        material.SetFloat("_Cull", (float)UnityEngine.Rendering.CullMode.Off);
+        material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+        material.SetOverrideTag("RenderType", "TransparentCutout");
+        material.EnableKeyword("_EMISSION");
+        material.SetTexture("_EmissionMap", texture);
+        material.SetColor("_EmissionColor", color * 0.6f);
+        material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        if (!AssetDatabase.IsValidFolder("Assets/Art/Materials"))
+            AssetDatabase.CreateFolder("Assets/Art", "Materials");
+        AssetDatabase.CreateAsset(material, path);
+        return material;
+    }
+
+    // A rock of the chase rubble: one of the five in Art/Models/Rocks.fbx (`index` picks which, wrapping round), with
+    // the artist's Rock materials, stretched to `size` (metres) at `center`, with a convex mesh collider so it blocks
+    // as it looks. A plain box of `color` if the model is gone.
+    internal static GameObject RockModel(string name, Vector3 center, Vector3 size, int index, Color color, Transform parent)
+    {
+        var meshes = new System.Collections.Generic.List<MeshFilter>();
+        var model = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Models/Rocks.fbx");
+        if (model != null)
+            foreach (MeshFilter filter in model.GetComponentsInChildren<MeshFilter>(true))
+                if (filter.sharedMesh != null)
+                    meshes.Add(filter);
+        if (meshes.Count == 0)
+            return Box(name, center, size, color, parent);
+        meshes.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+        MeshFilter source = meshes[((index % meshes.Count) + meshes.Count) % meshes.Count];
+        Mesh mesh = source.sharedMesh;
+
+        var rock = new GameObject(name);
+        rock.transform.SetParent(parent, false);
+        rock.transform.position = center;
+        rock.AddComponent<MeshFilter>().sharedMesh = mesh;
+        rock.AddComponent<MeshRenderer>().sharedMaterials = source.GetComponent<MeshRenderer>().sharedMaterials;
+        Vector3 own = mesh.bounds.size;
+        rock.transform.localScale = new Vector3(size.x / Mathf.Max(0.01f, own.x), size.y / Mathf.Max(0.01f, own.y), size.z / Mathf.Max(0.01f, own.z));
+        var solid = rock.AddComponent<MeshCollider>();
+        solid.sharedMesh = mesh;
+        solid.convex = true;
+        return rock;
+    }
+
+    // ---- the treasure chest ----------------------------------------------------------------------------------------
+
+    internal const string ChestPrefabPath = "Assets/Prefabs/TreasureChest.prefab";
+    private const string ChestModelFolder = "Assets/Art/Models/objects/treasure_chest/";
+    private const float ChestWidth = 1.6f;   // across the front, metres (the model's own proportions give the rest)
+    // Bumped when the way the prefab is put together changes: an older prefab is made again from the models.
+    // (2: the lid sits on the front rim, not on the hinge knuckles at the back, which stand higher: it looked ajar.)
+    private const int ChestPrefabVersion = 2;
+
+    [MenuItem("Tools/Out of the Depths/Create Treasure Chest Prefab")]
+    private static void CreateChestPrefabMenu()
+    {
+        bool had = AssetDatabase.LoadAssetAtPath<GameObject>(ChestPrefabPath) != null;
+        GameObject prefab = EnsureChestPrefab();
+        if (prefab != null)
+        {
+            Selection.activeObject = prefab;
+            Debug.Log(had ? $"{ChestPrefabPath} is already there (delete it to make it again from the models)." : $"Made {ChestPrefabPath}.", prefab);
+        }
+    }
+
+    // Prefabs/TreasureChest: the chest's base and lid models (Art/Models/objects/treasure_chest) put together as one
+    // object, made once. TreasureChest (root: a solid box collider round the closed chest, Treasure Chest, the
+    // highlight) > Model (turned so the chest's front faces +Z) > Base, and Lid: the hinge along the back of the base's
+    // top, with the lid model on it (the lid is modelled round its hinge, reaching forward from it). The base is scaled
+    // to Chest Width across, sitting on the root's origin; the lid gets the same scale.
+    internal static GameObject EnsureChestPrefab()
+    {
+        var existing = AssetDatabase.LoadAssetAtPath<GameObject>(ChestPrefabPath);
+        if (existing != null)
+        {
+            var made = existing.GetComponent<TreasureChest>();
+            if (made == null || made.MadeVersion >= ChestPrefabVersion)
+                return existing;
+            AssetDatabase.DeleteAsset(ChestPrefabPath);   // an older make: again, the current way
+        }
+        var baseModel = AssetDatabase.LoadAssetAtPath<GameObject>(ChestModelFolder + "treasure_chest_base.fbx");
+        var lidModel = AssetDatabase.LoadAssetAtPath<GameObject>(ChestModelFolder + "treasure_chest_lid.fbx");
+        if (baseModel == null || lidModel == null)
+        {
+            Debug.LogWarning($"The treasure chest models are not in {ChestModelFolder}: plain boxes stand in for the chests.");
+            return null;
+        }
+
+        var root = new GameObject("TreasureChest");
+        try
+        {
+            Transform model = new GameObject("Model").transform;
+            model.SetParent(root.transform, false);
+
+            GameObject body = Object.Instantiate(baseModel, model, false);
+            body.name = "Base";
+            Bounds b = LocalBounds(body, model);
+            float scale = ChestWidth / Mathf.Max(0.001f, b.size.x);
+            body.transform.localScale *= scale;
+            b = LocalBounds(body, model);
+            body.transform.localPosition -= new Vector3(b.center.x, b.min.y, b.center.z);
+            b = LocalBounds(body, model);
+
+            Transform hinge = new GameObject("Lid").transform;
+            hinge.SetParent(model, false);
+            GameObject cover = Object.Instantiate(lidModel, hinge, false);
+            cover.name = "LidModel";
+            cover.transform.localScale *= scale;
+            Bounds l = LocalBounds(cover, hinge);
+            cover.transform.localPosition -= new Vector3(l.center.x, 0f, 0f);   // centred across, the hinge where it is
+            float reach = l.center.z >= 0f ? 1f : -1f;   // the way the lid reaches from its hinge: the chest's front
+            // The hinge: at the height of the base's front rim (its back, with the hinge knuckles, stands higher), so
+            // the lid lies flat on the rim with its own knuckles down beside the base's; along the back so the lid's
+            // back edge (a little behind its hinge) lines up with the base's.
+            float rim = FrontRimTop(body, model, b, reach);
+            hinge.localPosition = new Vector3(0f, rim, reach > 0f ? b.min.z - l.min.z : b.max.z - l.max.z);
+            if (reach < 0f)
+                model.localRotation = Quaternion.Euler(0f, 180f, 0f);
+
+            Bounds all = LocalBounds(root, root.transform);
+            var solid = root.AddComponent<BoxCollider>();
+            solid.center = all.center;
+            solid.size = all.size;
+            var chest = root.AddComponent<TreasureChest>();
+            root.AddComponent<InteractableHighlight>();
+            SetField(chest, "lid", p => p.objectReferenceValue = hinge);
+            // Turning the hinge round X by a negative angle lifts a lid that reaches along +Z (and the other way round).
+            SetField(chest, "openEuler", p => p.vector3Value = new Vector3(reach > 0f ? -105f : 105f, 0f, 0f));
+            SetField(chest, "openSound", p => p.objectReferenceValue = Sfx("Chest opening  closing sound effect.mp3"));
+            SetField(chest, "madeVersion", p => p.intValue = ChestPrefabVersion);
+            GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, ChestPrefabPath);
+            if (saved != null)
+                Debug.Log($"Made {ChestPrefabPath} from the chest models.", saved);
+            return saved;
+        }
+        finally
+        {
+            Object.DestroyImmediate(root);
+        }
+    }
+
+    // Where things in a chest float once out: `above` metres over the top of the shut chest (its collider). A plain
+    // box stand-in (no Treasure Chest): over its own top.
+    internal static float ChestTop(GameObject chest, float above)
+    {
+        var box = chest.GetComponent<BoxCollider>();
+        if (box == null)
+            return chest.transform.position.y + 1f + above;
+        return chest.transform.TransformPoint(box.center + Vector3.up * (box.size.y * 0.5f)).y + above;
+    }
+
+    // The things in a chest (its Contents), lying inside it: hidden while it is shut, rising out of it to float over it
+    // when it opens.
+    internal static void ChestHolds(TreasureChest chest, params GameObject[] things)
+    {
+        SetField(chest, "contents", p =>
+        {
+            p.arraySize = things.Length;
+            for (int i = 0; i < things.Length; i++)
+                p.GetArrayElementAtIndex(i).objectReferenceValue = things[i] != null ? things[i].transform : null;
+        });
+    }
+
+    // The top of the base's front wall, in `space`: the highest point of its front quarter (`reach` = which way is
+    // front along Z), away from the hinge knuckles at the back.
+    private static float FrontRimTop(GameObject body, Transform space, Bounds b, float reach)
+    {
+        float top = float.MinValue;
+        foreach (MeshFilter filter in body.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (filter.sharedMesh == null || !filter.sharedMesh.isReadable)   // (Read/Write is on for the chest models)
+                continue;
+            Matrix4x4 m = space.worldToLocalMatrix * filter.transform.localToWorldMatrix;
+            foreach (Vector3 v in filter.sharedMesh.vertices)
+            {
+                Vector3 p = m.MultiplyPoint3x4(v);
+                if ((p.z - b.center.z) * reach > b.size.z * 0.25f)
+                    top = Mathf.Max(top, p.y);
+            }
+        }
+        return top > float.MinValue ? top : b.max.y;
+    }
+
+    // A treasure chest from Prefabs/TreasureChest standing at `at` (its bottom), its front facing `yaw` (0 = +Z). Its
+    // own object (unpacked), so the builder can add a lock and wire it. Null if the models are gone.
+    internal static TreasureChest SpawnChest(string name, Vector3 at, float yaw, bool startOpen, Transform parent)
+    {
+        GameObject prefab = EnsureChestPrefab();
+        if (prefab == null)
+            return null;
+        var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent.gameObject.scene);
+        PrefabUtility.UnpackPrefabInstance(instance, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+        instance.transform.SetParent(parent, true);
+        instance.transform.SetPositionAndRotation(at, Quaternion.Euler(0f, yaw, 0f));
+        instance.name = name;
+        var chest = instance.GetComponent<TreasureChest>();
+        if (startOpen)
+            SetField(chest, "startOpen", p => p.boolValue = true);
+        return chest;
+    }
+
+    // The chase rubble's rocks, heaped like a fallen roof rather than stacked in rows: `width` across (along
+    // `across`), up to `height`, about `depth` thick, round `foot` (the middle of the pile's base). Big rocks at the
+    // bottom and smaller ones higher up, each layer over the gaps of the one below, every rock turned and squashed its
+    // own way; a few small ones spilt at the foot on both sides. The same pile every build (`seed`).
+    internal static void RubblePile(Transform parent, Vector3 foot, Vector3 across, float width, float height, float depth, Color fallback, int seed)
+    {
+        var random = new System.Random(seed);
+        float R(float a, float b) => a + (float)random.NextDouble() * (b - a);
+        across.y = 0f;
+        across = across.sqrMagnitude > 0.0001f ? across.normalized : Vector3.right;
+        Vector3 through = Vector3.Cross(across, Vector3.up);
+
+        float[] levels = { 0.17f, 0.41f, 0.64f, 0.84f };   // the middle of each layer, as a share of the height
+        float[] sizes = { 0.46f, 0.39f, 0.32f, 0.27f };    // its rocks, as a share of the height
+        int n = 0;
+        for (int layer = 0; layer < levels.Length; layer++)
+        {
+            float size = height * sizes[layer];
+            int count = Mathf.Max(2, Mathf.CeilToInt(width / (size * 0.8f)));
+            float step = width / count;
+            for (int i = 0; i < count; i++)
+            {
+                float s = size * R(0.8f, 1.2f);
+                float along = -width * 0.5f + step * (i + 0.5f) + (layer % 2 == 1 ? step * 0.5f : 0f) + R(-0.2f, 0.2f) * step;
+                if (along > width * 0.5f)
+                    along -= width;
+                along = Mathf.Clamp(along, -width * 0.5f + s * 0.3f, width * 0.5f - s * 0.3f);
+                Vector3 at = foot + across * along + through * (R(-0.3f, 0.3f) * depth) + Vector3.up * (height * levels[layer] + R(-0.12f, 0.12f) * s);
+                Vector3 shape = new Vector3(s * R(0.95f, 1.3f), s * R(0.7f, 0.95f), s * R(0.85f, 1.15f));
+                GameObject rock = RockModel("Rock", at, shape, n * 3 + layer, fallback, parent);
+                rock.transform.rotation = Quaternion.LookRotation(across, Vector3.up) * Quaternion.Euler(R(-25f, 25f), R(0f, 360f), R(-25f, 25f));
+                n++;
+            }
+        }
+        for (int i = 0; i < 6; i++)
+        {
+            float s = height * R(0.08f, 0.15f);
+            float side = i % 2 == 0 ? 1f : -1f;
+            Vector3 at = foot + across * (R(-0.4f, 0.4f) * width) + through * (side * depth * R(0.7f, 1.1f)) + Vector3.up * (s * 0.3f);
+            GameObject rock = RockModel("Rock", at, new Vector3(s * R(1f, 1.4f), s * R(0.6f, 0.9f), s), n * 3, fallback, parent);
+            rock.transform.rotation = Quaternion.Euler(R(-15f, 15f), R(0f, 360f), R(-15f, 15f));
+            n++;
+        }
+    }
+
     // A mural: a picture slot on a wall. Facing = which way it looks (into the room); size = width and height in
     // metres. Plain until someone drops a picture on its Mural component (Picture). Every mural shares Mural.mat.
     internal static GameObject MuralAt(Vector3 center, Vector2 size, Vector3 facing, Transform parent)
@@ -1120,23 +1409,7 @@ public static class TestArenaBuilder
         blockerGo.transform.localPosition = new Vector3(0f, 2.25f, 0f);
         var blocker = blockerGo.AddComponent<BoxCollider>();
         blocker.size = new Vector3(4.5f, 4.5f, 1.8f);
-        Vector3[] spots =
-        {
-            new Vector3(-1.5f, 0.75f, 0.3f), new Vector3(0f, 0.8f, -0.2f), new Vector3(1.5f, 0.7f, 0.2f),
-            new Vector3(-0.9f, 2.1f, -0.1f), new Vector3(0.7f, 2.2f, 0.3f),
-            new Vector3(-0.2f, 3.5f, 0f), new Vector3(1.4f, 3.4f, -0.3f), new Vector3(-1.6f, 3.6f, 0.2f),
-        };
-        Vector3[] sizes =
-        {
-            new Vector3(1.7f, 1.5f, 1.6f), new Vector3(1.8f, 1.6f, 1.7f), new Vector3(1.6f, 1.4f, 1.5f),
-            new Vector3(1.5f, 1.4f, 1.4f), new Vector3(1.6f, 1.5f, 1.5f),
-            new Vector3(1.5f, 1.3f, 1.4f), new Vector3(1.3f, 1.2f, 1.3f), new Vector3(1.2f, 1.2f, 1.2f),
-        };
-        for (int i = 0; i < spots.Length; i++)
-        {
-            GameObject r = Box("Rock", rubbleGo.transform.position + spots[i], sizes[i], rock, rubbleGo.transform);
-            r.transform.rotation = Quaternion.Euler(i * 17f % 30f - 15f, i * 41f % 90f, i * 23f % 30f - 15f);
-        }
+        RubblePile(rubbleGo.transform, rubbleGo.transform.position, Vector3.right, 4.5f, 4.5f, 1.6f, rock, 53);
         var rubble = rubbleGo.AddComponent<RubbleFall>();
         SetField(rubble, "blocker", p => p.objectReferenceValue = blocker);
         SetField(rubble, "thudSound", p => p.objectReferenceValue = Sfx("Hit impact.wav"));
@@ -1832,12 +2105,13 @@ public static class PuzzleBuildTools
         }, Ink);
         Sprite diamond = Glyph("Rune_Diamond", (u, v) => Mathf.Abs(u) + Mathf.Abs(v) <= 0.62f, Ink);
 
-        // The stone tablet (the artist's drawing of it whole, shown dark as the shape to fill) and its three pieces; the
-        // spots below are where each piece sits in that drawing.
-        Sprite stoneDisc = Art("Stone_Disc");
-        Sprite stonePiece1 = Art("Stone_Piece1");
-        Sprite stonePiece2 = Art("Stone_Piece2");
-        Sprite stonePiece3 = Art("Stone_Piece3");
+        // The stone tablet (Noora's drawing of it whole, shown dark as the shape to fill) and its three pieces, cut to
+        // their own size out of her full-size drawings (Art/UI: full stone, stone1-3); the spots below are where each
+        // piece sits in that drawing. The older disc drawing (Stone_Disc, Stone_Piece1-3) stands in if they are gone.
+        Sprite stoneDisc = Art("Tablet_Full") ?? Art("Stone_Disc");
+        Sprite stonePiece1 = Art("Tablet_Piece2") ?? Art("Stone_Piece1");
+        Sprite stonePiece2 = Art("Tablet_Piece1") ?? Art("Stone_Piece2");
+        Sprite stonePiece3 = Art("Tablet_Piece3") ?? Art("Stone_Piece3");
 
         bool made = false;
         made |= Puzzle("Puzzle_StoneTablet", p =>
@@ -1856,9 +2130,9 @@ public static class PuzzleBuildTools
             p.looseScale = 0.62f;
             p.spots = new[]
             {
-                new PuzzleDefinition.Spot { center = new Vector2(0.1983f, -0.042f), size = new Vector2(0.4059f, 0.6762f) },
-                new PuzzleDefinition.Spot { center = new Vector2(-0.1052f, -0.2269f), size = new Vector2(0.5923f, 0.5387f) },
-                new PuzzleDefinition.Spot { center = new Vector2(-0.0581f, 0.2385f), size = new Vector2(0.6624f, 0.5157f) },
+                new PuzzleDefinition.Spot { center = new Vector2(0.2018f, -0.0451f), size = new Vector2(0.4055f, 0.699f) },
+                new PuzzleDefinition.Spot { center = new Vector2(-0.1054f, -0.2156f), size = new Vector2(0.5983f, 0.5689f) },
+                new PuzzleDefinition.Spot { center = new Vector2(-0.0565f, 0.246f), size = new Vector2(0.6638f, 0.5081f) },
             };
             p.tiles = new[]
             {

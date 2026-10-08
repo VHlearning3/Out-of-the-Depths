@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-// Bottom-of-screen hotbar from the GDD: one rounded slot per inventory slot, with the item's icon (or a two- or
+// Bottom-of-screen hotbar from the GDD (bottom left by default: Dock): one rounded slot per inventory slot, with the item's icon (or a two- or
 // three-letter monogram of its name), a count badge and a small key number; the selected slot gets the accent rim,
 // pops a little, and the item's full name reads under the bar. Everything is built at runtime from generated
 // sprites, so it needs no art; drop your own into Slot Fill / Slot Rim to replace the generated ones. The weapon slots
@@ -21,9 +21,20 @@ public class InventoryUI : MonoBehaviour
     [Tooltip("The old plain square sprite; only used if Slot Fill is empty and Generated Look is off.")]
     [SerializeField] private Sprite slotSprite;
 
+    [Header("Place")]
+    [Tooltip("Where the hotbar sits on the screen: bottom left, bottom right, or wherever its rect was put (As Placed).")]
+    [SerializeField] private Dock dock = Dock.BottomLeft;
+    [Tooltip("Gap from the screen's edges, in HUD pixels.")]
+    [SerializeField] private float dockMargin = 24f;
+
+    public enum Dock { AsPlaced, BottomLeft, BottomRight }
+
     [Header("Look")]
     [SerializeField] private bool generatedLook = true;
-    [SerializeField] private float slotSize = 58f;
+    [Tooltip("One slot, in HUD pixels.")]
+    [SerializeField] private float slotPixels = 80f;
+    [Tooltip("Room left round an item's icon inside its slot, as a share of the slot (smaller = bigger icons).")]
+    [SerializeField, Range(0f, 0.3f)] private float iconInset = 0.04f;
     [SerializeField] private float spacing = 6f;
     [Tooltip("Extra gap between the item slots and the weapon slots.")]
     [SerializeField] private float groupGap = 18f;
@@ -65,6 +76,7 @@ public class InventoryUI : MonoBehaviour
     private Sprite bladeSprite;
     private HudAutoHide fade;
     private PlayerInteractor interactor;
+    private float slotSize => slotPixels;
 
     private void OnEnable()
     {
@@ -138,6 +150,7 @@ public class InventoryUI : MonoBehaviour
         int weapons = inventory.WeaponSlots;
         float gap = weapons > 0 && weapons < n ? groupGap : 0f;
         float startX = -((n - 1) * step + gap) * 0.5f;
+        DockBar(n * step + gap, Mathf.Max(fontSize, slotSize * 0.22f) + 24f);
         bladeSprite = weapons > 0 ? BladeSprite() : null;
         int monogramSize = Mathf.RoundToInt(slotSize * 0.36f);
         int smallSize = Mathf.Max(8, Mathf.RoundToInt(slotSize * 0.18f));
@@ -177,8 +190,9 @@ public class InventoryUI : MonoBehaviour
             }
 
             RectTransform icon = MakeRect("Icon", slot, Vector2.zero, Vector2.one);
-            icon.offsetMin = new Vector2(8f, 8f);
-            icon.offsetMax = new Vector2(-8f, -8f);
+            float iconPad = slotSize * iconInset;
+            icon.offsetMin = new Vector2(iconPad, iconPad);
+            icon.offsetMax = new Vector2(-iconPad, -iconPad);
             icons[i] = icon.gameObject.AddComponent<Image>();
             icons[i].preserveAspect = true;
             icons[i].raycastTarget = false;
@@ -211,7 +225,7 @@ public class InventoryUI : MonoBehaviour
         label.anchoredPosition = new Vector2(0f, -(slotSize * 0.5f + fontSize * 0.5f + 12f));
         nameLabel = label.gameObject.AddComponent<Text>();
         nameLabel.font = font;
-        nameLabel.fontSize = fontSize;
+        nameLabel.fontSize = Mathf.Max(fontSize, Mathf.RoundToInt(slotSize * 0.22f));
         nameLabel.alignment = TextAnchor.MiddleCenter;
         nameLabel.color = textColor;
         nameLabel.raycastTarget = false;
@@ -220,6 +234,25 @@ public class InventoryUI : MonoBehaviour
         shadow.effectDistance = new Vector2(1f, -1f);
 
         OnSelectionChanged(inventory.SelectedIndex);
+    }
+
+    // Into its corner (Dock), sized round the slots with Label Space under them for the name (the bar is laid out from
+    // its middle).
+    private void DockBar(float width, float labelSpace)
+    {
+        if (dock == Dock.AsPlaced || !(transform is RectTransform rect))
+            return;
+        float x = dock == Dock.BottomLeft ? 0f : 1f;
+        rect.anchorMin = rect.anchorMax = new Vector2(x, 0f);
+        rect.pivot = new Vector2(x, 0f);
+        rect.sizeDelta = new Vector2(width + 16f, slotSize + labelSpace);
+        rect.anchoredPosition = new Vector2(dock == Dock.BottomLeft ? dockMargin : -dockMargin, dockMargin + labelSpace * 0.5f);   // the slots' middle Label Space up from the margin
+        if (container != null && container != rect)
+        {
+            container.anchorMin = Vector2.zero;
+            container.anchorMax = Vector2.one;
+            container.offsetMin = container.offsetMax = Vector2.zero;
+        }
     }
 
     private static RectTransform MakeRect(string name, RectTransform parent, Vector2 anchorMin, Vector2 anchorMax)
@@ -271,10 +304,11 @@ public class InventoryUI : MonoBehaviour
         for (int i = 0; i < slots.Length; i++)
         {
             PlayerInventory.Slot slot = inventory.GetSlot(i);
-            bool hasIcon = !slot.IsEmpty && slot.item.Icon != null;
+            Sprite icon = slot.IsEmpty ? null : slot.item.IconFor(slot.count);
+            bool hasIcon = icon != null;
             bool emptyWeaponSlot = slot.IsEmpty && inventory.IsWeaponSlot(i) && bladeSprite != null;
             icons[i].enabled = hasIcon || emptyWeaponSlot;
-            icons[i].sprite = hasIcon ? slot.item.Icon : emptyWeaponSlot ? bladeSprite : null;
+            icons[i].sprite = hasIcon ? icon : emptyWeaponSlot ? bladeSprite : null;
             icons[i].color = hasIcon ? Color.white : new Color(weaponRimColor.r, weaponRimColor.g, weaponRimColor.b, glows[i] != null ? 0.2f : 0.3f);
             monograms[i].text = slot.IsEmpty || hasIcon ? string.Empty : Monogram(slot.item.DisplayName);
             bool stacked = slot.count > 1;

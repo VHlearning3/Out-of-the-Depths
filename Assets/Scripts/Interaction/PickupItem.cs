@@ -204,6 +204,10 @@ public class PickupItem : MonoBehaviour, IInteractable
 
         if (visual == null && transform.childCount > 0)
             visual = transform.GetChild(0);
+        // A model baked into the scene, then re-exported by the artist at another size (other units: a hundred times
+        // off, so the key turned into a giant spinning through the room): fitted again to Model Size now.
+        if (useItemModel && item != null && item.WorldModel != null && visual != null && FitWentStale())
+            FitItemModel(transform, item, visual.gameObject, null, modelSize);
         // A random dog photo on the placeholder plaque, so a shelf of pickups is not seven copies of one picture.
         if (visual != null && placeholderMaterials != null && placeholderMaterials.Length > 0 && (item == null || item.WorldModel == null))
         {
@@ -273,6 +277,17 @@ public class PickupItem : MonoBehaviour, IInteractable
         }
 
         return model.transform;
+    }
+
+    // The visual is far from the size it should have (Model Size times the item's own multiplier).
+    private bool FitWentStale()
+    {
+        Bounds bounds = RendererBounds(visual, out bool any);
+        float expected = modelSize * item.WorldModelScale * Mathf.Abs(transform.lossyScale.x);
+        if (!any || expected <= 0.0001f)
+            return false;
+        float ratio = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z) / expected;
+        return ratio > 1.5f || ratio < 0.67f;
     }
 
     private static void SafeDestroy(Object target)

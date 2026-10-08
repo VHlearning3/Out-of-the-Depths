@@ -136,6 +136,14 @@ public class SlashAttack : MonoBehaviour
         // The weapon's real model in the hand (dagger, trident) in place of the placeholder stick.
         if (handAnimator != null && handAnimator.GetComponent<HeldWeapon>() == null)
             handAnimator.gameObject.AddComponent<HeldWeapon>().Setup(inventory, weaponVisual);
+        // A key or fragment you hold shows in your right hand (Held Item View; the weapons are not shown there).
+        if (inventory != null && inventory.GetComponentInChildren<HeldItemView>(true) == null)
+        {
+            Camera view = GetComponentInParent<Camera>();
+            if (view == null && swimmer != null)
+                view = swimmer.GetComponentInChildren<Camera>();
+            inventory.gameObject.AddComponent<HeldItemView>().Setup(inventory, view != null ? view.transform : null);
+        }
 
         // The hand-drawn slash frames (Resources/SlashSprites) play over the view for the dagger; any other weapon keeps
         // the hand animator's own swing (Sprite Slash Animator passes those on to it).
