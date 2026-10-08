@@ -30,8 +30,8 @@ Transform:
   m_GameObject: {fileID: 4586517642751081390}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -5.59, y: 0.4085, z: -20.4547}
-  m_LocalScale: {x: 1.14, y: 1.13, z: 1.15}
+  m_LocalPosition: {x: -5.1242, y: 0.77305, z: -20.47}
+  m_LocalScale: {x: 0.5604041, y: 0.55548835, z: 0.56532}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -43,7 +43,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4586517642751081390}
-  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 2212009239438826721, guid: 7d9d5bf96c92a304a9c53b5da3d3b9ae, type: 3}
 --- !u!23 &2958943123397981527
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -69,7 +69,10 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: -876546973899608171, guid: 7d9d5bf96c92a304a9c53b5da3d3b9ae, type: 3}
+  - {fileID: -6478536213147159724, guid: 7d9d5bf96c92a304a9c53b5da3d3b9ae, type: 3}
+  - {fileID: -3846018093981099296, guid: 7d9d5bf96c92a304a9c53b5da3d3b9ae, type: 3}
+  - {fileID: 4874126678125670354, guid: 7d9d5bf96c92a304a9c53b5da3d3b9ae, type: 3}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -112,8 +115,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 2.1646461, y: 2.123782, z: 2.1821752}
+  m_Center: {x: 0.9959918, y: 0.7021924, z: -0.01066161}
 --- !u!54 &3430337042779212788
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -157,3 +160,7 @@ MonoBehaviour:
   maxSpeed: 3.5
   waterDrag: 2
   plateCatch: 0.4
+  plateReach: 1.6
+  platePull: 2.2
+  platePullMin: 0.6
+  followGain: 6
