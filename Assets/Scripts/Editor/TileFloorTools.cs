@@ -52,6 +52,7 @@ public static class TileFloorTools
             return false;
         }
         Undo.RecordObject(floor, "Use Tile Floor");
+        floor.enabled = true;
         floor.SetLook(GridFloor.Mapping.Fit, Color.white, material);
         EditorUtility.SetDirty(floor);
         return true;

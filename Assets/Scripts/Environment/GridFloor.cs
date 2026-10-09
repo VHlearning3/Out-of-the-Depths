@@ -61,6 +61,17 @@ public class GridFloor : MonoBehaviour
 
     public Mapping TextureMapping => mapping;
 
+    // The floor is made whether or not this component is switched on. The mesh is made here and never saved, so a
+    // switched-off Grid Floor used to have no mesh at all and the floor was simply gone, in the game too (a scene merge
+    // switched the middle room's off and its tile floor vanished). Switching the component off now changes nothing;
+    // to hide a floor switch off its Mesh Renderer or the object. (To stop clicks in the Scene view picking the floor,
+    // use the hand icon by it in the Hierarchy: that is only on your machine.)
+    private void Awake()
+    {
+        if (!enabled)
+            Build();
+    }
+
     private void OnEnable()
     {
         Build();
@@ -68,11 +79,25 @@ public class GridFloor : MonoBehaviour
 
     private void OnValidate()
     {
-        if (isActiveAndEnabled)
+        if (gameObject.scene.IsValid() && gameObject.activeInHierarchy)
             Build();
     }
 
+    // Switched off by hand (the object still on): the floor stays. Otherwise (the object switched off, the scene
+    // closing, scripts reloading) the mesh goes, and comes back on enable.
     private void OnDisable()
+    {
+        if (!enabled && gameObject.activeInHierarchy)
+            return;
+        ReleaseAll();
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseAll();
+    }
+
+    private void ReleaseAll()
     {
         Release(mesh);
         Release(runtimeMaterial);

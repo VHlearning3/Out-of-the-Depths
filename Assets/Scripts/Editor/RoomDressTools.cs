@@ -68,6 +68,33 @@ public static class RoomDressTools
             Dress(room, SpawnRoomArea, FloorY, CeilingY, false);
     }
 
+    // Every floor look again in the open scene, as a rebuild would lay them, and the scene saved: the middle room's
+    // tile floor, the spawn room's wood and stone, and every deck in WoodFloors.txt and StoneFloors.txt. For after a
+    // scene merge (or anyone's hand) has put a floor back to the grid, or switched its Grid Floor off.
+    [MenuItem("Tools/Out of the Depths/Reapply All Floor Looks")]
+    public static void ReapplyAllFloors()
+    {
+        if (!EditMode("Floors"))
+            return;
+        GameObject spawn = GameObject.Find(SpawnRoomName);
+        GameObject middle = GameObject.Find("Room_2_Middle");
+        Transform ship = spawn != null ? spawn.transform.root : middle != null ? middle.transform.root : null;
+        if (ship == null)
+        {
+            Debug.LogWarning("Floors: no ship (Room_1_Spawn / Room_2_Middle) in the open scene.");
+            return;
+        }
+        if (middle != null)
+            foreach (GridFloor floor in middle.GetComponentsInChildren<GridFloor>(true))
+                if (floor.transform.parent == middle.transform)
+                    TileFloorTools.Apply(floor);
+        if (spawn != null)
+            Dress(spawn.transform, SpawnRoomArea, FloorY, CeilingY, true);
+        FloorLooksFromLists(ship, true);
+        SaveScene(ship.gameObject.scene);
+        Debug.Log("Floors: every floor look laid again and the scene saved.", ship);
+    }
+
     // ---- wood or stone on chosen decks ----------------------------------------------------------------------------
 
     // A floor look for any deck: its material, how many metres of floor a repeat of the texture covers, and the list in
@@ -204,7 +231,7 @@ public static class RoomDressTools
     }
 
     // After a rebuild: every deck in the lists laid again with its wood or stone.
-    public static void FloorLooksFromLists(Transform ship)
+    public static void FloorLooksFromLists(Transform ship, bool undoable = false)
     {
         if (ship == null)
             return;
@@ -220,7 +247,11 @@ public static class RoomDressTools
                 foreach (string line in list)
                     if (SameDeck(line, floor))
                     {
+                        if (undoable)
+                            Undo.RecordObject(floor, "Reapply Floors");
+                        floor.enabled = true;
                         floor.SetLook(GridFloor.Mapping.Tile, Color.white, material, look.Tile);
+                        EditorUtility.SetDirty(floor);
                         done++;
                         break;
                     }
