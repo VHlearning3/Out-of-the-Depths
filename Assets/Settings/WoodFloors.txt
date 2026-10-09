@@ -1,0 +1,15 @@
+# Floor decks (Grid Floor) laid with wood (Art/Materials/wood_texture 1), written by Room Dress Tools.
+# One deck a line: its room, then the x and z of its middle. ShipGreyboxBuilder lays the wood on them again after a rebuild.
+Room_3_FishRoom -16 41.125
+Room_3_FishRoom -18 47
+Room_3_FishRoom -20.625 33.5
+Room_3_FishRoom -26 39.25
+Room_3_FishRoom -26 43.125
+Room_3_FishRoom -28 41.125
+Room_5_ChestRoom 11.125 44.125
+Room_6_StoneRoom 13.375 29.875
+Room_7_BoxRoom -4 11.1
+Room_7_BoxRoom -4 13.3
+Room_7_BoxRoom -4 17.425
+Room_7_BoxRoom -4 8.9
+Room_7_BoxRoom -8.475 14.125

@@ -4,13 +4,23 @@ using UnityEngine;
 // so the lines run straight on from room to room, with a heavier line every Major cells. Tint colours the floor
 // between the lines. The quad is generated here (nothing to import); the material is the shared GridFloor.mat the
 // builders make, or, if none is set, one made at start from the same generated texture.
+// Mapping Fit lays the material's texture once over the whole patch instead: a floor painted as one picture (the
+// middle room's tile floor, tilefloor_texture), with Tint white so its own colours show. Mapping Tile repeats the
+// texture every Tile Metres, lined up in world metres like the grid (the spawn room's wood floor, wood_texture 1).
 [ExecuteAlways]
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class GridFloor : MonoBehaviour
 {
+    public enum Mapping { Grid, Fit, Tile }
+
     [Tooltip("Metres, x and z. The patch is centred on this object.")]
     [SerializeField] private Vector2 size = new Vector2(10f, 10f);
+    [Tooltip("Multiplies the material's colour (the grid's floor colour). White = the texture as painted.")]
     [SerializeField] private Color tint = new Color(0.25f, 0.3f, 0.35f);
+    [Tooltip("Grid: texture coordinates in world metres, one Major block per repeat of the texture, so the grid lines run on between patches. Fit: the material's texture once over the whole patch, corner to corner (a floor painted as one picture). Tile: the texture repeats every Tile Metres, in world metres (planks, stone).")]
+    [SerializeField] private Mapping mapping = Mapping.Grid;
+    [Tooltip("Tile: metres of floor per repeat of the texture.")]
+    [SerializeField, Min(0.01f)] private float tileMetres = 3f;
     [Tooltip("Metres between grid lines.")]
     [SerializeField] private float cell = 1f;
     [Tooltip("Every this many cells the line is heavier.")]
@@ -32,6 +42,24 @@ public class GridFloor : MonoBehaviour
         material = shared;
         Build();
     }
+
+    // Another look for the same patch: how the texture is laid, the tint, the material.
+    public void SetLook(Mapping newMapping, Color color, Material shared)
+    {
+        mapping = newMapping;
+        tint = color;
+        material = shared;
+        Build();
+    }
+
+    // Tile: the texture repeats every `metres`.
+    public void SetLook(Mapping newMapping, Color color, Material shared, float metres)
+    {
+        tileMetres = Mathf.Max(0.01f, metres);
+        SetLook(newMapping, color, shared);
+    }
+
+    public Mapping TextureMapping => mapping;
 
     private void OnEnable()
     {
@@ -57,14 +85,20 @@ public class GridFloor : MonoBehaviour
         if (mesh == null)
             mesh = new Mesh { name = "Grid floor", hideFlags = HideFlags.DontSave };
 
-        // A quad centred on the object; texture coordinates are world metres over one major block, so the grid lines
-        // land on whole metres everywhere and match up between neighbouring patches.
+        // A quad centred on the object. Grid: texture coordinates are world metres over one major block, so the grid
+        // lines land on whole metres everywhere and match up between neighbouring patches. Fit: 0..1 corner to corner.
+        // Tile: world metres over Tile Metres.
         float hx = size.x * 0.5f, hz = size.y * 0.5f;
         var vertices = new[] { new Vector3(-hx, 0f, -hz), new Vector3(hx, 0f, -hz), new Vector3(-hx, 0f, hz), new Vector3(hx, 0f, hz) };
         var uvs = new Vector2[4];
-        float blockMetres = Mathf.Max(0.01f, cell * Mathf.Max(1, major));
+        float blockMetres = mapping == Mapping.Tile ? Mathf.Max(0.01f, tileMetres) : Mathf.Max(0.01f, cell * Mathf.Max(1, major));
         for (int i = 0; i < 4; i++)
         {
+            if (mapping == Mapping.Fit)
+            {
+                uvs[i] = new Vector2(vertices[i].x > 0f ? 1f : 0f, vertices[i].z > 0f ? 1f : 0f);
+                continue;
+            }
             Vector3 world = transform.TransformPoint(vertices[i]);
             uvs[i] = new Vector2(world.x / blockMetres, world.z / blockMetres);
         }
@@ -72,6 +106,9 @@ public class GridFloor : MonoBehaviour
         mesh.vertices = vertices;
         mesh.uv = uvs;
         mesh.normals = new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up };
+        // U runs along +X and V along +Z: what a normal map (the tile floor's grout) needs to light the right way.
+        var tangent = new Vector4(1f, 0f, 0f, -1f);
+        mesh.tangents = new[] { tangent, tangent, tangent, tangent };
         mesh.triangles = new[] { 0, 2, 1, 1, 2, 3 };
         mesh.RecalculateBounds();
 
