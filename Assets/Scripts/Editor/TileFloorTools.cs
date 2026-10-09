@@ -22,7 +22,10 @@ public static class TileFloorTools
             if (EditorUtility.IsPersistent(floor) || floor.transform.parent == null || floor.transform.parent.name != RoomName)
                 continue;
             if (Apply(floor))
+            {
+                RoomDressTools.ForgetWoodFloor(floor);   // tiles again by hand: a rebuild no longer lays wood here
                 done++;
+            }
         }
         if (done == 0)
         {

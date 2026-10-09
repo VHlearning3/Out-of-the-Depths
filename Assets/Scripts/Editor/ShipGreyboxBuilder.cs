@@ -135,6 +135,7 @@ public static class ShipGreyboxBuilder
         Step("Room 8: symbol room", BuildSymbolRoom);
         Step("Room 9: hallway + chase", BuildHallway);
         Step("Trident corridor", BuildColumn);
+        Step("Room 1 and wood floors", () => RoomDressTools.DressShip(ship));   // once every wall and the roof are up: room 1's wood and stone, the decks in Settings/WoodFloors.txt
         Step("Pufferfish nests", BuildNests);
         Step("Quests", BuildQuests);
         Step("Collectibles", BuildCollectibles);
