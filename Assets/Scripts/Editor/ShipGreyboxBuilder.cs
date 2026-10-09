@@ -481,6 +481,8 @@ public static class ShipGreyboxBuilder
     {
         Transform room = Group("Room_2_Middle");
         Deck(room, -12.25f, 19.75f, 7f, 38.25f, 0f, Room2Red);
+        foreach (GridFloor floor in room.GetComponentsInChildren<GridFloor>())
+            TileFloorTools.Apply(floor);   // the team's tile floor (tilefloor_texture), once over the whole room
         WallX("R2_S", 19.75f, -12.25f, 7f, room);                                   // room 7 below, no door
         WallXBig("R2_N", 38.25f, -12.25f, 19.75f, room, -5.05f, -5.05f + DoubleDoorGap, ChestWindow.x, ChestWindow.y);   // rooms 3, 8, 5 above: the symbol room's big double door, and the window into the chest room
         ChestRoomWindow(room);
