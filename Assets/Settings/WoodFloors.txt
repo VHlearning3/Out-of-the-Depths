@@ -13,3 +13,5 @@ Room_7_BoxRoom -4 13.3
 Room_7_BoxRoom -4 17.425
 Room_7_BoxRoom -4 8.9
 Room_7_BoxRoom -8.475 14.125
+Room_7_BoxRoom 1.85 14.125
+Room_7_BoxRoom 13.375 15

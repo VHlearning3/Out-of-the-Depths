@@ -14,9 +14,10 @@ using UnityEngine;
 // to piece, so it keeps one size on every wall.
 // ShipGreyboxBuilder dresses the room after a rebuild; Tools > Out of the Depths > Dress Spawn Room does the open scene.
 // Safe to run again: the old linings go first.
-// Any other floor deck gets the same wood with Tools > Out of the Depths > Wood Floor On Selected Grid Floors (or the
-// Grid Floor component's own menu): select the decks (or the rooms they are in) and run it. Those decks are written down
-// in Assets/Settings/WoodFloors.txt (room and middle of each deck), so a rebuild lays the wood on them again.
+// Any other floor deck gets the same wood, or the stone, with Tools > Out of the Depths > Wood / Stone Floor On Selected
+// Grid Floors (or the Grid Floor component's own menu): select the decks (or the rooms they are in) and run it. Those
+// decks are written down in Assets/Settings/WoodFloors.txt or StoneFloors.txt (room and middle of each deck), so a
+// rebuild lays them again. Every command here saves the scene it changed, and none runs in Play mode (lost on stop).
 public static class RoomDressTools
 {
     public const string FloorMaterialPath = "Assets/Art/Materials/wood_texture 1.mat";
@@ -37,6 +38,8 @@ public static class RoomDressTools
     [MenuItem("Tools/Out of the Depths/Dress Spawn Room (Wood Floor, Stone Walls)")]
     public static void DressSpawnRoomInOpenScene()
     {
+        if (!EditMode("Room dress"))
+            return;
         GameObject room = GameObject.Find(SpawnRoomName);
         if (room == null)
         {
@@ -45,17 +48,17 @@ public static class RoomDressTools
         }
         if (Dress(room.transform, SpawnRoomArea, FloorY, CeilingY, true))
         {
-            EditorSceneManager.MarkSceneDirty(room.scene);
-            Debug.Log($"Room dress: {SpawnRoomName} has its wood floor and stone walls and ceiling. Save the scene to keep it.", room);
+            SaveScene(room.scene);
+            Debug.Log($"Room dress: {SpawnRoomName} has its wood floor and stone walls and ceiling (scene saved).", room);
         }
     }
 
     // For the builder, after the whole ship is up (walls, roof and the portholes cut through the hull): the spawn room,
-    // then every deck written down in WoodFloors.txt.
+    // then every deck written down in Settings/WoodFloors.txt and Settings/StoneFloors.txt.
     public static void DressShip(Transform ship)
     {
         DressSpawnRoom(ship);
-        WoodFloorsFromList(ship);
+        FloorLooksFromLists(ship);
     }
 
     public static void DressSpawnRoom(Transform ship)
@@ -65,26 +68,35 @@ public static class RoomDressTools
             Dress(room, SpawnRoomArea, FloorY, CeilingY, false);
     }
 
-    // ---- wood on chosen decks ---------------------------------------------------------------------------------------
+    // ---- wood or stone on chosen decks ----------------------------------------------------------------------------
 
-    public const string WoodFloorListPath = "Assets/Settings/WoodFloors.txt";
-    private const string WoodListHeader =
-        "# Floor decks (Grid Floor) laid with wood (Art/Materials/wood_texture 1), written by Room Dress Tools.\n" +
-        "# One deck a line: its room, then the x and z of its middle. ShipGreyboxBuilder lays the wood on them again after a rebuild.";
-
-    [MenuItem("Tools/Out of the Depths/Wood Floor On Selected Grid Floors")]
-    public static void WoodOnSelection()
+    // A floor look for any deck: its material, how many metres of floor a repeat of the texture covers, and the list in
+    // Assets/Settings it is remembered in (so a rebuild lays it again). A deck is in one list at a time.
+    private sealed class FloorLook
     {
-        var floors = new List<GridFloor>();
-        foreach (GameObject go in Selection.gameObjects)
-            foreach (GridFloor floor in go.GetComponentsInChildren<GridFloor>(true))   // a selected room does all its decks
-                if (!floors.Contains(floor) && !EditorUtility.IsPersistent(floor))
-                    floors.Add(floor);
-        WoodOn(floors);
+        public string Name, MaterialPath, ListPath;
+        public float Tile;
     }
 
+    private static readonly FloorLook Wood = new FloorLook
+    {
+        Name = "wood", MaterialPath = FloorMaterialPath, ListPath = "Assets/Settings/WoodFloors.txt", Tile = FloorTile,
+    };
+    private static readonly FloorLook Stone = new FloorLook
+    {
+        Name = "stone", MaterialPath = WallMaterialPath, ListPath = "Assets/Settings/StoneFloors.txt", Tile = StoneTile,
+    };
+    private static readonly FloorLook[] Looks = { Wood, Stone };
+
+    [MenuItem("Tools/Out of the Depths/Wood Floor On Selected Grid Floors")]
+    public static void WoodOnSelection() => LookOn(SelectedFloors(), Wood);
+
+    [MenuItem("Tools/Out of the Depths/Stone Floor On Selected Grid Floors")]
+    public static void StoneOnSelection() => LookOn(SelectedFloors(), Stone);
+
     [MenuItem("Tools/Out of the Depths/Wood Floor On Selected Grid Floors", true)]
-    private static bool WoodOnSelectionValid()
+    [MenuItem("Tools/Out of the Depths/Stone Floor On Selected Grid Floors", true)]
+    private static bool SelectionHasFloors()
     {
         foreach (GameObject go in Selection.gameObjects)
             if (go.GetComponentInChildren<GridFloor>(true) != null)
@@ -96,73 +108,128 @@ public static class RoomDressTools
     private static void WoodOnThis(MenuCommand command)
     {
         if (command.context is GridFloor floor)
-            WoodOn(new List<GridFloor> { floor });
+            LookOn(new List<GridFloor> { floor }, Wood);
     }
 
-    private static void WoodOn(List<GridFloor> floors)
+    [MenuItem("CONTEXT/GridFloor/Stone Floor (stone_texture)")]
+    private static void StoneOnThis(MenuCommand command)
     {
+        if (command.context is GridFloor floor)
+            LookOn(new List<GridFloor> { floor }, Stone);
+    }
+
+    // The selected decks, and every deck in a selected room.
+    private static List<GridFloor> SelectedFloors()
+    {
+        var floors = new List<GridFloor>();
+        foreach (GameObject go in Selection.gameObjects)
+            foreach (GridFloor floor in go.GetComponentsInChildren<GridFloor>(true))
+                if (!floors.Contains(floor) && !EditorUtility.IsPersistent(floor))
+                    floors.Add(floor);
+        return floors;
+    }
+
+    private static void LookOn(List<GridFloor> floors, FloorLook look)
+    {
+        if (!EditMode($"{look.Name} floor"))
+            return;
         if (floors.Count == 0)
         {
-            Debug.LogWarning("Wood floor: select one or more Grid Floor decks (or the rooms they are in) first.");
+            Debug.LogWarning($"{look.Name} floor: select one or more Grid Floor decks (or the rooms they are in) first.");
             return;
         }
-        var wood = AssetDatabase.LoadAssetAtPath<Material>(FloorMaterialPath);
-        if (wood == null)
+        var material = AssetDatabase.LoadAssetAtPath<Material>(look.MaterialPath);
+        if (material == null)
         {
-            Debug.LogWarning($"Wood floor: no material at {FloorMaterialPath}.");
+            Debug.LogWarning($"{look.Name} floor: no material at {look.MaterialPath}.");
             return;
         }
-        List<string> list = ReadWoodList();
         var names = new List<string>();
+        var scenes = new List<UnityEngine.SceneManagement.Scene>();
         foreach (GridFloor floor in floors)
         {
-            Undo.RecordObject(floor, "Wood Floor");
+            Undo.RecordObject(floor, $"{look.Name} floor");
             floor.enabled = true;   // switched off, a Grid Floor has no mesh at all
-            floor.SetLook(GridFloor.Mapping.Tile, Color.white, wood, FloorTile);
+            floor.SetLook(GridFloor.Mapping.Tile, Color.white, material, look.Tile);
             EditorUtility.SetDirty(floor);
-            EditorSceneManager.MarkSceneDirty(floor.gameObject.scene);
-            string key = WoodKey(floor);
-            if (!list.Contains(key))
-                list.Add(key);
-            names.Add(key);
+            if (!scenes.Contains(floor.gameObject.scene))
+                scenes.Add(floor.gameObject.scene);
+            names.Add(DeckKey(floor));
         }
-        WriteWoodList(list);
-        Debug.Log($"Wood floor: {floors.Count} deck(s) now wood, remembered in {WoodFloorListPath}: {string.Join("; ", names)}. Save the scene to keep it.");
+        List<string> switched = Remember(floors, look);
+        Save(scenes);
+        Debug.Log($"{look.Name} floor: {floors.Count} deck(s) laid and saved, remembered in {look.ListPath} for rebuilds: {string.Join("; ", names)}");
+        // Wood and stone go on different decks: say so if any of these had the other look until now.
+        if (switched.Count > 0)
+            Debug.LogWarning($"{look.Name} floor: {switched.Count} of these deck(s) had another floor until now and lost it (Ctrl+Z puts it back): {string.Join("; ", switched)}");
     }
 
-    // A deck given another look by hand since (the middle room's tile floor) is not made wood again by a rebuild.
-    public static void ForgetWoodFloor(GridFloor floor)
+    // Written into this look's list and out of every other one. Returns the decks that were in another look's list
+    // ("stone, was wood: Room_7_BoxRoom 13.375 15").
+    private static List<string> Remember(List<GridFloor> floors, FloorLook look)
+    {
+        var switched = new List<string>();
+        foreach (FloorLook other in Looks)
+        {
+            List<string> list = ReadList(other);
+            int before = list.Count;
+            if (other != look)
+                foreach (string line in list)
+                    if (floors.Exists(floor => SameDeck(line, floor)))
+                        switched.Add($"{line} (was {other.Name})");
+            list.RemoveAll(line => floors.Exists(floor => SameDeck(line, floor)));
+            if (other == look)
+                foreach (GridFloor floor in floors)
+                    list.Add(DeckKey(floor));
+            if (other == look || list.Count != before)
+                WriteList(other, list);
+        }
+        return switched;
+    }
+
+    // A deck given another look by hand since (the middle room's tile floor) is not laid with wood or stone again by a
+    // rebuild.
+    public static void ForgetFloorLooks(GridFloor floor)
     {
         if (floor == null)
             return;
-        List<string> list = ReadWoodList();
-        int before = list.Count;
-        list.RemoveAll(line => SameDeck(line, floor));
-        if (list.Count != before)
-            WriteWoodList(list);
+        foreach (FloorLook look in Looks)
+        {
+            List<string> list = ReadList(look);
+            int before = list.Count;
+            list.RemoveAll(line => SameDeck(line, floor));
+            if (list.Count != before)
+                WriteList(look, list);
+        }
     }
 
-    // After a rebuild: the wood again on every deck in the list.
-    public static void WoodFloorsFromList(Transform ship)
+    // After a rebuild: every deck in the lists laid again with its wood or stone.
+    public static void FloorLooksFromLists(Transform ship)
     {
-        List<string> list = ReadWoodList();
-        var wood = AssetDatabase.LoadAssetAtPath<Material>(FloorMaterialPath);
-        if (ship == null || list.Count == 0 || wood == null)
+        if (ship == null)
             return;
-        int done = 0;
-        foreach (GridFloor floor in ship.GetComponentsInChildren<GridFloor>(true))
-            foreach (string line in list)
-                if (SameDeck(line, floor))
-                {
-                    floor.SetLook(GridFloor.Mapping.Tile, Color.white, wood, FloorTile);
-                    done++;
-                    break;
-                }
-        Debug.Log($"Wood floor: {done} of the {list.Count} deck(s) in {WoodFloorListPath} laid with wood.");
+        GridFloor[] floors = ship.GetComponentsInChildren<GridFloor>(true);
+        foreach (FloorLook look in Looks)
+        {
+            List<string> list = ReadList(look);
+            var material = AssetDatabase.LoadAssetAtPath<Material>(look.MaterialPath);
+            if (list.Count == 0 || material == null)
+                continue;
+            int done = 0;
+            foreach (GridFloor floor in floors)
+                foreach (string line in list)
+                    if (SameDeck(line, floor))
+                    {
+                        floor.SetLook(GridFloor.Mapping.Tile, Color.white, material, look.Tile);
+                        done++;
+                        break;
+                    }
+            Debug.Log($"{look.Name} floor: {done} of the {list.Count} deck(s) in {look.ListPath} laid.");
+        }
     }
 
     // "Room_3_FishRoom -20.625 33.5": the deck's room and the x and z of its middle (always with a point, any language).
-    private static string WoodKey(GridFloor floor)
+    private static string DeckKey(GridFloor floor)
     {
         Vector3 p = floor.transform.position;
         string room = floor.transform.parent != null ? floor.transform.parent.name : "-";
@@ -184,12 +251,12 @@ public static class RoomDressTools
         return parent != null && parent.name == room && Mathf.Abs(p.x - x) < 0.05f && Mathf.Abs(p.z - z) < 0.05f;
     }
 
-    private static List<string> ReadWoodList()
+    private static List<string> ReadList(FloorLook look)
     {
         var list = new List<string>();
-        if (!System.IO.File.Exists(WoodFloorListPath))
+        if (!System.IO.File.Exists(look.ListPath))
             return list;
-        foreach (string raw in System.IO.File.ReadAllLines(WoodFloorListPath))
+        foreach (string raw in System.IO.File.ReadAllLines(look.ListPath))
         {
             string line = raw.Trim();
             if (line.Length > 0 && !line.StartsWith("#") && !list.Contains(line))
@@ -198,12 +265,51 @@ public static class RoomDressTools
         return list;
     }
 
-    private static void WriteWoodList(List<string> list)
+    private static void WriteList(FloorLook look, List<string> list)
     {
-        list.Sort(System.StringComparer.Ordinal);
-        System.IO.File.WriteAllText(WoodFloorListPath, WoodListHeader + "\n" + string.Join("\n", list) + "\n");
-        AssetDatabase.ImportAsset(WoodFloorListPath);
+        var unique = new List<string>();
+        foreach (string line in list)
+            if (!unique.Contains(line))
+                unique.Add(line);
+        unique.Sort(System.StringComparer.Ordinal);
+        string header =
+            $"# Floor decks (Grid Floor) laid with {look.Name} ({look.MaterialPath}), written by Room Dress Tools.\n" +
+            "# One deck a line: its room, then the x and z of its middle. ShipGreyboxBuilder lays them again after a rebuild.\n";
+        System.IO.File.WriteAllText(look.ListPath, header + string.Join("\n", unique) + "\n");
+        AssetDatabase.ImportAsset(look.ListPath);
     }
+
+    // ---- keeping it ---------------------------------------------------------------------------------------------------
+
+    // Changes made in Play mode are thrown away when it stops: these tools only run in Edit mode.
+    private static bool EditMode(string what)
+    {
+        if (!EditorApplication.isPlayingOrWillChangePlaymode)
+            return true;
+        Debug.LogWarning($"{what}: stop Play mode first (anything changed in Play mode is lost when it stops).");
+        return false;
+    }
+
+    // The changed scenes saved straight away, so nothing is lost by forgetting to.
+    private static void Save(List<UnityEngine.SceneManagement.Scene> scenes)
+    {
+        foreach (var scene in scenes)
+        {
+            if (!scene.IsValid())
+                continue;
+            EditorSceneManager.MarkSceneDirty(scene);
+            if (string.IsNullOrEmpty(scene.path))
+            {
+                Debug.LogWarning($"{scene.name} has never been saved, so it was not saved now: save it once yourself.");
+                continue;
+            }
+            EditorSceneManager.SaveScene(scene);
+        }
+        AssetDatabase.SaveAssets();
+    }
+
+    public static void SaveScene(UnityEngine.SceneManagement.Scene scene) =>
+        Save(new List<UnityEngine.SceneManagement.Scene> { scene });
 
     // area: the room's walls (middle lines, x and z); floorY / ceilingY: its floor and the underside of its roof.
     public static bool Dress(Transform room, Rect area, float floorY, float ceilingY, bool undoable)

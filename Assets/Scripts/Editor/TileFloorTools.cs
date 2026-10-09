@@ -7,7 +7,7 @@ using UnityEngine;
 // Mapping Fit (the picture once over the whole room, so a tile is about a metre), Tint white so the painted colours
 // show. The deck stays a Grid Floor, so its size and place still come from the builder.
 // ShipGreyboxBuilder calls Apply for the middle room's deck; Tools > Out of the Depths > Use Tile Floor In Middle Room
-// does the open scene without a rebuild. Safe to run again.
+// does the open scene without a rebuild (and saves it). Safe to run again.
 public static class TileFloorTools
 {
     public const string MaterialPath = "Assets/Art/Materials/tilefloor_texture.mat";
@@ -16,6 +16,11 @@ public static class TileFloorTools
     [MenuItem("Tools/Out of the Depths/Use Tile Floor In Middle Room")]
     public static void ApplyToOpenScene()
     {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            Debug.LogWarning("Tile floor: stop Play mode first (anything changed in Play mode is lost when it stops).");
+            return;
+        }
         int done = 0;
         foreach (GridFloor floor in Object.FindObjectsByType<GridFloor>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
@@ -23,7 +28,7 @@ public static class TileFloorTools
                 continue;
             if (Apply(floor))
             {
-                RoomDressTools.ForgetWoodFloor(floor);   // tiles again by hand: a rebuild no longer lays wood here
+                RoomDressTools.ForgetFloorLooks(floor);   // tiles again by hand: a rebuild no longer lays wood or stone here
                 done++;
             }
         }
@@ -32,8 +37,9 @@ public static class TileFloorTools
             Debug.LogWarning($"Tile floor: no Grid Floor under {RoomName} in the open scene, or no material at {MaterialPath}.");
             return;
         }
-        EditorSceneManager.MarkAllScenesDirty();
-        Debug.Log($"Tile floor: the middle room's floor now shows {MaterialPath}. Save the scene to keep it.");
+        for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
+            RoomDressTools.SaveScene(UnityEngine.SceneManagement.SceneManager.GetSceneAt(i));
+        Debug.Log($"Tile floor: the middle room's floor now shows {MaterialPath} (scene saved).");
     }
 
     public static bool Apply(GridFloor floor)

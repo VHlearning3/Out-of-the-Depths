@@ -1,0 +1,6 @@
+# Floor decks (Grid Floor) laid with stone (Assets/Art/Materials/stone_texture.mat), written by Room Dress Tools.
+# One deck a line: its room, then the x and z of its middle. ShipGreyboxBuilder lays them again after a rebuild.
+Column_Trident 24.375 29.25
+Room_8_SymbolRoom -2.25 44.125
+Room_9_Hallway -16.875 54.25
+Room_9_Hallway 7.5 54.25
