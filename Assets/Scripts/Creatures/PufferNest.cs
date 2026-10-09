@@ -362,7 +362,7 @@ public class PufferNest : MonoBehaviour, IDamageable
 
     private void Part(PrimitiveType type, Vector3 position, Vector3 scale, Quaternion rotation, Color color)
     {
-        GameObject part = GameObject.CreatePrimitive(type);
+        GameObject part = RuntimePrimitive.Create(type);   // not CreatePrimitive: magenta in a build
         DestroyImmediate(part.GetComponent<Collider>());   // the nest's own sphere is its one collider
         part.transform.SetParent(look, false);
         part.transform.localPosition = position;

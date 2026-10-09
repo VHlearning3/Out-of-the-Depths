@@ -430,7 +430,7 @@ public class Seaweed : MonoBehaviour
         // A small dark rock, mostly sunk into the floor, for the leaves to grow out of.
         if (showRoots)
         {
-            GameObject roots = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            GameObject roots = RuntimePrimitive.Create(PrimitiveType.Sphere);
             roots.name = "Roots";
             SafeDestroy(roots.GetComponent<Collider>());
             roots.transform.SetParent(transform, false);

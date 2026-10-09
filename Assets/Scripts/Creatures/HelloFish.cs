@@ -461,7 +461,7 @@ public class HelloFish : MonoBehaviour
         Material skin = null, eyes = null;
         void Part(PrimitiveType type, Vector3 position, Vector3 scale, Vector3 euler, bool eye)
         {
-            var part = GameObject.CreatePrimitive(type);
+            var part = RuntimePrimitive.Create(type);   // URP Lit to copy below (a build's own default is magenta)
             DestroyImmediate(part.GetComponent<Collider>());   // nothing to bump into or aim at
             part.transform.SetParent(into, false);
             part.transform.localPosition = position;

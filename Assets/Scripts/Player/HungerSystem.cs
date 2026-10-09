@@ -1,7 +1,8 @@
 using UnityEngine;
 using UnityEngine.Events;
 
-// Hunger meter that drains over time. Eating fish refills it; hitting zero lets HealthSystem start starvation damage.
+// Hunger meter. Only the dash uses it up (Swim Controller -> Dash Hunger Cost): it no longer drains by itself as time
+// goes by (Passive Drain, off). Eating fish refills it; hitting zero lets HealthSystem start starvation damage.
 public class HungerSystem : MonoBehaviour
 {
     [System.Serializable]
@@ -10,7 +11,9 @@ public class HungerSystem : MonoBehaviour
     [Header("Hunger")]
     [SerializeField] private float maxHunger = 100f;
     [SerializeField] private float startingHunger = 100f;
-    [Tooltip("Hunger lost per second. 0.4 = a full fish empties in about four minutes, draining visibly as you watch.")]
+    [Tooltip("Off: hunger only goes down when you dash. On: it also drains by itself, Depletion Rate a second.")]
+    [SerializeField] private bool passiveDrain = false;
+    [Tooltip("With Passive Drain on: hunger lost per second. 0.4 = a full fish empties in about four minutes.")]
     [SerializeField] private float depletionRate = 0.4f;
 
     [Header("Warning")]
@@ -58,7 +61,7 @@ public class HungerSystem : MonoBehaviour
 
     private void Update()
     {
-        if (IsStarving || DrainPaused)
+        if (!passiveDrain || IsStarving || DrainPaused)
             return;
 
         SetHunger(CurrentHunger - depletionRate * Time.deltaTime);
@@ -76,12 +79,14 @@ public class HungerSystem : MonoBehaviour
             foodFlash.Flash();
     }
 
-    // Pay for an action (the dash): false, and nothing taken, when there is not that much left.
+    // Pay for an action (the dash): false, and nothing taken, when there is not that much left. An action never
+    // empties the meter: with only its cost left (or less) it is refused, so dashing can never start you starving;
+    // the last few points stay until you eat.
     public bool Spend(float amount)
     {
         if (amount <= 0f || DrainPaused)
             return true;   // free while the admin panel has hunger switched off
-        if (CurrentHunger < amount)
+        if (CurrentHunger - amount <= 0.001f)
             return false;
         SetHunger(CurrentHunger - amount);
         return true;

@@ -216,7 +216,29 @@ public class PlayerInventory : MonoBehaviour
             else if (slot.IsEmpty)
                 space += item.MaxStack;
         }
+        // A new weapon with every weapon slot holding another one: Add lets go of the held weapon to make room (Replace
+        // Weapons), so there is room. Without this the pickup said the slots were full and was never taken, and the
+        // trident (the game's ending) could not be picked up while you carried the dagger.
+        if (space == 0 && WouldReplaceWeapon(item))
+            space = item.MaxStack;
         return Mathf.Min(amount, space);
+    }
+
+    // True when Add would let go of a held weapon to make room for this one (what MakeRoomForWeapon does).
+    private bool WouldReplaceWeapon(ItemDefinition item)
+    {
+        if (!replaceWeapons || WeaponSlots == 0 || item == null || item.Kind != ItemDefinition.Category.Weapon)
+            return false;
+        bool anyWeaponSlot = false;
+        for (int i = 0; i < slots.Length; i++)
+        {
+            if (!IsWeaponSlot(i))
+                continue;
+            if (slots[i].IsEmpty || slots[i].item == item)
+                return false;   // room already, or the same weapon (it stacks or it does not, nothing is let go)
+            anyWeaponSlot = true;
+        }
+        return anyWeaponSlot;
     }
 
     public int Add(ItemDefinition item, int amount = 1)

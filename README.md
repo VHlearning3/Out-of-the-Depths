@@ -25,7 +25,7 @@ Open a scene and press Play. `MainMenu` → New Game loads `Main_Scene`.
 | Mouse | Look. Swimming forward follows where you look, so looking up/down changes depth. |
 | W A S D | Swim (slow to get going, glides when you let go: `Swim Controller → Acceleration / Drag`) |
 | Space / Ctrl | Swim straight up / down |
-| Shift | Dash: a burst the way you are swimming (or looking), costs 5 hunger, 2 s cooldown shown as a ring round the crosshair (red flash = too hungry); the first dash of a session pops up a tip saying so (`HintPopup`, a fading tip panel any script can show); `Swim Controller → Dash`. No sprint any more |
+| Shift | Dash: a burst the way you are swimming (or looking), costs 5 hunger (never the last of it: with 5 or less left the dash is refused, so dashing cannot start you starving), 2 s cooldown shown as a ring round the crosshair (red flash = too hungry, with a one-time tip); the first dash of a session pops up a tip saying so (`HintPopup`, a fading tip panel any script can show); `Swim Controller → Dash`. No sprint any more |
 | 1–5 / mouse wheel | Select an inventory slot |
 | E | Interact (eat a dead fish, pick up an item, activate a checkpoint, doors, chests): whatever the reticle (the dot in the middle of the screen) is on: a ray straight out through it, the first interactable within `Interact Range` (2.2 m); walls, floors and ceilings stop it, so nothing behind them can be used, and a thin `Aim Assist` beam (15 cm) still finds a small thing the dot is just off. The prompt turns **red** on a lock you cannot open yet or something that needs an item you do not have, and **green** once that item is in your hotbar (`Blocked Color` / `Ready Color` on Player Interactor; doors, double doors, item sockets and puzzle stations report it through `IPromptTone`) |
 | Left mouse | Slash — only once the dagger (or trident) is in your inventory |
@@ -261,7 +261,7 @@ How the pieces connect: `SlashAttack` → `Damageable` → (fish) `FishControlle
 ## Conventions
 
 - `*_Placeholder` in a name = temporary art, replace it.
-- Tunable numbers live in the Inspector, not in code (`Hunger System → Depletion Rate`, `Slash Attack → Damage`, ...).
+- Tunable numbers live in the Inspector, not in code (`Swim Controller → Dash Hunger Cost`, `Slash Attack → Damage`, ...).
 - Test in `TestArena`, keep `Main_Scene` for the real level.
 
 ## Treasure chest

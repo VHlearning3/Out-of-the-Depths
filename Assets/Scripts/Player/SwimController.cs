@@ -27,7 +27,7 @@ public class SwimController : MonoBehaviour
     [SerializeField] private float dashSpeed = 7f;
     [Tooltip("Seconds before the next dash.")]
     [SerializeField] private float dashCooldown = 2f;
-    [Tooltip("Hunger each dash costs; with less than that left you cannot dash.")]
+    [Tooltip("Hunger each dash costs. A dash never empties the meter: with this much or less left you cannot dash (eat first).")]
     [SerializeField] private float dashHungerCost = 5f;
     [SerializeField, Range(0f, 1f)] private float dashShake = 0.12f;
     [SerializeField] private AudioClip dashSound;
@@ -271,6 +271,7 @@ public class SwimController : MonoBehaviour
 
     // A burst the way you are swimming (or looking, when still), gliding away through the water; paid for in hunger.
     private static bool dashHintShown;
+    private static bool tooHungryHintShown;
 
     private void TryDash(Vector3 wishVelocity)
     {
@@ -281,6 +282,12 @@ public class SwimController : MonoBehaviour
         if (hunger != null && !hunger.Spend(dashHungerCost))
         {
             LastDashRefusedAt = Time.time;   // too hungry: the ring flashes
+            // A dash never takes the last of the hunger (it would start you starving), so say why the first time.
+            if (!tooHungryHintShown)
+            {
+                tooHungryHintShown = true;
+                HintPopup.Show("Too hungry to dash. Eat a fish first.");
+            }
             return;
         }
         Vector3 direction = wishVelocity.sqrMagnitude > 0.0001f ? wishVelocity.normalized : cameraPivot.forward;

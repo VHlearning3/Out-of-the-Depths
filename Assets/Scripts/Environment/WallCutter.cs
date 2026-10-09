@@ -105,7 +105,7 @@ public static class WallCutter
         size[u] = u1 - u0;
         size[v] = v1 - v0;
 
-        GameObject piece = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        GameObject piece = RuntimePrimitive.Create(PrimitiveType.Cube);
         piece.name = wall.name + "_" + label;
         piece.layer = wall.layer;
         piece.tag = wall.tag;

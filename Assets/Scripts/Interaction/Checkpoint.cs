@@ -349,7 +349,7 @@ public class Checkpoint : MonoBehaviour, IInteractable
             break;
         }
 
-        GameObject ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        GameObject ring = RuntimePrimitive.Create(PrimitiveType.Cylinder);
         ring.name = "LightUpRing";
         Destroy(ring.GetComponent<Collider>());
         ring.transform.SetParent(transform, false);

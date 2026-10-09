@@ -44,6 +44,8 @@ public class FishWindow : MonoBehaviour
     [SerializeField] private bool bars = true;
     [SerializeField] private float barSpacing = 0.42f;
     [SerializeField] private Color barColor = new Color(0.2f, 0.17f, 0.15f);
+    [Tooltip("Material for the bars (the roof holes: RoofBar_Grey). Empty = plain URP Lit tinted Bar Color.")]
+    [SerializeField] private Material barMaterial;
 
     public const string PlayerBlockerName = "PlayerBlocker";
     private List<Vector2> passage;   // spots in the window's plane (local x, y) where a fish fits through
@@ -83,13 +85,16 @@ public class FishWindow : MonoBehaviour
 
     private void Bar(Transform parent, Vector3 position, Vector3 size)
     {
-        GameObject bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        GameObject bar = RuntimePrimitive.Create(PrimitiveType.Cube);   // not CreatePrimitive: magenta in a build
         DestroyImmediate(bar.GetComponent<Collider>());
         bar.name = "Bar";
         bar.transform.SetParent(parent, false);
         bar.transform.localPosition = position;
         bar.transform.localScale = size;
-        bar.AddComponent<RendererTint>().Tint = barColor;
+        if (barMaterial != null)
+            bar.GetComponent<Renderer>().sharedMaterial = barMaterial;
+        else
+            bar.AddComponent<RendererTint>().Tint = barColor;
     }
 
     // Replaces the box wall behind the window with pieces around the hole and lines the hole. Returns true if a hole was cut.
@@ -157,7 +162,7 @@ public class FishWindow : MonoBehaviour
 
     private void SleevePiece(GameObject parent, string label, Vector3 localPosition, Vector3 size)
     {
-        GameObject piece = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        GameObject piece = RuntimePrimitive.Create(PrimitiveType.Cube);
         piece.name = label;
         Destroy(piece.GetComponent<Collider>(), Application.isPlaying);
         piece.transform.SetParent(parent.transform, false);

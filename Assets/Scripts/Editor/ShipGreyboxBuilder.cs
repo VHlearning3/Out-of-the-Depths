@@ -19,6 +19,70 @@ using static LightingTools;
 public static class ShipGreyboxBuilder
 {
     private const string ScenePath = "Assets/Scenes/Main_Scene.unity";
+
+    // The roof grates' bars (RoofBar) and the bars Fish Window puts across the roof holes: plain grey, one material
+    // asset (Art/Materials/RoofBar_Grey, made here if missing). A real asset, so it is in the build for certain.
+    public const string RoofBarMaterialPath = "Assets/Art/Materials/RoofBar_Grey.mat";
+
+    public static Material RoofBarMaterial()
+    {
+        var grey = AssetDatabase.LoadAssetAtPath<Material>(RoofBarMaterialPath);
+        if (grey != null)
+            return grey;
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (shader == null)
+            return null;
+        grey = new Material(shader) { name = "RoofBar_Grey" };
+        grey.SetColor("_BaseColor", new Color(0.42f, 0.42f, 0.42f));
+        grey.SetFloat("_Smoothness", 0.25f);
+        AssetDatabase.CreateAsset(grey, RoofBarMaterialPath);
+        return grey;
+    }
+
+    // A roof bar in the grey material instead of the tinted default (its Renderer Tint goes, or it would colour it).
+    private static void RoofBarLook(GameObject bar)
+    {
+        Material grey = RoofBarMaterial();
+        if (bar == null || grey == null)
+            return;
+        var tint = bar.GetComponent<RendererTint>();
+        if (tint != null)
+            Object.DestroyImmediate(tint);
+        var renderer = bar.GetComponent<Renderer>();
+        renderer.SetPropertyBlock(null);
+        renderer.sharedMaterial = grey;
+    }
+
+    // The open scene without a rebuild: every RoofBar, and the roof holes' Fish Windows, to the grey material.
+    [MenuItem("Tools/Out of the Depths/Grey Roof Bars (Open Scene)")]
+    public static void GreyRoofBarsInOpenScene()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+            return;
+        Material grey = RoofBarMaterial();
+        int bars = 0, windows = 0;
+        foreach (MeshRenderer r in Object.FindObjectsByType<MeshRenderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if (r.name == "RoofBar" && !EditorUtility.IsPersistent(r))
+            {
+                RoofBarLook(r.gameObject);
+                EditorUtility.SetDirty(r.gameObject);
+                bars++;
+            }
+        foreach (FishWindow window in Object.FindObjectsByType<FishWindow>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if (window.name.StartsWith("RoofHole_") && !EditorUtility.IsPersistent(window))
+            {
+                var so = new SerializedObject(window);
+                SerializedProperty p = so.FindProperty("barMaterial");
+                if (p == null)
+                    continue;
+                p.objectReferenceValue = grey;
+                so.ApplyModifiedProperties();
+                windows++;
+            }
+        EditorSceneManager.MarkAllScenesDirty();
+        EditorSceneManager.SaveOpenScenes();
+        Debug.Log($"Grey roof bars: {bars} roof bars and {windows} roof hole windows now use {RoofBarMaterialPath}. Scene saved.");
+    }
     private const string RootName = "SHIP";
     private static readonly string[] OldRoots = { RootName, "ROOMS", "Placeholder" };
     private static readonly string[] LoosePrefixes =
@@ -307,10 +371,12 @@ public static class ShipGreyboxBuilder
                 GameObject bar = Decor("RoofBar", Vector3.zero, new Vector3(0.07f, 0.07f, half * 2f), iron, grate);
                 bar.transform.localPosition = new Vector3(x, 0f, 0f);
                 bar.transform.localRotation = Quaternion.identity;
+                RoofBarLook(bar);
             }
             GameObject cross = Decor("RoofBar", Vector3.zero, new Vector3(gx * 2f, 0.07f, 0.07f), iron, grate);
             cross.transform.localPosition = Vector3.zero;
             cross.transform.localRotation = Quaternion.identity;
+            RoofBarLook(cross);
 
             // Bent plates hanging off the rim, more round the bigger holes.
             int plates = Mathf.Clamp(Mathf.RoundToInt((hole.radii.x + hole.radii.y) * 2f), 2, 8);
@@ -531,6 +597,7 @@ public static class ShipGreyboxBuilder
             SetField(window, "exitDistance", p => p.floatValue = 2.5f);
             SetField(window, "openingScatter", p => p.vector2Value = hole.radii * 0.4f);
             SetField(window, "exitScatter", p => p.vector2Value = new Vector2(40f, 35f));
+            SetField(window, "barMaterial", p => p.objectReferenceValue = RoofBarMaterial());
         }
         var area = spawner.AddComponent<BoxCollider>();
         area.isTrigger = true;
