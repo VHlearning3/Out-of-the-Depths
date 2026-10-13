@@ -63,15 +63,22 @@ public static class CheckpointModelTools
     }
 
     // Checkpoint.mat for the book: URP Lit with the folder's texture as base and emission map, emission on. The pillar
-    // parts use the plain glow material (also returned); the book falls back to it when the folder has no texture.
+    // parts use CheckpointPillar.mat, the same with the folder's texture whose name says "pillar" (its own painting),
+    // or the plain glow material when there is none (also returned); the book falls back to the glow material when the
+    // folder has no texture of its own.
     private static Material EnsureMaterial(out Material glowMaterial)
     {
-        Texture2D texture = null;
+        Texture2D texture = null, pillarTexture = null;
         foreach (string guid in AssetDatabase.FindAssets("t:Texture2D", new[] { ModelFolder }))
         {
-            texture = AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(guid));
-            if (texture != null)
-                break;
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            var found = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            if (found == null)
+                continue;
+            if (System.IO.Path.GetFileName(path).ToLowerInvariant().Contains("pillar"))
+                pillarTexture = pillarTexture != null ? pillarTexture : found;
+            else
+                texture = texture != null ? texture : found;
         }
 
         var glow = AssetDatabase.LoadAssetAtPath<Material>(GlowMaterialPath);
@@ -82,6 +89,8 @@ public static class CheckpointModelTools
             EditorUtility.SetDirty(glow);
         }
         glowMaterial = glow;
+        if (pillarTexture != null)
+            glowMaterial = TexturedMaterial(PillarMaterialPath, pillarTexture);
         if (texture == null)
             return glow;
 
@@ -100,6 +109,31 @@ public static class CheckpointModelTools
         material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
         material.SetTexture("_EmissionMap", texture);
         material.SetColor("_EmissionColor", new Color(0.05f, 0.25f, 0.25f));   // the Checkpoint script drives this per pillar
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
+    private const string PillarMaterialPath = "Assets/Art/Materials/CheckpointPillar.mat";
+
+    // A URP Lit material at `path` (made if missing) showing `texture`, which also lights it (the Checkpoint script
+    // drives the glow's colour per pillar).
+    private static Material TexturedMaterial(string path, Texture2D texture)
+    {
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material == null)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            material = new Material(shader != null ? shader : Shader.Find("Standard"));
+            AssetDatabase.CreateAsset(material, path);
+        }
+        material.SetTexture("_BaseMap", texture);
+        material.SetTexture("_MainTex", texture);
+        material.SetColor("_BaseColor", Color.white);
+        material.SetFloat("_Smoothness", 0.2f);
+        material.EnableKeyword("_EMISSION");
+        material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        material.SetTexture("_EmissionMap", texture);
+        material.SetColor("_EmissionColor", new Color(0.05f, 0.25f, 0.25f));
         EditorUtility.SetDirty(material);
         return material;
     }

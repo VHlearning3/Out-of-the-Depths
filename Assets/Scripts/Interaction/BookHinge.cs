@@ -3,7 +3,8 @@ using UnityEngine;
 
 // The numbers a two-part book needs to shut, measured from the meshes of its halves (the children of the book whose
 // names say left and right; the mesh itself may sit on a child of those, wherever the importer put it) in the book's
-// own space, whatever the importer did to the axes. The spine is the edge both halves share. Each half turns about
+// own space, whatever the importer did to the axes. The spine is the edge both halves share, or, when the halves were
+// modelled with a small gap between them at the spine (so they do not overlap), the line midway across that gap. Each half turns about
 // it until it points along the line between the two, on the side the open pages face (the big faces that look up;
 // the covers underneath look down), so the pages end up inside and the covers outside; each is also a slab of some
 // thickness, so the Checkpoint slides them half a thickness apart as they shut, or the two would lie inside each
@@ -57,8 +58,10 @@ public struct BookHinge
                     break;
                 }
         if (shared.Count < 2)
+            shared = AcrossGap(lv, rv);
+        if (shared.Count < 2)
         {
-            problem = "the halves share no edge to hinge on (keep the spine vertices in both files)";
+            problem = "the halves share no edge to hinge on, and do not come close to each other anywhere (keep the spine vertices in both files, or the halves a few centimetres apart at most)";
             return false;
         }
         shared.Sort((a, b) => a.y.CompareTo(b.y));
@@ -132,6 +135,39 @@ public struct BookHinge
         for (int i = 0; i < v.Length; i++)
             v[i] = m.MultiplyPoint3x4(v[i]);
         return v;
+    }
+
+    // The halves were modelled a little apart at the spine: the middle of each pair of points, one from each half, that
+    // lie within a few percent of the book's size of each other (the two edges facing each other across the gap).
+    private static List<Vector3> AcrossGap(Vector3[] lv, Vector3[] rv)
+    {
+        var found = new List<Vector3>();
+        if (lv.Length == 0 || rv.Length == 0)
+            return found;
+        var bounds = new Bounds(lv[0], Vector3.zero);
+        foreach (Vector3 p in lv)
+            bounds.Encapsulate(p);
+        foreach (Vector3 p in rv)
+            bounds.Encapsulate(p);
+        float reach = bounds.size.magnitude * 0.04f;
+        float reach2 = reach * reach;
+        foreach (Vector3 a in lv)
+        {
+            float best = float.MaxValue;
+            Vector3 nearest = a;
+            foreach (Vector3 b in rv)
+            {
+                float d = (a - b).sqrMagnitude;
+                if (d < best)
+                {
+                    best = d;
+                    nearest = b;
+                }
+            }
+            if (best < reach2)
+                found.Add((a + nearest) * 0.5f);
+        }
+        return found;
     }
 
     private static Vector3 Centroid(Vector3[] points)

@@ -59,12 +59,18 @@ public class Checkpoint : MonoBehaviour, IInteractable
     [Tooltip("The spine, bottom and top, in the book model's own coordinates (the hinge the halves turn on).")]
     [SerializeField] private Vector3 bookSpineBottom = new Vector3(0f, 3.955f, -0.32f);
     [SerializeField] private Vector3 bookSpineTop = new Vector3(0.01f, 5.18f, 0.73f);
-    [SerializeField] private float bookCloseTime = 0.35f;
-    [SerializeField] private float bookFlyTime = 1.4f;
+    [SerializeField] private float bookCloseTime = 0.5f;
+    [Tooltip("A short pause, shut, before it rises.")]
+    [SerializeField] private float bookHoldTime = 0.2f;
+    [SerializeField] private float bookFlyTime = 2.2f;
     [Tooltip("How high it flies before it is gone.")]
-    [SerializeField] private float bookFlyHeight = 14f;
-    [Tooltip("Degrees per second it spins on the way up.")]
-    [SerializeField] private float bookFlySpin = 540f;
+    [SerializeField] private float bookFlyHeight = 6f;
+    [Tooltip("Degrees per second it turns on the way up.")]
+    [SerializeField] private float bookFlySpin = 90f;
+    [Tooltip("A closed book's spine: a rounded back that grows across the bottom as the halves shut (the modelled spine belongs to one half and turns away with it), so the shut book has no open slot underneath.")]
+    [SerializeField] private bool closedSpine = true;
+    [Tooltip("The closed spine's colour (the covers' colour).")]
+    [SerializeField] private Color spineColor = new Color(0.36f, 0.28f, 0.09f);
 
     [Header("Lighting up")]
     [Tooltip("On activation the glow climbs the pillar from the bottom over this long. 0 = as long as the book takes to close and fly.")]
@@ -111,6 +117,8 @@ public class Checkpoint : MonoBehaviour, IInteractable
     private bool bookGone;
     private bool bookBusy;   // closing, flying or coming back: the hover loop leaves it alone
     private Transform anchor;
+    private Transform spine;          // the closed book's spine (Closed Spine), made at start
+    private float spineWidth, spineDepth;
     private Coroutine glow;
     private Coroutine ignite;
     private Vector3 lightRestPosition;
@@ -158,6 +166,8 @@ public class Checkpoint : MonoBehaviour, IInteractable
                 else
                     Debug.LogWarning($"{name}: the book keeps its Inspector hinge numbers, it could not be measured: {problem}.", this);
             }
+            if (closedSpine && hingeMeasured)
+                MakeSpine();
             StartCoroutine(Hover());
         }
 
@@ -322,9 +332,10 @@ public class Checkpoint : MonoBehaviour, IInteractable
             SetEmission(Color.Lerp(inactiveEmission, activeEmission, k));
             if (ring != null)
             {
+                // Rising, fading in at the start and out at the end, the hoop a little wider than the pillar.
                 ring.localPosition = new Vector3(0f, height, 0f);
-                float pulse = 1f + 0.06f * Mathf.Sin(t * 30f);
-                ring.localScale = new Vector3(width * 1.15f * pulse, 0.03f, width * 1.15f * pulse);
+                float fade = Mathf.Clamp01(k / 0.15f) * Mathf.Clamp01((1f - k) / 0.2f);
+                ring.localScale = Vector3.one * (width * 0.62f * (0.85f + 0.15f * fade));
             }
             yield return null;
         }
@@ -349,19 +360,21 @@ public class Checkpoint : MonoBehaviour, IInteractable
             break;
         }
 
-        GameObject ring = RuntimePrimitive.Create(PrimitiveType.Cylinder);
-        ring.name = "LightUpRing";
-        Destroy(ring.GetComponent<Collider>());
+        // A thin glowing hoop (not a solid disc, and not in the pillar's own painted material).
+        var ring = new GameObject("LightUpRing", typeof(MeshFilter), typeof(MeshRenderer));
         ring.transform.SetParent(transform, false);
         ring.transform.localPosition = new Vector3(0f, 0.15f, 0f);
-        ring.transform.localScale = new Vector3(width * 1.15f, 0.03f, width * 1.15f);
-        var renderer = ring.GetComponent<Renderer>();
-        if (glowMaterial != null)
-            renderer.sharedMaterial = glowMaterial;
+        ring.GetComponent<MeshFilter>().sharedMesh = Hoop();
+        var renderer = ring.GetComponent<MeshRenderer>();
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.sharedMaterial = RuntimePrimitive.Material != null ? RuntimePrimitive.Material : glowMaterial;
         var ringBlock = new MaterialPropertyBlock();
-        ringBlock.SetColor(EmissionId, activeEmission * 3f);
-        ringBlock.SetColor(Shader.PropertyToID("_BaseColor"), Color.white);
+        Color glowColour = activeEmission.maxColorComponent > 0.01f ? activeEmission / activeEmission.maxColorComponent : Color.cyan;
+        ringBlock.SetColor(Shader.PropertyToID("_BaseColor"), glowColour);
+        ringBlock.SetColor(EmissionId, glowColour * 2.5f);
         renderer.SetPropertyBlock(ringBlock);
+        if (renderer.sharedMaterial != null)
+            renderer.sharedMaterial.EnableKeyword("_EMISSION");
         return ring.transform;
     }
 
@@ -431,14 +444,17 @@ public class Checkpoint : MonoBehaviour, IInteractable
             yield return null;
         }
         SetClosed(1f);
+        for (float t = 0f; t < bookHoldTime; t += Time.deltaTime)
+            yield return null;
 
+        // Up and away: slow to start, gently turning, shrinking smoothly to nothing over the second half.
         Vector3 from = hover.position;
         for (float t = 0f; t < bookFlyTime; t += Time.deltaTime)
         {
             float k = t / bookFlyTime;
-            hover.position = from + Vector3.up * (bookFlyHeight * Ease.InQuad(k));
+            hover.position = from + Vector3.up * (bookFlyHeight * Ease.InOutSine(k));
             hover.Rotate(0f, bookFlySpin * Time.deltaTime, 0f, Space.World);
-            hover.localScale = open * (k < 0.6f ? 1f : Mathf.Clamp01((1f - k) / 0.4f));
+            hover.localScale = open * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((k - 0.45f) / 0.55f)));
             yield return null;
         }
         hover.gameObject.SetActive(false);
@@ -460,6 +476,100 @@ public class Checkpoint : MonoBehaviour, IInteractable
         float slide = hingeMeasured ? hinge.thickness * 0.5f * amount : 0f;
         Hinge(bookLeft, leftRestPosition, leftRestRotation, axis.normalized, angle, hinge.pagesLeft, slide);
         Hinge(bookRight, rightRestPosition, rightRestRotation, axis.normalized, -angle, hinge.pagesRight, slide);
+        if (spine != null)
+        {
+            // Grows across the bottom as the halves come together, to the shut book's full thickness.
+            float grow = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((amount - 0.35f) / 0.65f));
+            spine.gameObject.SetActive(grow > 0.001f);
+            spine.localScale = new Vector3(spineWidth * grow, spine.localScale.y, spineDepth * grow);
+        }
+    }
+
+    // The closed book's spine: a rounded bar along the spine line, as long as the book, its width across the two shut
+    // halves (twice a half's thickness) and a little less deep, in the covers' colour. Under the Book, so it bobs,
+    // flies and shrinks with it. Hidden while the book is open.
+    private void MakeSpine()
+    {
+        Vector3 axis = bookSpineTop - bookSpineBottom;
+        Vector3 pages = hinge.pagesLeft + hinge.pagesRight;
+        if (axis.sqrMagnitude < 1e-6f || pages.sqrMagnitude < 1e-6f || hinge.thickness <= 0f)
+            return;
+        axis.Normalize();
+        pages = Vector3.ProjectOnPlane(pages, axis).normalized;
+
+        // The book's length along the spine: how far the halves reach along it.
+        float min = float.MaxValue, max = float.MinValue;
+        foreach (Transform half in new[] { bookLeft, bookRight })
+        {
+            MeshFilter filter = half != null ? half.GetComponentInChildren<MeshFilter>(true) : null;
+            if (filter == null || filter.sharedMesh == null || !filter.sharedMesh.isReadable)
+                continue;
+            Matrix4x4 m = hover.worldToLocalMatrix * filter.transform.localToWorldMatrix;
+            foreach (Vector3 v in filter.sharedMesh.vertices)
+            {
+                float d = Vector3.Dot(m.MultiplyPoint3x4(v) - bookSpineBottom, axis);
+                min = Mathf.Min(min, d);
+                max = Mathf.Max(max, d);
+            }
+        }
+        if (max <= min)
+        {
+            min = 0f;
+            max = Vector3.Distance(bookSpineTop, bookSpineBottom);
+        }
+
+        GameObject bar = RuntimePrimitive.Create(PrimitiveType.Cylinder);   // its length along its own Y, 2 units long
+        bar.name = "ClosedSpine";
+        Destroy(bar.GetComponent<Collider>());
+        spine = bar.transform;
+        spine.SetParent(hover, false);
+        spine.localPosition = bookSpineBottom + axis * ((min + max) * 0.5f);
+        spine.localRotation = Quaternion.LookRotation(axis, pages) * Quaternion.Euler(90f, 0f, 0f);   // Y along the spine, Z toward the pages
+        spineWidth = hinge.thickness * 2f;
+        spineDepth = hinge.thickness * 1.2f;
+        spine.localScale = new Vector3(0f, (max - min) * 0.5f * 0.98f, 0f);
+        var spineRenderer = bar.GetComponent<Renderer>();
+        var spineBlock = new MaterialPropertyBlock();
+        spineBlock.SetColor(Shader.PropertyToID("_BaseColor"), spineColor);
+        spineRenderer.SetPropertyBlock(spineBlock);
+        bar.SetActive(false);
+    }
+
+    // A thin hoop one unit across, lying flat (for the light-up ring).
+    private static Mesh hoopMesh;
+
+    private static Mesh Hoop()
+    {
+        if (hoopMesh != null)
+            return hoopMesh;
+        const int around = 48, sides = 8;
+        const float radius = 0.5f, tube = 0.025f;
+        var vertices = new Vector3[(around + 1) * (sides + 1)];
+        var normals = new Vector3[vertices.Length];
+        var triangles = new int[around * sides * 6];
+        for (int i = 0; i <= around; i++)
+        {
+            float a = i * Mathf.PI * 2f / around;
+            var outward = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+            for (int j = 0; j <= sides; j++)
+            {
+                float b = j * Mathf.PI * 2f / sides;
+                Vector3 n = outward * Mathf.Cos(b) + Vector3.up * Mathf.Sin(b);
+                vertices[i * (sides + 1) + j] = outward * radius + n * tube;
+                normals[i * (sides + 1) + j] = n;
+            }
+        }
+        int t = 0;
+        for (int i = 0; i < around; i++)
+            for (int j = 0; j < sides; j++)
+            {
+                int a0 = i * (sides + 1) + j, a1 = a0 + 1, b0 = a0 + sides + 1, b1 = b0 + 1;
+                triangles[t++] = a0; triangles[t++] = a1; triangles[t++] = b0;
+                triangles[t++] = b0; triangles[t++] = a1; triangles[t++] = b1;
+            }
+        hoopMesh = new Mesh { name = "Checkpoint hoop", vertices = vertices, normals = normals, triangles = triangles };
+        hoopMesh.RecalculateBounds();
+        return hoopMesh;
     }
 
     // Turns a half about the spine, then moves it away from its own (turned) page direction by the slide.

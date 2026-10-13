@@ -1727,9 +1727,10 @@ public static class ShipGreyboxBuilder
     private static void BuildCorals()
     {
         var models = new List<GameObject>();
+        CoralPrefabTools.Make();   // Prefabs/Corals: each coral with its box collider (made once)
         foreach (string name in CoralModels)
         {
-            var model = AssetDatabase.LoadAssetAtPath<GameObject>(CoralFolder + name + ".fbx");
+            var model = CoralPrefabTools.PrefabFor(name) ?? AssetDatabase.LoadAssetAtPath<GameObject>(CoralFolder + name + ".fbx");
             if (model != null)
                 models.Add(model);
         }
@@ -1813,7 +1814,7 @@ public static class ShipGreyboxBuilder
         coral.transform.SetPositionAndRotation(floor.point - up * 0.04f, Quaternion.FromToRotation(Vector3.up, up) * Quaternion.Euler(0f, yaw, 0f));
         coral.transform.localScale = Vector3.one * scale;
         MeshFilter shape = coral.GetComponentInChildren<MeshFilter>();
-        if (shape != null && shape.sharedMesh != null && shape.GetComponent<Collider>() == null)
+        if (shape != null && shape.sharedMesh != null && coral.GetComponentInChildren<Collider>() == null)   // (the prefabs have theirs)
         {
             // A box round the bulk of it: a little narrower than its widest, the full height.
             Bounds b = shape.sharedMesh.bounds;
