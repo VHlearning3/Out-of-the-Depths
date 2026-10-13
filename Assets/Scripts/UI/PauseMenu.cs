@@ -4,9 +4,10 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
-// The pause menu (Esc): freezes the game, frees the mouse and shows a panel with the pages down the left (Map,
-// Settings, Keybindings, Admin: any script in the scene that implements IPauseMenuPage, sorted by its Order) and the
-// open page on the right, with Resume, Main menu and Quit under the pages. IMGUI, so it needs no canvas or
+// The pause menu (Esc): freezes the game, frees the mouse and shows a panel with the pages down the left (Settings,
+// Keybindings, Credits, Admin: any script in the scene that implements IPauseMenuPage, sorted by its Order) and the
+// open page on the right, with Resume, Main menu and Quit under the pages. It always opens on Settings (the 0 key on
+// Admin). There is no Map page: a Map Page left in a scene is never shown. IMGUI, so it needs no canvas or
 // EventSystem: it builds its own skin (rounded 9-sliced textures, switches, key caps) and hands the extra styles to
 // MenuGUI, which the pages draw with, so everything matches and the quiet hover tick knows what the mouse is over.
 // The built-in pages are added to this object at runtime if the scene has none. Colours, sizes, fonts, labels, page
@@ -157,10 +158,7 @@ public class PauseMenu : MonoBehaviour
     {
         if (!Application.isPlaying)
             return;   // the edit-mode preview adds nothing to the scene
-        // The built-in pages, unless the scene already has them (then their Inspector settings are used). The main
-        // menu has no map.
-        if (!frontEnd && FindFirstObjectByType<MapPage>() == null)
-            gameObject.AddComponent<MapPage>();
+        // The built-in pages, unless the scene already has them (then their Inspector settings are used).
         if (FindFirstObjectByType<SettingsPage>() == null)
             gameObject.AddComponent<SettingsPage>();
         if (FindFirstObjectByType<KeybindingsPage>() == null)
@@ -279,6 +277,7 @@ public class PauseMenu : MonoBehaviour
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             CollectPages();
+            pageIndex = Mathf.Max(0, pages.FindIndex(page => page is SettingsPage));   // always opens on Settings
             pageVisibility = 0f;
             openedAt = Time.unscaledTime;
             lastHoverKey = 0;
@@ -333,6 +332,8 @@ public class PauseMenu : MonoBehaviour
         {
             if (!(behaviour is IPauseMenuPage page))
                 continue;
+            if (behaviour is MapPage)
+                continue;   // the map is out of the game
             if (behaviour is AdminPanel && !adminAllowed)
                 continue;
             if (frontEnd && !(behaviour is SettingsPage || behaviour is KeybindingsPage || behaviour is CreditsPage))

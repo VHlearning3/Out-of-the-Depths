@@ -4,7 +4,7 @@ using UnityEngine;
 
 // The pause menu in the editor. Tools > Out of the Depths > Create Pause Menu Theme makes
 // Assets/Settings/PauseMenuTheme.asset (if there is none) and puts it on every Pause Menu in the open scene that has
-// no theme yet; Add Pause Menu Pages puts the built-in pages (Map, Settings, Keybindings) on the Pause Menu's object
+// no theme yet; Add Pause Menu Pages puts the built-in pages (Settings, Keybindings, Credits) on the Pause Menu's object
 // so they can be edited in the hierarchy, and gives a Settings page its default rows. Both scene builders run both.
 public static class PauseMenuTools
 {
@@ -52,11 +52,6 @@ public static class PauseMenuTools
 
         GameObject host = menu.gameObject;
         int added = 0;
-        if (Object.FindFirstObjectByType<MapPage>(FindObjectsInactive.Include) == null)
-        {
-            Undo.AddComponent<MapPage>(host);
-            added++;
-        }
         if (Object.FindFirstObjectByType<SettingsPage>(FindObjectsInactive.Include) == null)
         {
             Undo.AddComponent<SettingsPage>(host);
