@@ -4,7 +4,8 @@ using UnityEngine.Rendering;
 
 // The outline around whatever the player is looking at. Built the first time an object is targeted: a copy of every
 // MeshRenderer under it, drawn with the inverted-hull outline shader (Resources/Shaders/OutlineHull), then simply
-// switched on and off. PlayerInteractor owns the material (colour, thickness) and calls Show / Hide.
+// switched on and off. PlayerInteractor owns the material (colour, thickness) and calls Show / Hide. An animated model
+// (a SkinnedMeshRenderer: the normal fish) gets a skinned copy on the same bones, so the outline bends with it.
 public class OutlineHull : MonoBehaviour
 {
     private const string HullName = "OutlineHull";
@@ -65,6 +66,36 @@ public class OutlineHull : MonoBehaviour
 
             var block = new MaterialPropertyBlock();
             block.SetVector("_Center", filter.sharedMesh.bounds.center);
+            renderer.SetPropertyBlock(block);
+            renderer.enabled = false;
+            hulls.Add(renderer);
+        }
+
+        foreach (SkinnedMeshRenderer source in GetComponentsInChildren<SkinnedMeshRenderer>(false))
+        {
+            if (source.name == HullName || source.sharedMesh == null)
+                continue;
+
+            var go = new GameObject(HullName);
+            go.transform.SetParent(source.transform, false);
+            go.layer = source.gameObject.layer;
+
+            var renderer = go.AddComponent<SkinnedMeshRenderer>();
+            renderer.sharedMesh = source.sharedMesh;
+            renderer.bones = source.bones;
+            renderer.rootBone = source.rootBone;
+            renderer.localBounds = source.localBounds;
+            var materials = new Material[Mathf.Max(1, source.sharedMesh.subMeshCount)];
+            for (int i = 0; i < materials.Length; i++)
+                materials[i] = material;
+            renderer.sharedMaterials = materials;
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.lightProbeUsage = LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+
+            var block = new MaterialPropertyBlock();
+            block.SetVector("_Center", source.sharedMesh.bounds.center);
             renderer.SetPropertyBlock(block);
             renderer.enabled = false;
             hulls.Add(renderer);

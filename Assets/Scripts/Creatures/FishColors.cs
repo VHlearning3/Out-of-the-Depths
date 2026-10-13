@@ -5,7 +5,7 @@ using UnityEngine;
 // share one placeholder model for now). Wanderers blue, pufferfish (they bite) red, wall fish (they stay put) yellow,
 // the chase pack purple; dead fish you can eat green, dead fish that are not food grey. Painted through each fish's
 // Renderer Tint (added if missing). The admin page's "Colour fish by type" switch turns it off and puts every fish back
-// to the colour it had.
+// to the colour it had. A fish wearing a real model (it has a Fish Animator: the normal fish) keeps its own colours.
 public static class FishColors
 {
     public static readonly Color Wanderer = new Color(0.25f, 0.6f, 1f);
@@ -50,7 +50,7 @@ public static class FishColors
 
     public static void Paint(GameObject fish, Color color)
     {
-        if (!enabled || fish == null)
+        if (!enabled || fish == null || fish.GetComponent<FishAnimator>() != null)
             return;
         var tint = fish.GetComponent<RendererTint>();
         if (tint == null)
