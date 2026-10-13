@@ -22,6 +22,8 @@ public class ChaseSwarm : MonoBehaviour
     [SerializeField] private float emergeDistance = 3f;
     [Tooltip("Keeps the chase close: while it is more than this far behind (metres) AND you cannot see it, it hurries (Hurry times Speed) until it is within it again. 0 = never: strictly the set speed.")]
     [SerializeField] private float keepWithin = 20f;
+    [Tooltip("Held behind a line it is already past (the rubble at the end, when the trident is taken with the pack close behind): how fast it swims back behind it, metres per second.")]
+    [SerializeField] private float recoilSpeed = 9f;
     [SerializeField] private float hurry = 2.5f;
     [Tooltip("The start: it bursts out and comes at this many times Speed until it first gets within Opening Until Within metres of the player, so the chase is on at once instead of a long swim up from its hole.")]
     [SerializeField] private float openingBoost = 2.2f;
@@ -252,6 +254,17 @@ public class ChaseSwarm : MonoBehaviour
 
     private void Advance(float dt)
     {
+        // Held behind a line it is already over: back behind it first, quickly but not in one jump.
+        if (holding)
+        {
+            float over = Vector3.Dot(head - holdPoint, holdAway) + holdMargin;
+            if (over > 0f)
+            {
+                Vector3 back = -holdAway * Mathf.Min(over, recoilSpeed * dt);
+                head += emerging ? back : SlideMove(head, back);
+                return;
+            }
+        }
         if (Time.time < pausedUntil)
             return;
         Vector3 playerPoint = PlayerPoint;
@@ -468,6 +481,8 @@ public class ChaseSwarm : MonoBehaviour
 
     private void CheckCatch()
     {
+        if (holding)
+            return;   // held back behind the rubble line at the end: the player is out of its reach
         if (Time.time < pausedUntil || emerging)
             return;
         Vector3 rel = PlayerPoint - head;

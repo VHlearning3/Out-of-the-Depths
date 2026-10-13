@@ -1371,7 +1371,9 @@ public static class ShipGreyboxBuilder
         if (hallwayTablet != null)
             OpenOnFilled(hallwayTablet, columnDoor);
         WallX("Column_Div", 23.75f, 19.75f, HullE, room, 23f, 23f + DoorGap);
-        DoorX("Door_ColumnDivider", 23.75f, 23f, false, false, room);
+        // The old door on past the trident stays as scenery: taking the trident ends the game, so it never opens.
+        Door divider = DoorX("Door_ColumnDivider", 23.75f, 23f, true, false, room);
+        SetField(divider, "lockedHint", p => p.stringValue = "Pick up Trident");
         WallX("Column_ExitWall", 3f, 19.75f, HullE, room, 22.5f, 22.5f + DoorGap);
         Door exit = SpawnDoor("Door_Exit", new Vector3(22.5f + 2.4f, 0f, 3f), false, true, room, 180f);
         SetField(exit, "openPrompt", p => p.stringValue = "open the way out");

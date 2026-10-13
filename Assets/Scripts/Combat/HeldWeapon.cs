@@ -102,7 +102,7 @@ public class HeldWeapon : MonoBehaviour
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             r.gameObject.layer = gameObject.layer;
         }
-        Vector3 tip = current.HeldTipAxis.sqrMagnitude > 0.0001f ? current.HeldTipAxis.normalized : Vector3.up;
+        Vector3 tip = SaneTip(art, current.HeldTipAxis);
         art.transform.localRotation = Quaternion.FromToRotation(tip, Vector3.forward);
         art.transform.localPosition = Vector3.zero;
         art.transform.localScale = Vector3.one;
@@ -117,6 +117,26 @@ public class HeldWeapon : MonoBehaviour
         bounds = LocalBounds(art, pivot.transform, out _);
         Vector3 grip = new Vector3(bounds.center.x, bounds.center.y, Mathf.Lerp(bounds.min.z, bounds.max.z, current.HeldGrip));
         art.transform.localPosition -= grip;
+    }
+
+    // The item's Held Tip Axis, if it lies along the model's long side. A model re-exported lying another way leaves it
+    // pointing across the model, and the fit then stretches the model's thin side to Held Length (the trident came out
+    // thirty metres long and filled the screen): then the long side, the same way round as the old axis where it can.
+    private static Vector3 SaneTip(GameObject art, Vector3 stored)
+    {
+        Vector3 tip = stored.sqrMagnitude > 0.0001f ? stored.normalized : Vector3.up;
+        Bounds own = LocalBounds(art, art.transform, out bool any);
+        if (!any)
+            return tip;
+        Vector3 size = own.size;
+        int axis = size.x >= size.y && size.x >= size.z ? 0 : size.y >= size.z ? 1 : 2;
+        float longest = size[axis];
+        float alongTip = Mathf.Abs(Vector3.Dot(size, new Vector3(Mathf.Abs(tip.x), Mathf.Abs(tip.y), Mathf.Abs(tip.z))));
+        if (alongTip >= longest * 0.7f)
+            return tip;
+        var fixedTip = Vector3.zero;
+        fixedTip[axis] = tip[axis] < 0f ? -1f : 1f;
+        return fixedTip;
     }
 
     // The renderers' box in `space` (from their mesh bounds, so it is right however the model is turned).

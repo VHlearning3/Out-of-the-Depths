@@ -7,6 +7,11 @@ using UnityEngine.InputSystem;
 //    stop-start bumping (the old push only fired on contact and shoved it off at a fixed speed, so it juddered away
 //    from you and you had to catch it up again). While a box moves, Pushing is true, and the hand-drawn push plays over
 //    the view (Sprite Push Animator, added at start from Resources/PushSprites; it shows nothing until frames are put in).
+//  - Pull: press E on a box (its Box Grip) and it comes along after you wherever you swim, kept the distance it was when
+//    you took hold of it (at least Hold Min) along the line between you: swim away and it follows in step, swim at it
+//    and it goes ahead of you, swim across and it swings round to trail behind you, turn on the spot and it stays put.
+//    E again lets go; so does swimming far above or below it (Tow Height), or leaving it stuck far behind (Hold
+//    Snap), or the box dropping onto a plate.
 //  - Grab: hold the right mouse button while looking at a box (within Grab Reach) and it follows where you look, kept
 //    at the distance you grabbed it from: turn and it swings round, swim backwards and you pull it. Let go to drop it.
 //  - Any other non-kinematic rigidbody is nudged up to a speed that depends on its mass (Push Strength / mass, never
@@ -25,24 +30,35 @@ public class BoxPush : MonoBehaviour
     public float waterDrag = 1.5f;
     [Tooltip("Grab: how far from the camera (m) a box can be taken hold of with the right mouse button.")]
     public float grabReach = 3.5f;
-    [Tooltip("Grab: the nearest a held box is kept to the player (m, middle to middle), so it never ends up on top of them.")]
+    [Tooltip("Grab and pull: the nearest a held box is kept to the player (m, middle to middle), so it never ends up on top of them.")]
     public float holdMin = 1.3f;
-    [Tooltip("Grab: let go by itself when the box falls this far (m) further behind than where it was held (stuck on a wall while you swim off).")]
+    [Tooltip("Grab and pull: let go by itself when the box falls this far (m) further behind than where it was held (stuck on a wall while you swim off).")]
     public float holdSnap = 2.5f;
+    [Tooltip("Pull: let go by itself when the player is this far (m) above or below the box's middle.")]
+    public float towHeight = 2.5f;
+
+    private static BoxPush active;
 
     private CharacterController controller;
     private SwimController swim;
     private readonly RaycastHit[] ahead = new RaycastHit[8];
     private float pushedAt = -10f;
     private PushableBox held;
+    private bool towing;        // held with E (it comes after you), not the right mouse button (it follows your look)
+    private int towFrame = -1;  // the frame E took hold of it, so that same press does not let go again
     private float holdDistance;
     private Camera view;
     private PlayerInteractor interactor;
 
     // A box moved under the player's push just now.
     public bool Pushing => Time.time - pushedAt < 0.15f;
-    // The box held with the right mouse button, or null.
+    // The box held (pulled with E, or grabbed with the right mouse button), or null.
     public PushableBox Held => held;
+    // Pulling a box along with E.
+    public bool Towing => held != null && towing;
+
+    // The player is pulling this box along with E right now (its prompt says "let go").
+    public static bool IsTowing(PushableBox box) => box != null && active != null && active.towing && active.held == box;
 
     private void Awake()
     {
@@ -52,6 +68,41 @@ public class BoxPush : MonoBehaviour
         if (drawn != null && GetComponent<SpritePushAnimator>() == null)
             gameObject.AddComponent<SpritePushAnimator>().Setup(drawn, this);
     }
+
+    private void OnEnable() => active = this;
+
+    private void OnDisable()
+    {
+        Release();
+        if (active == this)
+            active = null;
+    }
+
+    // E on a box (its Box Grip): take hold of it to pull it along, or let go of the one being pulled.
+    public void ToggleTow(PushableBox box)
+    {
+        if (box == null)
+            return;
+        if (held == box && towing)
+        {
+            Release();
+            return;
+        }
+        if (box.Placed || !isActiveAndEnabled)
+            return;
+        held = box;
+        towing = true;
+        towFrame = Time.frameCount;
+        holdDistance = Mathf.Max(holdMin, Flat(box.Centre - transform.position).magnitude);   // its middle: the crate model's pivot is at one edge
+    }
+
+    private void Release()
+    {
+        held = null;
+        towing = false;
+    }
+
+    private static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
 
     // The player's flat swim velocity: what they are trying to do, even while something blocks them.
     private Vector3 FlatVelocity()
@@ -71,16 +122,26 @@ public class BoxPush : MonoBehaviour
         return middle - half < b.max.y - margin && middle + half > b.min.y + margin;
     }
 
-    // Right mouse down on a box: take hold of it; up (or the box placed, or stuck far behind): let go.
+    // Letting go (E again while pulling, the right mouse button up while grabbing, the box placed), and taking hold with
+    // the right mouse button.
     private void Update()
     {
-        Mouse mouse = Mouse.current;
-        if (held != null && (mouse == null || !mouse.rightButton.isPressed || held.Placed || !isActiveAndEnabled))
-            held = null;
-        if (held != null || mouse == null || !mouse.rightButton.wasPressedThisFrame || Time.timeScale <= 0f)
-            return;
         if (interactor == null)
             interactor = GetComponent<PlayerInteractor>();
+        Mouse mouse = Mouse.current;
+        if (held != null)
+        {
+            bool letGo = held.Placed || (interactor != null && interactor.Busy);
+            if (towing)
+                letGo |= towFrame != Time.frameCount && interactor != null && interactor.InteractAction != null && interactor.InteractAction.WasPressedThisFrame();
+            else
+                letGo |= mouse == null || !mouse.rightButton.isPressed;
+            if (letGo)
+                Release();
+            return;
+        }
+        if (mouse == null || !mouse.rightButton.wasPressedThisFrame || Time.timeScale <= 0f)
+            return;
         if (interactor != null && interactor.Busy)
             return;
         Camera eye = View();
@@ -93,9 +154,8 @@ public class BoxPush : MonoBehaviour
         if (box == null || box.Placed)
             return;
         held = box;
-        Vector3 offset = box.Centre - transform.position;   // its middle: the crate model's pivot is at one edge
-        offset.y = 0f;
-        holdDistance = Mathf.Max(holdMin, offset.magnitude);
+        towing = false;
+        holdDistance = Mathf.Max(holdMin, Flat(box.Centre - transform.position).magnitude);   // its middle: the crate model's pivot is at one edge
     }
 
     private Camera View()
@@ -109,9 +169,14 @@ public class BoxPush : MonoBehaviour
         return view;
     }
 
-    // Held: the point straight ahead where you look, Hold Distance away across the floor, at the box's own height.
+    // Grabbed: the point straight ahead where you look, Hold Distance away across the floor, at the box's own height.
     private void Hold()
     {
+        if (towing)
+        {
+            Tow();
+            return;
+        }
         Camera eye = View();
         Vector3 look = eye != null ? eye.transform.forward : transform.forward;
         look.y = 0f;
@@ -124,9 +189,30 @@ public class BoxPush : MonoBehaviour
         apart.y = 0f;
         if (apart.magnitude > holdDistance + holdSnap)
         {
-            held = null;   // caught on something: let go rather than drag it through the wall
+            Release();   // caught on something: let go rather than drag it through the wall
             return;
         }
+        if (held.HoldToward(target))
+            pushedAt = Time.time;
+    }
+
+    // Pulled: Hold Distance from the player along the line between them, like a crate on a short pole: swim away from it
+    // or at it and it keeps step (led by that part of your speed, over its Follow Gain, so it does not lag behind); swim
+    // across and it swings round to trail along behind you; turn on the spot and it stays where it is.
+    private void Tow()
+    {
+        Vector3 at = held.Centre;
+        Vector3 apart = Flat(at - transform.position);
+        float above = transform.TransformPoint(controller.center).y - at.y;
+        if (apart.magnitude > holdDistance + holdSnap || Mathf.Abs(above) > towHeight)
+        {
+            Release();   // caught on something, or swum up and away from it
+            return;
+        }
+        Vector3 along = apart.sqrMagnitude > 1e-4f ? apart.normalized : -Flat(transform.forward).normalized;
+        float lead = Vector3.Dot(FlatVelocity(), along) / Mathf.Max(0.5f, held.followGain);
+        Vector3 target = transform.position + along * (holdDistance + lead);
+        target.y = at.y;
         if (held.HoldToward(target))
             pushedAt = Time.time;
     }
@@ -136,7 +222,7 @@ public class BoxPush : MonoBehaviour
         if (held != null)
         {
             Hold();
-            return;   // holding it: it goes where you look, not where you swim
+            return;   // holding it: it goes where it is led, not where you bump it
         }
         Vector3 flat = FlatVelocity();
         if (flat.sqrMagnitude < 0.04f)
@@ -162,7 +248,7 @@ public class BoxPush : MonoBehaviour
         if (box != null)
         {
             if (box == held)
-                return;   // the one in hand moves where you look
+                return;   // the one in hand goes where it is led
             if (Beside(hit.collider) && box.PushWith(FlatVelocity()))   // touching it: in case the look ahead missed it
                 pushedAt = Time.time;
             return;
