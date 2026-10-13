@@ -989,7 +989,10 @@ public static class TestArenaBuilder
         var material = AssetDatabase.LoadAssetAtPath<Material>(path);
         if (material != null)
             return material;
-        var texture = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Art/UI/symbol{symbol}.png");
+        // The new rune drawings (Art/UI/NewRuneSymbols): symbol 1 the red triangle, 2 the blue one, 3 the green swirl.
+        string rune = symbol == 1 ? "rune_shape3" : symbol == 2 ? "rune_shape2" : "rune_shape1";
+        var texture = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Art/UI/NewRuneSymbols/{rune}.png")
+            ?? AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Art/UI/symbol{symbol}.png");
         Shader shader = Shader.Find("Universal Render Pipeline/Lit");
         if (texture == null || shader == null)
             return null;
@@ -2194,6 +2197,39 @@ public static class PuzzleBuildTools
                 new PuzzleDefinition.Tile { id = "diamond", art = diamond, label = "<>" },
             };
             p.solution = new[] { "symbol1", "symbol2", "symbol3" };
+
+            // Noora's art when it is there: her board (Art/UI/Symbol Puzzle visual, the three slots drawn in it, 1040 x
+            // 729, shown at 1170 x 820) and her eight runes (Art/UI/NewRuneSymbols): the three painted about the ship
+            // (the red triangle, the blue one, the green swirl, in that order) and five others.
+            Sprite runeBoard = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/UI/Symbol Puzzle visual.png");
+            Sprite Rune(int n) => AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Art/UI/NewRuneSymbols/rune_shape{n}.png");
+            if (runeBoard != null && Rune(1) != null)
+            {
+                p.hint = "The three symbols painted about the ship, in the order you found them. Drag or click the runes into the slots.";
+                p.board = runeBoard;
+                p.tileFrame = Art("RuneTile") ?? frame;
+                p.highlight = new Color(0.45f, 0.8f, 1f);
+                p.textColor = new Color(0.84f, 0.93f, 1f);
+                p.boardSize = new Vector2(1170f, 820f);
+                p.tileSize = 160f;
+                p.tilesPerRow = 4;
+                p.slotsInBoardArt = true;
+                p.slotRowY = 253.7f;
+                p.slotSpacing = 245.8f;
+                p.slotSize = 203.6f;
+                p.tileAreaCentre = new Vector2(0f, -120.4f);
+                p.tileGap = 30f;
+                p.textOutsideBoard = true;
+                var runes = new System.Collections.Generic.List<PuzzleDefinition.Tile>
+                {
+                    new PuzzleDefinition.Tile { id = "symbol1", art = Rune(3), label = "1" },
+                    new PuzzleDefinition.Tile { id = "symbol2", art = Rune(2), label = "2" },
+                    new PuzzleDefinition.Tile { id = "symbol3", art = Rune(1), label = "3" },
+                };
+                for (int n = 4; n <= 8; n++)
+                    runes.Add(new PuzzleDefinition.Tile { id = "rune" + n, art = Rune(n), label = n.ToString() });
+                p.tiles = runes.ToArray();
+            }
         });
         if (made)
             AssetDatabase.SaveAssets();

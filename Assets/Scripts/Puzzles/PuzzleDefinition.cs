@@ -57,6 +57,22 @@ public class PuzzleDefinition : ScriptableObject
     public float tileSize = 120f;
     public int tilesPerRow = 7;
 
+    [Header("Row layout on board art")]
+    [Tooltip("Row layout: the slots are drawn in the Board picture itself (the symbol puzzle's). Then they sit at Slot Row Y, Slot Spacing apart, Slot Size big, with no slot picture of their own, and the tiles are laid out round Tile Area Centre. Off = the usual row.")]
+    public bool slotsInBoardArt = false;
+    [Tooltip("The middle of the slot row, board pixels up from the board's middle.")]
+    public float slotRowY = 0f;
+    [Tooltip("Middle to middle between two slots, board pixels.")]
+    public float slotSpacing = 0f;
+    [Tooltip("One slot, board pixels.")]
+    public float slotSize = 0f;
+    [Tooltip("The middle of where the tiles lie, board pixels from the board's middle.")]
+    public Vector2 tileAreaCentre = Vector2.zero;
+    [Tooltip("Gap between two tiles, board pixels.")]
+    public float tileGap = 24f;
+    [Tooltip("The title above the board and the hint under it, outside the picture, instead of on it.")]
+    public bool textOutsideBoard = false;
+
     [Header("Layout")]
     [Tooltip("Row: slots in a row along the top, square tiles below (the runes). Picture: the pieces go into Picture on the left; the loose pieces lie on the right in their own shapes, no tile frames (the stone disc).")]
     public Layout layout = Layout.Row;

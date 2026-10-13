@@ -1393,6 +1393,10 @@ public static class ShipGreyboxBuilder
         RubblePile(rubbleGo.transform, rubbleGo.transform.position, Vector3.right, 8.75f, Ceiling, 1.8f, Rock, 36);
         var rubble = rubbleGo.AddComponent<RubbleFall>();
         SetField(rubble, "blocker", p => p.objectReferenceValue = blocker);
+        // The pile is some thirty rocks: they come down close together (all within about two seconds), or the ending waits for
+        // the last one for ages.
+        SetField(rubble, "stagger", p => p.floatValue = 0.03f);
+        SetField(rubble, "scatter", p => p.floatValue = 0.04f);
         SetField(rubble, "thudSound", p => p.objectReferenceValue = Sfx("Hit impact.wav"));
         SetField(rubble, "rumbleSound", p => p.objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Sound/Ambience/Ambience_OminousRumble_Mendenhall_CC0.mp3"));   // the roof giving way
         var chase = Object.FindFirstObjectByType<ChaseSequence>();

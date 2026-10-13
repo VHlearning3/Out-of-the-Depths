@@ -13,43 +13,49 @@ MonoBehaviour:
   m_Name: Puzzle_Runes
   m_EditorClassIdentifier: Assembly-CSharp::PuzzleDefinition
   title: Enter the runes
-  hint: The three symbols painted about the ship, in the order you found them. Drag
-    or click the tiles into the slots.
+  hint: The three symbols painted about the ship, in the order you found them. Drag or click the runes into the slots.
   solvedText: The lock turns.
-  board: {fileID: 21300000, guid: 0b29bfe35c9b8c542a6c0daf1fe5f1a0, type: 3}
+  board: {fileID: 21300000, guid: 5b68d951c5fa2504da842cceadb57a8d, type: 3}
   boardTint: {r: 1, g: 1, b: 1, a: 1}
   slot: {fileID: 21300000, guid: 4920ce8d9ccf8eb42ae4426aa508395d, type: 3}
-  tileFrame: {fileID: 21300000, guid: 998862040bdf47a4aad12cf7ada7f749, type: 3}
-  highlight: {r: 0.35, g: 0.85, b: 0.95, a: 1}
-  textColor: {r: 0.16, g: 0.1, b: 0.05, a: 1}
-  boardSize: {x: 1280, y: 760}
-  tileSize: 120
-  tilesPerRow: 7
+  tileFrame: {fileID: 21300000, guid: 6b68d4749204387ab898ed79cb063d14, type: 3}
+  highlight: {r: 0.45, g: 0.8, b: 1, a: 1}
+  textColor: {r: 0.84, g: 0.93, b: 1, a: 1}
+  boardSize: {x: 1170, y: 820}
+  tileSize: 160
+  tilesPerRow: 4
+  slotsInBoardArt: 1
+  slotRowY: 253.7
+  slotSpacing: 245.8
+  slotSize: 203.6
+  tileAreaCentre: {x: 0, y: -120.4}
+  tileGap: 30
+  textOutsideBoard: 1
   tiles:
   - id: symbol1
-    art: {fileID: 21300000, guid: 35b77eed28d69d846a507aab4deae921, type: 3}
+    art: {fileID: 21300000, guid: a5e471ada3209614f9aadab23f119997, type: 3}
     label: 1
   - id: symbol2
-    art: {fileID: 21300000, guid: 63b62b7ac957cb246b8b7a6e5d38965f, type: 3}
+    art: {fileID: 21300000, guid: 1c67ade1244a71946a744cf84839e72a, type: 3}
     label: 2
   - id: symbol3
-    art: {fileID: 21300000, guid: 7f5523bde9901c1469960722373e3e5d, type: 3}
+    art: {fileID: 21300000, guid: a976048be072fb8449e19f2e663ffd8a, type: 3}
     label: 3
-  - id: circle
-    art: {fileID: 21300000, guid: 2a852d1920989a24b9736c85bce25be2, type: 3}
-    label: o
-  - id: cross
-    art: {fileID: 21300000, guid: 0c72b8d43c9dbf54ea170bc31ba6b712, type: 3}
-    label: +
-  - id: bars
-    art: {fileID: 21300000, guid: f6456ddf178864f409926b22414c0ab7, type: 3}
-    label: '|||'
-  - id: dots
-    art: {fileID: 21300000, guid: fc0ed05a5cbc7ac4095810adf51c4182, type: 3}
-    label: ':::'
-  - id: diamond
-    art: {fileID: 21300000, guid: 88bf42431bfdb1d4d824e1b1345fd9a7, type: 3}
-    label: <>
+  - id: rune4
+    art: {fileID: 21300000, guid: 749672b76e8d8ee469428f87bcbb4536, type: 3}
+    label: 4
+  - id: rune5
+    art: {fileID: 21300000, guid: cd8bb7618d765264ba4e9b33de33a0b5, type: 3}
+    label: 5
+  - id: rune6
+    art: {fileID: 21300000, guid: eb58eaace99260b49a8e9eae74192cdd, type: 3}
+    label: 6
+  - id: rune7
+    art: {fileID: 21300000, guid: b43fc91488d6a624f83ee53470700d95, type: 3}
+    label: 7
+  - id: rune8
+    art: {fileID: 21300000, guid: 556462165c1df9f4181636e3c535f0a1, type: 3}
+    label: 8
   solution:
   - symbol1
   - symbol2
