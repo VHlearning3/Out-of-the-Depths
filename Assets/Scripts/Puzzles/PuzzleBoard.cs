@@ -202,6 +202,14 @@ public class PuzzleBoard : MonoBehaviour
         Place(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -24f), new Vector2(w - 200f, 60f));
         hint = NewText("Hint", board, puzzle.hint, 22, puzzle.textColor);
         Place(hint.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(w - 160f, 70f));
+        if (puzzle.textOutsideBoard)
+        {
+            // Just outside the picture: the title over its top edge, the hint under its bottom edge.
+            title.rectTransform.pivot = new Vector2(0.5f, 0f);
+            title.rectTransform.anchoredPosition = new Vector2(0f, 14f);
+            hint.rectTransform.pivot = new Vector2(0.5f, 1f);
+            hint.rectTransform.anchoredPosition = new Vector2(0f, -14f);
+        }
 
         Image close = NewImage("Close", board, puzzle.tileFrame != null ? puzzle.tileFrame : FallbackTile, Color.white);
         Place(close.rectTransform, new Vector2(1f, 1f), new Vector2(-20f, -20f), new Vector2(56f, 56f));
@@ -219,13 +227,16 @@ public class PuzzleBoard : MonoBehaviour
     // Row: the slots along the top, the tiles on offer in rows below, mixed up.
     private void BuildRow(float h)
     {
-        float slotSize = puzzle.tileSize + 16f;
-        float slotY = h * 0.5f - 200f;
+        bool onArt = puzzle.slotsInBoardArt;
+        float slotSize = onArt && puzzle.slotSize > 0f ? puzzle.slotSize : puzzle.tileSize + 16f;
+        float slotY = onArt ? puzzle.slotRowY : h * 0.5f - 200f;
+        float slotStep = onArt && puzzle.slotSpacing > 0f ? puzzle.slotSpacing : slotSize + 12f;
         int count = puzzle.SlotCount;
         for (int i = 0; i < count; i++)
         {
-            Image slot = NewImage("Slot" + i, board, puzzle.slot != null ? puzzle.slot : FallbackSlot, Color.white);
-            Place(slot.rectTransform, Middle, new Vector2((i - (count - 1) * 0.5f) * (slotSize + 12f), slotY), new Vector2(slotSize, slotSize));
+            // On the board art the slots are drawn already: an invisible drop target over each.
+            Image slot = NewImage("Slot" + i, board, onArt ? null : puzzle.slot != null ? puzzle.slot : FallbackSlot, onArt ? Color.clear : Color.white);
+            Place(slot.rectTransform, Middle, new Vector2((i - (count - 1) * 0.5f) * slotStep, slotY), new Vector2(slotSize, slotSize));
             slots.Add(slot.gameObject.AddComponent<PuzzleSlot>().Init(i));
             if (ShowAnswer)
                 AnswerGhost(slot.rectTransform, TileFor(puzzle.solution[i]));
@@ -235,13 +246,16 @@ public class PuzzleBoard : MonoBehaviour
 
         List<PuzzleDefinition.Tile> order = Shuffled();
         int columns = Mathf.Max(1, Mathf.Min(puzzle.tilesPerRow, order.Count));
-        float step = puzzle.tileSize + 24f;
+        float step = puzzle.tileSize + (onArt ? puzzle.tileGap : 24f);
         float topY = slotY - slotSize * 0.5f - 70f - puzzle.tileSize * 0.5f;
+        int rows = (order.Count + columns - 1) / columns;
+        if (onArt)
+            topY = puzzle.tileAreaCentre.y + (rows - 1) * step * 0.5f;   // the rows centred on the tile area
         for (int k = 0; k < order.Count; k++)
         {
             int row = k / columns, column = k % columns;
             int inRow = Mathf.Min(columns, order.Count - row * columns);
-            var home = new Vector2((column - (inRow - 1) * 0.5f) * step, topY - row * step);
+            var home = new Vector2((onArt ? puzzle.tileAreaCentre.x : 0f) + (column - (inRow - 1) * 0.5f) * step, topY - row * step);
             Image frame = NewImage("Tile_" + order[k].id, board, puzzle.tileFrame != null ? puzzle.tileFrame : FallbackTile, Color.white);
             Place(frame.rectTransform, Middle, home, new Vector2(puzzle.tileSize, puzzle.tileSize));
             if (order[k].art != null)
@@ -572,7 +586,7 @@ public class PuzzleBoard : MonoBehaviour
         {
             foreach (PuzzleSlot slot in slots)
                 if (slot.Image != null)
-                    slot.Image.color = puzzle.highlight;
+                    slot.Image.color = puzzle.slotsInBoardArt ? new Color(puzzle.highlight.r, puzzle.highlight.g, puzzle.highlight.b, 0.35f) : puzzle.highlight;   // (over the board art: a glow, not a solid square)
         }
         StartCoroutine(Finish());
     }
