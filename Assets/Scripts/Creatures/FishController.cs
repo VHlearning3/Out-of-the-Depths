@@ -170,7 +170,11 @@ public class FishController : MonoBehaviour
         isFood = killsPerFood <= 1 || kills % killsPerFood == 0;
         edible.enabled = isFood;
         PaintByKind();
-        StartCoroutine(FlipBellyUp());
+        // A model with its own death animation (Fish Animator) rolls itself belly-up; rolling it here as well would
+        // turn it right side up again. The placeholder is rolled here.
+        FishAnimator animated = GetComponent<FishAnimator>();
+        if (animated == null || !animated.PlaysDeath)
+            StartCoroutine(FlipBellyUp());
     }
 
     private IEnumerator FlipBellyUp()
