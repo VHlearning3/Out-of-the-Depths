@@ -159,7 +159,7 @@ MonoBehaviour:
   pace: 1
   maxSpeed: 3.5
   waterDrag: 2
-  plateCatch: 0.4
+  plateCatch: 0.5
   plateReach: 1.6
   platePull: 2.2
   platePullMin: 0.6

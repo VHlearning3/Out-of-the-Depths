@@ -40,7 +40,7 @@ public static class ItemModelTools
         ("Item_Dagger", 0.9f, 0.3f, 0.2f, new Vector3(-8f, -6f, 0f), false),
         ("Item_Trident", 3.2f, 1.5f, 0.35f, new Vector3(-4f, -4f, 0f), true),
     };
-    private const int WeaponFitVersion = 3;
+    private const int WeaponFitVersion = 4;   // 4: the trident was re-exported lying along Z; its held tip still said Y (a 30 m trident in the hand)
 
     private const int IconRetries = 20;
     private static int iconRetriesLeft;

@@ -307,7 +307,9 @@ public class PlayerInventory : MonoBehaviour
         ItemDefinition old = slots[last].item;
         slots[last].item = null;
         slots[last].count = 0;
-        HintPopup.Show($"You let go of the {old.DisplayName}.", 2.5f);
+        // Not mid-chase: the trident at its end takes the dagger's place as the ending starts, and the note only got in the way.
+        if (ChaseSequence.Active == null || !ChaseSequence.Active.IsRunning)
+            HintPopup.Show($"You let go of the {old.DisplayName}.", 2.5f);
     }
 
     public bool Remove(ItemDefinition item, int amount = 1)

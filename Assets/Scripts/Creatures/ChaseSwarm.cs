@@ -10,8 +10,11 @@ using UnityEngine.Rendering;
 // across that, a rounded wall front to back Depth metres deep, the front row puffing up as it nears you. Caught (you
 // are in its front), a bite takes 1 / Hits To Kill of your health, shoves you on ahead and it holds still for Recover
 // Seconds so you can get away. Dismiss() scatters it (the rubble came down); Sleep() puts it back in its hole.
-// It is one object: no fish has a collider or a brain; the fish are generated low-poly pufferfish (spikes, big eyes,
-// a pout) drawn with GPU instancing, a handful of draw calls for all of them. Chase Sequence makes one for itself when
+// It is one object: no fish has a collider or a brain; the fish are drawn with GPU instancing, a handful of draw calls
+// for all of them. They are the team's pufferfish (Use Model: Resources/Swarm/BadFishSwarm, the model's swim baked into
+// still frames by Tools > Out of the Depths > Use Bad Fish Model On Enemy Prefabs, played as a flipbook, each fish at
+// its own point of the swim, tinted by one of Model Tints), or, when those frames are missing or Use Model is off,
+// low-poly pufferfish made here in code (spikes, big eyes, a pout) in Colors. Chase Sequence makes one for itself when
 // it has none (Use Swarm), or place one under it.
 public class ChaseSwarm : MonoBehaviour
 {
@@ -22,6 +25,8 @@ public class ChaseSwarm : MonoBehaviour
     [SerializeField] private float emergeDistance = 3f;
     [Tooltip("Keeps the chase close: while it is more than this far behind (metres) AND you cannot see it, it hurries (Hurry times Speed) until it is within it again. 0 = never: strictly the set speed.")]
     [SerializeField] private float keepWithin = 20f;
+    [Tooltip("Held behind a line it is already past (the rubble at the end, when the trident is taken with the pack close behind): how fast it swims back behind it, metres per second.")]
+    [SerializeField] private float recoilSpeed = 9f;
     [SerializeField] private float hurry = 2.5f;
     [Tooltip("The start: it bursts out and comes at this many times Speed until it first gets within Opening Until Within metres of the player, so the chase is on at once instead of a long swim up from its hole.")]
     [SerializeField] private float openingBoost = 2.2f;
@@ -49,6 +54,14 @@ public class ChaseSwarm : MonoBehaviour
     [SerializeField, Range(0f, 0.5f)] private float glow = 0.2f;
     [Tooltip("When dismissed the fish scatter and shrink away over this long.")]
     [SerializeField] private float leaveSeconds = 1.6f;
+
+    [Header("The look")]
+    [Tooltip("Draw the team's pufferfish model, its swim baked into frames (Resources/Swarm/BadFishSwarm, made by Tools > Out of the Depths > Use Bad Fish Model On Enemy Prefabs). Off, or the frames missing: the simple pufferfish made in code, in Colors.")]
+    [SerializeField] private bool useModel = true;
+    [Tooltip("The model's swim, frames a second (12 frames baked: 12 plays it as made, more beats the fins harder; the wall is always in a hurry).")]
+    [SerializeField] private float swimFrameRate = 16f;
+    [Tooltip("The model: each fish's own colours are tinted by one of these, a share each, so the wall is not all one fish.")]
+    [SerializeField] private Color[] modelTints = { Color.white, new Color(1f, 0.84f, 0.78f), new Color(0.86f, 0.82f, 0.9f) };
 
     [Header("Catching you")]
     [Tooltip("Catches from full health it takes to kill the player; the damage per catch comes from this.")]
@@ -112,6 +125,10 @@ public class ChaseSwarm : MonoBehaviour
     private Matrix4x4[] allMatrices;
 
     private static Mesh bodyMesh, whiteMesh, pupilMesh;
+    private static Mesh[] modelFrames;          // the model's swim, baked (empty: none)
+    private static Material modelTemplate;
+    private int variantCount = 1, frameCount = 1;   // fish are drawn in buckets: one per colour and swim frame
+    private bool drawingModel;
     private Material[] bodyMaterials;
     private Material whiteMaterial, pupilMaterial;
     private readonly RaycastHit[] hits = new RaycastHit[12];
@@ -252,6 +269,17 @@ public class ChaseSwarm : MonoBehaviour
 
     private void Advance(float dt)
     {
+        // Held behind a line it is already over: back behind it first, quickly but not in one jump.
+        if (holding)
+        {
+            float over = Vector3.Dot(head - holdPoint, holdAway) + holdMargin;
+            if (over > 0f)
+            {
+                Vector3 back = -holdAway * Mathf.Min(over, recoilSpeed * dt);
+                head += emerging ? back : SlideMove(head, back);
+                return;
+            }
+        }
         if (Time.time < pausedUntil)
             return;
         Vector3 playerPoint = PlayerPoint;
@@ -468,6 +496,8 @@ public class ChaseSwarm : MonoBehaviour
 
     private void CheckCatch()
     {
+        if (holding)
+            return;   // held back behind the rubble line at the end: the player is out of its reach
         if (Time.time < pausedUntil || emerging)
             return;
         Vector3 rel = PlayerPoint - head;
@@ -533,6 +563,9 @@ public class ChaseSwarm : MonoBehaviour
     {
         if (fu != null && fu.Length == count)
             return;
+        drawingModel = useModel && ModelFrames().Length > 0 && modelTemplate != null;
+        variantCount = Mathf.Max(1, drawingModel ? (modelTints != null ? modelTints.Length : 1) : (colors != null ? colors.Length : 1));
+        frameCount = drawingModel ? modelFrames.Length : 1;
         var random = new System.Random(1234);
         float Next() => (float)random.NextDouble();
         int n = Mathf.Max(1, count);
@@ -540,7 +573,7 @@ public class ChaseSwarm : MonoBehaviour
         fu = new float[n]; fv = new float[n]; fw = new float[n]; fsize = new float[n]; fphase = new float[n]; fappear = new float[n];
         fvariant = new int[n];
         fscatter = new Vector3[n];
-        int variants = Mathf.Max(1, colors != null ? colors.Length : 1);
+        int variants = variantCount;
         for (int i = 0; i < n; i++)
         {
             float u, v;
@@ -563,18 +596,42 @@ public class ChaseSwarm : MonoBehaviour
         for (int rank = 0; rank < n; rank++)
             fappear[order[rank].i] = pourSeconds * Mathf.Pow(rank / (float)n, 0.8f);
 
-        bodyMatrices = new Matrix4x4[variants][];
-        bodyCounts = new int[variants];
-        for (int v = 0; v < variants; v++)
-            bodyMatrices[v] = new Matrix4x4[n];
+        int buckets = variants * frameCount;
+        bodyMatrices = new Matrix4x4[buckets][];
+        bodyCounts = new int[buckets];
+        for (int b = 0; b < buckets; b++)
+            bodyMatrices[b] = new Matrix4x4[n];
         allMatrices = new Matrix4x4[n];
+    }
+
+    // A baked frame's number: BadFishSwim_07 is 7; the asset's main mesh (frame 0, named after the file) comes first.
+    private static int FrameNumber(string name)
+    {
+        int cut = name.LastIndexOf('_');
+        return cut >= 0 && int.TryParse(name.Substring(cut + 1), out int number) ? number : -1;
+    }
+
+    // The model's baked swim (Resources/Swarm/BadFishSwarm, a mesh per frame, in order), looked up once.
+    private static bool modelLooked;
+    private static Mesh[] ModelFrames()
+    {
+        if (!modelLooked || (modelFrames.Length > 0 && modelFrames[0] == null))
+        {
+            modelLooked = true;
+            Mesh[] found = Resources.LoadAll<Mesh>("Swarm/BadFishSwarm");
+            System.Array.Sort(found, (a, b) => FrameNumber(a.name).CompareTo(FrameNumber(b.name)));
+            modelFrames = found;
+            modelTemplate = Resources.Load<Material>("Materials/SwarmBadFish");
+        }
+        return modelFrames;
     }
 
     private void LateUpdate()
     {
         if (state == State.Asleep || fu == null)
             return;
-        EnsureMeshes();
+        if (!drawingModel)
+            EnsureMeshes();
         EnsureMaterials();
 
         float now = Time.time;
@@ -608,8 +665,14 @@ public class ChaseSwarm : MonoBehaviour
                 continue;
             Quaternion wobble = Quaternion.Euler(Mathf.Sin(now * 2f + p) * 8f, Mathf.Sin(now * 3f + p * 1.7f) * 16f, Mathf.Sin(now * 1.5f + p) * 10f);
             Matrix4x4 matrix = Matrix4x4.TRS(position, facing * wobble, new Vector3(scale, scale, scale));
-            int variant = fvariant[i];
-            bodyMatrices[variant][bodyCounts[variant]++] = matrix;
+            int bucket = fvariant[i] * frameCount;
+            if (frameCount > 1)
+            {
+                // Its own point of the swim, a little quicker or slower than its neighbours.
+                float swim = now * swimFrameRate * (0.85f + 0.3f * Mathf.Repeat(p * 0.37f, 1f)) + p / (Mathf.PI * 2f) * frameCount;
+                bucket += (int)Mathf.Repeat(Mathf.Floor(swim), frameCount);
+            }
+            bodyMatrices[bucket][bodyCounts[bucket]++] = matrix;
             allMatrices[all++] = matrix;
         }
         if (all == 0)
@@ -617,9 +680,11 @@ public class ChaseSwarm : MonoBehaviour
 
         var bounds = new Bounds(centre, Vector3.one * (maxRadius * 2f + depth * 2f + 8f));
         bounds.Encapsulate(home);
-        for (int v = 0; v < bodyCounts.Length; v++)
-            if (bodyCounts[v] > 0)
-                Graphics.RenderMeshInstanced(Params(bodyMaterials[v], bounds), bodyMesh, 0, bodyMatrices[v], bodyCounts[v]);
+        for (int b = 0; b < bodyCounts.Length; b++)
+            if (bodyCounts[b] > 0)
+                Graphics.RenderMeshInstanced(Params(bodyMaterials[b / frameCount], bounds), drawingModel ? modelFrames[b % frameCount] : bodyMesh, 0, bodyMatrices[b], bodyCounts[b]);
+        if (drawingModel)
+            return;   // the model has its eyes painted on
         Graphics.RenderMeshInstanced(Params(whiteMaterial, bounds), whiteMesh, 0, allMatrices, all);
         Graphics.RenderMeshInstanced(Params(pupilMaterial, bounds), pupilMesh, 0, allMatrices, all);
     }
@@ -634,15 +699,27 @@ public class ChaseSwarm : MonoBehaviour
 
     private void EnsureMaterials()
     {
-        int variants = bodyCounts.Length;
-        if (bodyMaterials != null && bodyMaterials.Length == variants && whiteMaterial != null)
+        int variants = variantCount;
+        if (bodyMaterials != null && bodyMaterials.Length == variants && (drawingModel || whiteMaterial != null))
             return;
         bodyMaterials = new Material[variants];
         for (int v = 0; v < variants; v++)
         {
+            if (drawingModel)
+            {
+                // A copy of Resources/Materials/SwarmBadFish (the model's own material, instanced), tinted.
+                Color tint = modelTints != null && modelTints.Length > v ? modelTints[v] : Color.white;
+                bodyMaterials[v] = new Material(modelTemplate) { name = "Swarm Bad Fish " + (v + 1) + " (runtime)", hideFlags = HideFlags.DontSave };
+                bodyMaterials[v].enableInstancing = true;
+                if (bodyMaterials[v].HasProperty("_BaseColor"))
+                    bodyMaterials[v].SetColor("_BaseColor", bodyMaterials[v].GetColor("_BaseColor") * tint);
+                continue;
+            }
             Color c = colors != null && colors.Length > v ? colors[v] : new Color(0.95f, 0.76f, 0.29f);
             bodyMaterials[v] = MakeMaterial("Swarm Pufferfish " + (v + 1), c, 0.35f, glow);
         }
+        if (drawingModel)
+            return;
         whiteMaterial = MakeMaterial("Swarm Eyes", new Color(0.95f, 0.97f, 0.94f), 0.6f, glow * 0.5f);
         pupilMaterial = MakeMaterial("Swarm Pupils", new Color(0.04f, 0.05f, 0.06f), 0.8f, 0f);
     }

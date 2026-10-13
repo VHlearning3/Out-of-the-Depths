@@ -57,6 +57,8 @@ public class ChasePufferfish : MonoBehaviour
 
     [Header("Events")]
     public UnityEvent onBite = new UnityEvent();
+    // The moment it starts a lunge (its Fish Animator plays the attack).
+    public event System.Action Lunged;
 
     public AudioClip BiteSound => biteSound;
     public bool IsHunting => state == State.Emerging || state == State.Hunting || state == State.Lunging || state == State.Recovering;
@@ -328,6 +330,7 @@ public class ChasePufferfish : MonoBehaviour
         bitThisLunge = false;
         lungeDirection = (playerPoint - transform.position).normalized;
         Play(lungeSound);
+        Lunged?.Invoke();
     }
 
     private void Lunge()

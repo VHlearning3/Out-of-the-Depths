@@ -130,7 +130,7 @@ public class ChaseSequence : MonoBehaviour
 
     [Tooltip("Taking the trident ends the game: the view is taken and turned onto the rubble as it rumbles (Rubble Look Seconds; the rocks wait that long), the rocks come down in front of you, and After Rubble Seconds after the last one lands the screen fades to black and the credits roll. Off = the rubble only ends the chase, and the End Door ends the game.")]
     [SerializeField] private bool creditsOnRubble = true;
-    [SerializeField, Min(0f)] private float rubbleLookSeconds = 1.3f;
+    [SerializeField, Min(0f)] private float rubbleLookSeconds = 1f;
     [SerializeField, Min(0f)] private float afterRubbleSeconds = 1.2f;
     [Tooltip("How far the view zooms in on the rubble (degrees of field of view off).")]
     [SerializeField] private float rubbleZoom = 8f;
@@ -147,11 +147,11 @@ public class ChaseSequence : MonoBehaviour
     [SerializeField] private string sealedHint = "It slammed shut behind you. Put the stone fragments in the tablet by the far door to open it.";
 
     [Header("The end (the trident and the rubble)")]
-    [Tooltip("Once the player is this close to the pickup that drops End Rubble (the trident), the pack slows down...")]
+    [Tooltip("Once the player is this close to the pickup that drops End Rubble (the trident), the pack slows down (it keeps coming)...")]
     [SerializeField] private float endSlowRadius = 12f;
     [Tooltip("...to this share of its speed by the time the player is at it.")]
-    [SerializeField, Range(0f, 1f)] private float endSlowSpeed = 0.3f;
-    [Tooltip("And once the player is past the rubble line, the pack will not cross it: it stays this far short of the rubble's middle (metres), so it is still behind the rubble when it falls.")]
+    [SerializeField, Range(0f, 1f)] private float endSlowSpeed = 0.45f;
+    [Tooltip("Once the trident is taken, the pack will not cross the rubble line while the rocks come down: it stays this far short of the rubble's middle (metres), and one already over it swims back behind it, so the rocks always fall between it and the player.")]
     [SerializeField] private float holdBehindRubble = 2f;
 
     [Header("Events")]
@@ -388,6 +388,7 @@ public class ChaseSequence : MonoBehaviour
             swimmer.LookLocked = true;
         }
         HidePrompt(true);
+        HideHeldThings();
         Camera eye = fearCamera != null ? fearCamera : Camera.main;
         float startFov = eye != null ? eye.fieldOfView : 60f;
         Vector3 focus = endRubble.LandingCentre;
@@ -414,6 +415,21 @@ public class ChaseSequence : MonoBehaviour
             yield return null;
         }
         EndCredits.Play();   // fades to black, then the credits; it holds the player from here
+    }
+
+    // Nothing in the hands for the ending: the trident has just been taken and is the weapon in your hand now, and with
+    // the view turned onto the rubble it filled half the screen.
+    private static void HideHeldThings()
+    {
+        foreach (HeldWeapon held in FindObjectsByType<HeldWeapon>(FindObjectsSortMode.None))
+            foreach (Renderer r in held.GetComponentsInChildren<Renderer>(true))
+                r.enabled = false;
+        foreach (HeldItemView view in FindObjectsByType<HeldItemView>(FindObjectsSortMode.None))
+            view.enabled = false;
+        Camera eye = Camera.main;
+        Transform item = eye != null ? eye.transform.Find("HeldItem") : null;
+        if (item != null)
+            item.gameObject.SetActive(false);
     }
 
     private IEnumerator CreditsLater()
@@ -655,28 +671,35 @@ public class ChaseSequence : MonoBehaviour
 
     // ---- while it runs --------------------------------------------------------------------------------------------
 
-    // Near the end the pack slows as the player closes on the trident, and once the player is over the rubble line it
-    // stays behind it (Chase Pufferfish Hold Behind), so taking the trident brings the rubble down between them.
+    // Near the end the pack slows as the player closes on the trident, but it keeps coming (it used to stop dead at the
+    // rubble line, waiting, which looked broken). The moment the trident is taken the roof starts to come down, and from
+    // then until the rocks are down the pack is held behind the rubble line (one already over it swims back, as if the
+    // rumble scared it off), so the rocks always fall between it and the player; once they are down the chase ends
+    // (End, from the rubble's On Dropped) and it scatters. It used to be let go the moment the trident was taken and
+    // reached the player before the first rock fell.
     private void HoldAtTheEnd()
     {
         PickupItem trident = endRubble != null ? endRubble.DropOnPickup : null;
-        if (trident == null || endRubble.Dropped || player == null)
+        if (trident == null || player == null || endRubble.Landed)
         {
             ReleaseHold();
             return;
         }
-        Vector3 playerAt = player.transform.position;
-        float toTrident = Vector3.Distance(playerAt, trident.transform.position);
-        float limit = Mathf.Lerp(endSlowSpeed, 1f, Mathf.InverseLerp(endSlowRadius * 0.3f, endSlowRadius, toTrident));
-
         Vector3 line = endRubble.Blocker != null ? endRubble.Blocker.transform.position : endRubble.transform.position;   // (its bounds are empty until it drops)
         Vector3 away = trident.transform.position - line;
         away.y = 0f;
-        bool past = away.sqrMagnitude > 0.01f && Vector3.Dot(playerAt - line, away) > 0f;
+        bool falling = endRubble.Dropped;
+        bool hold = falling && away.sqrMagnitude > 0.01f;
+        float limit = 1f;
+        if (!falling)
+        {
+            float toTrident = Vector3.Distance(player.transform.position, trident.transform.position);
+            limit = Mathf.Lerp(endSlowSpeed, 1f, Mathf.InverseLerp(endSlowRadius * 0.3f, endSlowRadius, toTrident));
+        }
         if (swarm != null)
         {
             swarm.SpeedLimit = limit;
-            if (past)
+            if (hold)
                 swarm.HoldBehind(line, away, holdBehindRubble);
             else
                 swarm.StopHolding();
@@ -686,7 +709,7 @@ public class ChaseSequence : MonoBehaviour
             if (fish == null)
                 continue;
             fish.SpeedLimit = limit;
-            if (past)
+            if (hold)
                 fish.HoldBehind(line, away, holdBehindRubble);
             else
                 fish.StopHolding();

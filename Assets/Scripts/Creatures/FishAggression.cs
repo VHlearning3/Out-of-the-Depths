@@ -27,6 +27,8 @@ public class FishAggression : MonoBehaviour
     private AudioClip lastAttackClip;
 
     public bool IsChasing { get; private set; }
+    // The moment it bites (its Fish Animator plays the attack).
+    public event System.Action Bit;
     // Every fish chasing the player right now (the HUD's direction indicators point at them).
     public static readonly System.Collections.Generic.List<FishAggression> Chasing = new System.Collections.Generic.List<FishAggression>();
 
@@ -104,6 +106,7 @@ public class FishAggression : MonoBehaviour
     {
         nextAttackTime = Time.time + attackCooldown;
         target.ApplyDamage(damage, transform.position);
+        Bit?.Invoke();
         AudioClip clip = PickAttackClip();
         if (clip != null)
             SoundVariety.PlayAt(clip, transform.position, attackVolume, Random.Range(attackPitch.x, attackPitch.y), attackMuffle);

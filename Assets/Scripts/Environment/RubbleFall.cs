@@ -16,9 +16,9 @@ public class RubbleFall : MonoBehaviour
     [SerializeField] private float dropHeight = 6f;
     [SerializeField] private float fallDuration = 0.55f;
     [Tooltip("Pause between rocks starting to fall.")]
-    [SerializeField] private float stagger = 0.09f;
+    [SerializeField] private float stagger = 0.035f;
     [Tooltip("Random extra pause per rock so they don't fall in a neat row.")]
-    [SerializeField] private float scatter = 0.15f;
+    [SerializeField] private float scatter = 0.05f;
     [Tooltip("Enabled when the first rock lands; sized over the whole pile it seals the gaps between rocks.")]
     [SerializeField] private Collider blocker;
     [Tooltip("Seconds between Drop() and the first rock falling: the rumble starts at once, the rocks after this (the Chase Sequence's ending turns the camera onto the rubble meanwhile, and sets it to its Rubble Look Seconds).")]
